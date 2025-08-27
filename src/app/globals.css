@@ -1,26 +1,54 @@
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@font-face {
+  font-family: 'FSElliotPro';
+  src: url('/fonts/FS-Elliot-ProLight.woff2') format('woff2');
+  font-weight: 300; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'FSElliotPro';
+  src: url('/fonts/FS-Elliot-ProRegular.woff2') format('woff2');
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'FSElliotPro';
+  src: url('/fonts/FS-Elliot-ProBold.woff2') format('woff2');
+  font-weight: 700; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'FSElliotPro';
+  src: url('/fonts/FS-Elliot-ProHeavy.woff2') format('woff2');
+  font-weight: 900; font-style: normal; font-display: swap;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+
+:root{
+  /* Brand palette from guidelines */
+  --R-900:#BD0016; --R-600:#FE0000; --R-400:#FF3838; --R-700a:#CE1429; --R-650a:#EA192E; --R-500a:#FF3250; --R-400a:#FF637B;
+  --B-950:#00156B; --B-900:#06218A; --B-500:#0055FF;
+  --S-800:#282F66; --S-600:#108ECB; --S-500:#07B5D8; --S-300:#98E5F5; --S-100:#CAF1F8;
+  --N-1000:#000000; --N-700:#373737; --N-500:#838486; --N-0:#FFFFFF;
+
+  /* default (neutral) */
+  --accent: var(--B-500);
+  --accent-foreground: var(--N-0);
+  --surface: var(--S-100);
+  --text: var(--N-1000);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+/* Role themes (data-role is set by client layouts) */
+[data-role="employee"]{ --accent: var(--B-500); --accent-foreground: var(--N-0); --surface: var(--S-100);}
+[data-role="supervisor"]{ --accent: var(--R-650a); --accent-foreground: var(--N-0); --surface: color-mix(in srgb, var(--R-400a) 12%, white);}
+[data-role="hr"]{ --accent: var(--B-950); --accent-foreground: var(--N-0); --surface: var(--S-100);}
+[data-role="chief"]{ --accent: var(--S-800); --accent-foreground: var(--N-0); --surface: var(--S-300);}
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
-}
+html, body, #__next { height: 100%; }
+body { @apply bg-white text-black; }
+
+/* Utilities */
+.btn { @apply inline-flex items-center justify-center rounded-xl px-4 py-2 font-medium transition-all disabled:opacity-60 disabled:cursor-not-allowed; }
+.btn-primary { background: var(--accent); color: var(--accent-foreground); }
+.card { @apply rounded-2xl bg-white shadow-md border border-gray-100; }
+.badge { @apply inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium; }

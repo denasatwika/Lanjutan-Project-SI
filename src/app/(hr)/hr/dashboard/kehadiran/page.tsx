@@ -1,0 +1,395 @@
+'use client'
+import { useEffect, useMemo, useState } from 'react'
+import { id as idLocale } from 'date-fns/locale/id'
+import { format } from 'date-fns'
+import { FileClock, Clock3, CalendarDays, PlusCircle, TrendingUp } from 'lucide-react'
+import Link from 'next/link'
+import { ReactNode } from 'react'
+
+function useNow(){
+  const [now, setNow] = useState(new Date())
+  useEffect(()=>{ const t = setInterval(()=> setNow(new Date()), 1000); return ()=> clearInterval(t) },[])
+  return now
+}
+
+// Mock data for early validation (front-end only)
+const MOCK_TODAY = [
+  { name: 'Alex Smith', time: '08:49', activity: 'Check-In' },
+  { name: 'Johnny Yes', time: '08:45', activity: 'Check-In' },
+  { name: 'Kenny No', time: '08:43', activity: 'Check-In' },
+  { name: 'Chandra liak', time: '08:42', activity: 'Check-In' },
+  { name: 'Glent arnold', time: '08:40', activity: 'Check-In' },
+]
+
+const MOCK_ABSENT = [
+  { name: 'Alex Smith', reason: 'Izin' },
+  { name: 'Johnny Yes', reason: '-' },
+  { name: 'Kenny No', reason: '-' },
+  { name: 'Chandra liak', reason: '-' },
+]
+
+const MOCK_WEEK = [
+  { label: 'Sen', present: 26, absent: 4 },
+  { label: 'Sel', present: 24, absent: 2 },
+  { label: 'Rab', present: 25, absent: 3 },
+  { label: 'Kam', present: 27, absent: 1 },
+  { label: 'Jum', present: 28, absent: 0 },
+]
+
+const APPROVAL_PATH = '/hr/approval'
+
+export default function HRDashboard(){
+  const now = useNow()
+  const present = 26; const absent = 4; const total = present + absent
+  const percent = Math.round((present/total)*100)
+
+  return (
+  <div className="space-y-4">
+    {/* 12-col canvas */}
+    <div className="grid grid-cols-12 gap-4">
+      {/* LEFT HALF (xl: 8/12) — stats + chart */}
+      <div className="col-span-12 xl:col-span-8 space-y-4">
+        {/* Top stat cards (2x2) — only half screen on xl */}
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
+          <StatCard
+            title="Permintaan Izin"
+            icon={<FileClock className="text-amber-500" />}
+            value={9}
+            subtitle="Menunggu Persetujuan anda"
+            href={`${APPROVAL_PATH}?type=leave&tab=mine`}  // <-- Izin/Cuti
+          />
+
+          <StatCard
+            title="Permintaan Lembur"
+            icon={<Clock3 className="text-green-600" />}
+            value={12}
+            subtitle="Menunggu Persetujuan anda"
+            href={`${APPROVAL_PATH}?type=overtime&tab=mine`} // <-- Lembur
+          />
+
+          <StatCard
+            title="Permintaan Cuti"
+            icon={<CalendarDays className="text-[var(--B-600)]" />}
+            value={3}
+            subtitle="Menunggu Persetujuan anda"
+            href={`${APPROVAL_PATH}?type=leave&tab=mine`}
+          />
+
+          <StatCard
+            title="Sakit"
+            icon={<PlusCircle className="text-rose-500" />}
+            value={1}
+            subtitle="Menunggu Persetujuan anda"
+            href={`${APPROVAL_PATH}?type=leave&tab=mine`}
+          />
+        </div>
+
+        {/* Big chart below the stats */}
+        <div className="card p-4">
+          <div className="flex items-center justify-between">
+            <h3 className="font-bold text-lg">Kehadiran Minggu Ini</h3>
+            <TrendingUp className="text-green-600" />
+          </div>
+          <BarChart data={MOCK_WEEK} />
+        </div>
+      </div>
+
+      {/* RIGHT RAIL (xl: 4/12) — date card on TOP, then other widgets */}
+      <div className="col-span-12 xl:col-span-4 space-y-4">
+        {/* Date (Blue) — pinned to top-right */}
+        <div className="rounded-2xl p-4 text-white" style={{ background: 'var(--B-900)' }}>
+          <div className="text-sm opacity-90">
+            {format(now, 'EEEE, d MMMM yyyy', { locale: idLocale })}
+          </div>
+          <div className="text-2xl font-extrabold mt-1">{format(now, 'HH:mm:ss')}</div>
+        </div>
+
+        {/* Hari Ini donut */}
+        <div className="card p-4">
+          <div className="flex items-center justify-between">
+            <h4 className="font-bold">Hari Ini</h4>
+            <div className="size-9 rounded-full bg-gray-100 grid place-items-center">
+              <div className="size-6 rounded-full bg-gray-300" />
+            </div>
+          </div>
+
+          <div className="mt-4 grid grid-cols-2 gap-3">
+            <Donut
+              percent={percent}                 // e.g., 87
+              size={128}
+              thickness={18}
+              presentColor="#00156B"            // Navy
+              absentColor="#C1121F"             // Red
+              labelTop={`${percent}%`}
+              labelBottom="Hadir"
+            />
+            <div className="space-y-2 self-center">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#00156B] text-white text-sm font-semibold shadow-sm">
+                Hadir: {present}
+              </div>
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#C1121F] text-white text-sm font-semibold shadow-sm">
+                Absen: {absent}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Kehadiran Hari ini table */}
+        <div className="card p-0 overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3">
+            <h4 className="font-bold">Kehadiran Hari ini</h4>
+            <div className="size-7 rounded-md bg-[var(--B-50)] grid place-items-center text-[var(--B-700)]">≡</div>
+          </div>
+          <Table head={['Nama', 'Jam', 'Kegiatan']} rows={MOCK_TODAY.map(r => [r.name, r.time, r.activity])} />
+        </div>
+
+        {/* Absen table */}
+        <div className="card p-0 overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3">
+            <h4 className="font-bold">Absen</h4>
+            <div className="size-7 rounded-full bg-rose-100 grid place-items-center text-rose-600">×</div>
+          </div>
+          <Table head={['Nama', 'Alasan']} rows={MOCK_ABSENT.map(r => [r.name, r.reason])} />
+        </div>
+      </div>
+    </div>
+  </div>
+)
+}
+
+type Props = {
+  title: string
+  icon: ReactNode
+  value: number
+  subtitle: string
+  /** Optional link target (e.g. "/hr/approval?type=leave&tab=mine") */
+  href?: string
+}
+
+function StatCard({ title, icon, value, subtitle, href }: Props) {
+  const Card = (
+    <div className="card p-4 hover:shadow-lg transition-shadow cursor-pointer">
+      <div className="flex items-center justify-between">
+        <h4 className="font-bold">{title}</h4>
+        <div className="size-8 grid place-items-center rounded-full bg-gray-50">{icon}</div>
+      </div>
+      <div className="mt-1 text-3xl font-extrabold">{value}</div>
+      <div className="text-sm text-gray-500">{subtitle}</div>
+    </div>
+  )
+
+  return href ? <Link href={href} className="block">{Card}</Link> : Card
+}
+
+function Donut({
+  percent,
+  size = 120,
+  thickness = 16,
+  presentColor = '#00156B',
+  absentColor = '#C1121F',
+  labelTop,
+  labelBottom,
+}: {
+  percent: number
+  size?: number
+  thickness?: number
+  presentColor?: string
+  absentColor?: string
+  labelTop?: string
+  labelBottom?: string
+}) {
+  const clamped = Math.max(0, Math.min(100, percent))
+  const absentPct = 100 - clamped
+
+  const r = (size - thickness) / 2
+  const c = size / 2
+  const circumference = 2 * Math.PI * r
+  const absentLen = (absentPct / 100) * circumference
+
+  return (
+    <div className="relative" style={{ width: size, height: size }}>
+      <svg width={size} height={size} role="img" aria-label={`Hadir ${clamped}%`}>
+        {/* Base (present) ring */}
+        <circle
+          cx={c}
+          cy={c}
+          r={r}
+          fill="none"
+          stroke={presentColor}
+          strokeWidth={thickness}
+          strokeLinecap="butt"
+        />
+        {/* Absent wedge drawn over the base */}
+        <circle
+          cx={c}
+          cy={c}
+          r={r}
+          fill="none"
+          stroke={absentColor}
+          strokeWidth={thickness}
+          strokeLinecap="butt"
+          strokeDasharray={`${absentLen} ${circumference}`}
+          strokeDashoffset={0}
+          transform={`rotate(-90 ${c} ${c})`} // start at 12 o'clock
+        />
+      </svg>
+
+      {/* Center label */}
+      <div className="absolute inset-0 grid place-items-center">
+        <div className="text-center leading-tight">
+          {labelTop && <div className="text-lg font-extrabold">{labelTop}</div>}
+          {labelBottom && <div className="text-xs font-semibold text-gray-900">{labelBottom}</div>}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+
+function BarChart({
+  data,
+  height = 450,
+  barWidth = 72,
+  gap = 38,
+  // force navy with a fallback in case the CSS var isn't set
+  presentColor = 'var(--B-800, #00156B)',
+  absentColor = '#C1121F',
+  showLegend = true,
+  absentAtBottom = false, // set true if you want red at the bottom
+}: {
+  data: { label: string; present: number; absent: number }[]
+  height?: number
+  barWidth?: number
+  gap?: number
+  presentColor?: string
+  absentColor?: string
+  showLegend?: boolean
+  absentAtBottom?: boolean
+}) {
+  const padLeft = 36
+  const padRight = 20
+  const padTop = 10
+  const padBottom = 40
+
+  const n = data.length
+  const vbWidth = padLeft + padRight + n * barWidth + (n - 1) * gap
+  const vbHeight = height
+  const chartBottom = vbHeight - padBottom
+  const chartTop = padTop
+  const chartHeight = chartBottom - chartTop
+
+  const maxTotal = Math.max(1, ...data.map(d => d.present + d.absent))
+  const toH = (v: number) => (v / maxTotal) * chartHeight
+
+  // grid lines
+  const ticks = 4
+  const gridYs = Array.from({ length: ticks + 1 }, (_, i) => chartBottom - (i / ticks) * chartHeight)
+  const gridVals = Array.from({ length: ticks + 1 }, (_, i) => Math.round((i / ticks) * maxTotal))
+
+  return (
+    <div className="w-full overflow-x-auto">
+      {showLegend && (
+        <div className="flex items-center gap-4 text-sm mb-2">
+          <span className="inline-flex items-center gap-2">
+            <i className="inline-block w-3 h-3 rounded-sm" style={{ background: presentColor }} /> Hadir
+          </span>
+        </div>
+      )}
+
+      <svg
+        viewBox={`0 0 ${vbWidth} ${vbHeight}`}
+        width="100%"
+        height={height}
+        role="img"
+        aria-label="Kehadiran Minggu Ini"
+      >
+        {/* grid */}
+        {gridYs.map((y, i) => (
+          <g key={`g-${i}`}>
+            <line x1={padLeft} x2={vbWidth - padRight} y1={y} y2={y} stroke="#e5e7eb" strokeWidth="1" />
+            <text x={padLeft - 8} y={y} textAnchor="end" dominantBaseline="central" fontSize="10" fill="#9ca3af">
+              {gridVals[i]}
+            </text>
+          </g>
+        ))}
+
+        {/* bars */}
+        {data.map((d, i) => {
+          const x = padLeft + i * (barWidth + gap)
+          const hPresent = toH(d.present)
+          const hAbsent = toH(d.absent)
+          const baseY = chartBottom
+
+          // choose stacking order
+          const parts = absentAtBottom
+            ? [
+                { h: hAbsent, fill: absentColor },
+              ]
+            : [
+                { h: hPresent, fill: presentColor },
+              ]
+
+          let yCursor = baseY
+          return (
+            <g key={d.label}>
+              {parts.map((p, idx) => {
+                const y = yCursor - p.h
+                yCursor = y
+                return (
+                  <rect
+                    key={idx}
+                    x={x}
+                    y={y}
+                    width={barWidth}
+                    height={p.h}
+                    fill={p.fill}
+                    rx={6}
+                    // ensure no black stroke/border
+                    stroke="none"
+                  />
+                )
+              })}
+
+              {/* tooltip */}
+              <title>
+                {d.label}
+                {`\nHadir: ${d.present}`}
+                {`\nAbsen: ${d.absent}`}
+                {`\nTotal: ${d.present + d.absent}`}
+              </title>
+
+              {/* day label */}
+              <text x={x + barWidth / 2} y={baseY + 18} fontSize="11" textAnchor="middle" fill="#111827">
+                {d.label}
+              </text>
+            </g>
+          )
+        })}
+      </svg>
+    </div>
+  )
+}
+
+function Table({ head, rows }:{ head:string[]; rows:(string|number)[][] }){
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead className="bg-[var(--B-50)] text-[var(--B-900)]">
+          <tr>
+            {head.map((h,i)=> (
+              <th key={i} className={"px-4 py-2 text-left "+(i===head.length-1?'text-right':'')}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r,idx)=> (
+            <tr key={idx} className="border-t">
+              {r.map((c,i)=> (
+                <td key={i} className={"px-4 py-2 "+(i===head.length-1?'text-right':'')}>{c}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )}
