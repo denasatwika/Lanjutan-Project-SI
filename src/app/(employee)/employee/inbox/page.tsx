@@ -89,7 +89,13 @@ export default function InboxPage() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Inbox" backHref="/employee/dashboard" />
+      <PageHeader
+        title="Inbox"
+        backHref="/employee/dashboard"
+        fullBleed
+        bleedMobileOnly    // <-- key line
+        pullUpPx={24}      // cancels AppShell pt-6
+      />
 
       {/* Filters */}
       <div className="flex items-center gap-2">

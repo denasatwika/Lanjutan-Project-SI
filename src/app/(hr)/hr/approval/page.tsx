@@ -1,8 +1,7 @@
 // app/(hr)/hr/persetujuan/page.tsx
 'use client'
 
-import { useMemo, useState, useEffect } from 'react'
-import { useSearchParams, useRouter } from 'next/navigation'
+import { useMemo, useState } from 'react'
 import { useAuth } from '@/lib/state/auth'
 import { useRequests } from '@/lib/state/requests'
 import { PageHeader } from '@/components/PageHeader'
@@ -54,47 +53,20 @@ function fTypeLabel(t: 'leave' | 'overtime', payload: any) {
 }
 const isDone = (status: string) => status === 'approved' || status === 'rejected'
 
-function normalizeType(t: string | null): TypeFilter {
-  const v = (t ?? '').toLowerCase()
-  if (['izin', 'leave', 'cuti', 'sakit'].includes(v)) return 'leave'
-  if (['lembur', 'overtime'].includes(v)) return 'overtime'
-  return 'all'
-}
-
 export default function HRApprovalPage() {
   const me = useAuth((s) => s.user)!
-  const sp = useSearchParams()
-  const router = useRouter()
-
   const requests = useRequests((s) => s.items) as Req[]
+
   // Enrich: join userId -> user
   const list = useMemo(
     () => requests.map((r) => ({ ...r, user: PEOPLE[r.userId] })),
     [requests]
   )
 
-  // Init from URL
-  const [typeFilter, setTypeFilter] = useState<TypeFilter>(() => normalizeType(sp.get('type')))
-  const [tab, setTab] = useState<TabKey>(() => {
-    const t = (sp.get('tab') || 'mine').toLowerCase()
-    return (['mine','others','done','all'].includes(t) ? t : 'mine') as TabKey
-  })
+  // === FILTER STATE (tanpa ubah URL => bebas 404) ===
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>('all')
+  const [tab, setTab] = useState<TabKey>('mine')
   const [q, setQ] = useState('')
-
-  // Keep state in sync with URL when it changes
-  useEffect(() => {
-    setTypeFilter(normalizeType(sp.get('type')))
-    const t = (sp.get('tab') || 'mine').toLowerCase()
-    setTab((['mine','others','done','all'].includes(t) ? t : 'mine') as TabKey)
-  }, [sp])
-
-  // Helper to update the URL without scroll
-  function setQuery(next: Partial<{ type: TypeFilter; tab: TabKey }>) {
-    const p = new URLSearchParams(sp.toString())
-    if (next.type) p.set('type', next.type)
-    if (next.tab) p.set('tab', next.tab)
-    router.replace(`/hr/persetujuan?${p.toString()}`, { scroll: false })
-  }
 
   // Buckets (pending mine/others + done/all)
   const buckets = useMemo(() => {
@@ -143,28 +115,28 @@ export default function HRApprovalPage() {
         {/* Filters bar */}
         <div className="rounded-2xl bg-[#EFF4FF]/60 border p-2 flex flex-wrap items-center gap-2">
           {/* Tabs */}
-          <TabButton active={tab === 'mine'}   onClick={() => { setTab('mine');   setQuery({ tab: 'mine' }) }}   label="Menunggu Persetujuan Saya"  count={counts.mine} />
-          <TabButton active={tab === 'others'} onClick={() => { setTab('others'); setQuery({ tab: 'others' }) }} label="Menunggu Persetujuan Lain" count={counts.others} />
-          <TabButton active={tab === 'done'}   onClick={() => { setTab('done');   setQuery({ tab: 'done' }) }}   label="Selesai"                    count={counts.done} />
-          <TabButton active={tab === 'all'}    onClick={() => { setTab('all');    setQuery({ tab: 'all' }) }}    label="Semua"                      count={counts.all} />
+          <TabButton active={tab === 'mine'}   onClick={() => setTab('mine')}   label="Menunggu Persetujuan Saya"  count={counts.mine} />
+          <TabButton active={tab === 'others'} onClick={() => setTab('others')} label="Menunggu Persetujuan Lain" count={counts.others} />
+          <TabButton active={tab === 'done'}   onClick={() => setTab('done')}   label="Selesai"                    count={counts.done} />
+          <TabButton active={tab === 'all'}    onClick={() => setTab('all')}    label="Semua"                      count={counts.all} />
 
           {/* Type filter pills */}
           <div className="flex items-center gap-2 ml-auto">
             <TypePill
               active={typeFilter === 'all'}
-              onClick={() => { setTypeFilter('all'); setQuery({ type: 'all' }) }}
+              onClick={() => setTypeFilter('all')}
             >
               Semua
             </TypePill>
             <TypePill
               active={typeFilter === 'leave'}
-              onClick={() => { setTypeFilter('leave'); setQuery({ type: 'leave' }) }}
+              onClick={() => setTypeFilter('leave')}
             >
               Izin/Cuti
             </TypePill>
             <TypePill
               active={typeFilter === 'overtime'}
-              onClick={() => { setTypeFilter('overtime'); setQuery({ type: 'overtime' }) }}
+              onClick={() => setTypeFilter('overtime')}
             >
               Lembur
             </TypePill>
@@ -352,8 +324,8 @@ function ReviewModal({
           <Row label="Departemen" value={req.user?.department ?? '—'} />
           <Row label="Jenis"      value={jenis} />
           <Row label="Periode"    value={period} />
-          {req.payload?.reason && <Row label="Alasan"   value={req.payload.reason} />}
-          {req.payload?.kpi    && <Row label="Skor KPI" value={req.payload.kpi} />}
+          {req.payload?.reason && <Row label="Alasan"   value={req.payload?.reason} />}
+          {req.payload?.kpi    && <Row label="Skor KPI" value={req.payload?.kpi} />}
           <Row label="Status saat ini" value={<StatusBadge status={badgeStatus} />} />
         </div>
 

@@ -9,6 +9,7 @@ import { id as idLocale } from 'date-fns/locale/id'
 import Link from 'next/link'
 import { CalendarDays, Clock, TrendingUp, Zap, Info } from 'lucide-react'
 import { toast } from 'sonner'
+import { BottomSheet } from '@/components/ui/bottomSheet'
 
 function useLiveClock(){
   const [now, setNow] = useState(new Date())
@@ -29,6 +30,40 @@ export default function Page(){
   const firstName = useMemo(()=> user.name.split(' ')[0], [user.name])
   const initial = firstName.charAt(0).toUpperCase()
 
+  function dayISO(d: Date){ const x = new Date(d); x.setHours(0,0,0,0); return x.toISOString() }
+const descKey = (userId: string, iso: string) => `desc:${userId}:${iso}`
+
+const [sheetOpen, setSheetOpen] = useState(false)
+const [selectedDay, setSelectedDay] = useState<Date | null>(null)
+const [desc, setDesc] = useState('')
+
+// Open sheet for a given day
+function openDaySheet(day: Date){
+  setSelectedDay(day)
+  setSheetOpen(true)
+}
+
+// Load existing description when sheet opens
+useEffect(() => {
+  if (!sheetOpen || !selectedDay) return
+  try {
+    const raw = localStorage.getItem(descKey(user.id, dayISO(selectedDay)))
+    setDesc(raw ?? '')
+  } catch { setDesc('') }
+}, [sheetOpen, selectedDay, user.id])
+
+function saveDesc(){
+  if (!selectedDay) return
+  localStorage.setItem(descKey(user.id, dayISO(selectedDay)), (desc ?? '').trim())
+  setSheetOpen(false)
+}
+
+function getDescPreview(day: Date){
+  try {
+    const raw = localStorage.getItem(descKey(user.id, dayISO(day))) ?? ''
+    return raw
+  } catch { return '' }
+}
   // Build last 7 days (today first)
   const days = useMemo(()=>{
     const out: { date: Date; checkIn?: Date; checkOut?: Date }[] = []
@@ -50,7 +85,10 @@ export default function Page(){
   const today = useMemo(()=>{
     const start = new Date(); start.setHours(0,0,0,0)
     const end = new Date(start); end.setDate(start.getDate()+1)
-    const records = att.map(a=> new Date(a.checkInAt)).filter(ts=> ts>=start && ts<end).sort((a,b)=> a.getTime()-b.getTime())
+    const records = att
+      .map(a=> new Date(a.checkInAt))
+      .filter(ts=> ts>=start && ts<end)
+      .sort((a,b)=> a.getTime()-b.getTime())
     const checkIn = records[0]
     const checkOut = records.length>1 ? records[records.length-1] : undefined
     const working = records.length % 2 === 1
@@ -72,6 +110,10 @@ export default function Page(){
     return set.size
   },[att])
 
+  // NEW: dynamic CTA label (logic stays the same as your old storage model)
+  const isWorking = today.working
+  const ctaLabel = isWorking ? 'Check-Out' : 'Check-In'
+
   return (
     <div className="space-y-5">
       {/* Welcome */}
@@ -87,7 +129,6 @@ export default function Page(){
           Selamat datang, {firstName}!
         </h1>
       </section>
-
 
       {/* Date + Clock card */}
       <section className="card p-4 flex items-center justify-between">
@@ -146,27 +187,37 @@ export default function Page(){
           <div className="text-gray-500">Check-In<br/><span className="text-[--S-800] font-semibold">{timeHHmm(today.checkIn)}</span></div>
           <div className="text-right text-gray-500">Check-Out<br/><span className="text-[--S-800] font-semibold">{timeHHmm(today.checkOut)}</span></div>
         </div>
+
+        {/* Button opens the same sheet as before. We still ADD a record for both IN and OUT,
+            so your "last & first of day" logic continues to work exactly like before. */}
         <button
           onClick={() => setShowCheckIn(true)}
           className="btn mt-4 text-white"
           style={{ background: '#16A34A' }}
         >
-          Check-In
+          {ctaLabel}
         </button>
 
-        {/* Bottom-sheet check-in; uses your CameraCapture + /api/upload under the hood */}
+        {/* Bottom-sheet; same storage semantics as your original code */}
         <CheckInSheet
           open={showCheckIn}
           onClose={() => setShowCheckIn(false)}
           onStored={(p) => {
-            // Persist to attendance store (choose whichever action your store provides)
             const api = (useAttendance as any).getState?.()
             if (api?.add) {
-              api.add({ id: crypto.randomUUID(), userId: user.id, checkInAt: new Date().toISOString(), photo: p?.filename ?? p?.url })
+              // IMPORTANT: We still write a NEW record for BOTH check-in and check-out.
+              // This preserves your original "first = in, last = out" behavior.
+              api.add({
+                id: crypto.randomUUID(),
+                userId: user.id,
+                checkInAt: new Date().toISOString(),
+                photo: p?.filename ?? p?.url
+              })
             } else if (api?.checkIn) {
-              api.checkIn(user.id)
+              // Fallback if your store exposes a checkIn method only; call it twice for out.
+              api.checkIn(user.id) // same effect: add another timestamp entry
             }
-            toast.success('Check-In berhasil')
+            toast.success(`${ctaLabel} berhasil`)
           }}
         />
       </section>
@@ -179,21 +230,27 @@ export default function Page(){
             const statusText = present ? 'Hadir' : 'Absen'
             const dot = present ? 'bg-green-500' : 'bg-rose-500'
             const statusColor = present ? 'text-green-600' : 'text-rose-600'
+            const preview = getDescPreview(date)
 
             return (
               <div key={date.toISOString()} className={idx !== days.length - 1 ? 'p-4 md:p-5 border-b' : 'p-4 md:p-5'}>
                 <div className="flex items-start justify-between gap-3">
-                  {/* Left: date + time range */}
+                  {/* Left: date + time range + (optional) description preview */}
                   <div>
                     <div className="font text-lg md:text-xl">
                       {formatDateLongID(date)}
                     </div>
-                    <div className="mt-2 text-base md:text-lg font-medium">
+                    <div className="mt-1 text-base md:text-lg font-medium">
                       {timeHHmm(checkIn)} – {timeHHmm(checkOut)}
                     </div>
+                    {preview && (
+                      <p className="mt-2 text-sm text-gray-600 leading-6 line-clamp-2">
+                        {preview}
+                      </p>
+                    )}
                   </div>
 
-                  {/* Right: status + info button */}
+                  {/* Right: status + edit button */}
                   <div className="flex items-center gap-3">
                     <div className={`inline-flex items-center gap-2 ${statusColor} font-semibold`}>
                       <span className={`inline-block size-2 rounded-full ${dot}`} />
@@ -201,8 +258,9 @@ export default function Page(){
                     </div>
                     <button
                       type="button"
-                      className="grid place-items-center size-9 rounded-full border border-black/80 text-black"
-                      title="Detail"
+                      onClick={() => openDaySheet(date)}
+                      className="grid place-items-center size-9 rounded-full border border-black/80 text-black hover:bg-black/5"
+                      title="Tambah / Edit keterangan"
                     >
                       <Info className="size-5" />
                     </button>
@@ -212,7 +270,50 @@ export default function Page(){
             )
           })}
         </div>
-    </section>
+      </section>
+
+      <BottomSheet open={sheetOpen} onClose={() => setSheetOpen(false)} className="max-h-[90dvh]">
+  {selectedDay && (
+    <div className="space-y-3">
+      <div
+        className="mx-auto w-max rounded-2xl px-4 py-2 text-center text-white shadow-md"
+        style={{ background: 'var(--B-900)' }}
+      >
+        <div className="text-sm font-semibold">
+          {formatDateLongID(selectedDay)}
+        </div>
+      </div>
+
+      <div className="rounded-2xl border p-3">
+        <h3 className="font-semibold mb-2 text-[15px]">Keterangan Hari Ini</h3>
+        <textarea
+          value={desc}
+          onChange={(e)=> setDesc(e.target.value)}
+          rows={4}
+          placeholder="Contoh: Weekly meeting, review dokumen, implementasi fitur X."
+          className="w-full rounded-xl border px-3 py-2 text-[14px]"
+        />
+        <div className="mt-2 flex items-center justify-end gap-2">
+          <button
+            onClick={() => setDesc('')}
+            className="rounded-xl border px-3 py-1.5 text-[13px]"
+          >
+            Kosongkan
+          </button>
+          <button
+            onClick={saveDesc}
+            className="rounded-xl px-3 py-1.5 text-white text-[13px] font-semibold shadow-md"
+            style={{ background: '#16A34A' }}
+          >
+            Simpan
+          </button>
+        </div>
+      </div>
+    </div>
+  )}
+</BottomSheet>
+
+
     </div>
   )
 }

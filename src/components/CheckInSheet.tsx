@@ -5,11 +5,14 @@ import { BottomSheet } from '@/components/ui/bottomSheet'
 import { CameraCapture } from '@/components/CameraCapture'
 import { Camera, RotateCw } from 'lucide-react'
 
+type Mode = 'in' | 'out'
+
 type Props = {
   open: boolean
   onClose: () => void
   /** Called after a successful upload so you can write to your store */
   onStored?: (payload: { filename?: string; url?: string }) => void
+  mode?: Mode // default: 'in'
 }
 
 function useNow() {
@@ -21,7 +24,7 @@ function useNow() {
   return now
 }
 
-export default function CheckInSheet({ open, onClose, onStored }: Props) {
+export default function CheckInSheet({ open, onClose, onStored, mode = 'in' }: Props) {
   const now = useNow()
   const [preview, setPreview] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -58,12 +61,12 @@ export default function CheckInSheet({ open, onClose, onStored }: Props) {
 
   return (
     <BottomSheet open={open} onClose={onClose} className="max-h-[90dvh]">
-      {/* Date pill (brand blue) */}
+      {/* Date pill */}
       <div className="mx-auto w-max rounded-2xl px-4 py-2 text-center text-white shadow-md" style={{ background: 'var(--B-900)' }}>
-        <div className="text-sm font-semibold">
+        <div className="text-md font-semibold">
           {now.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
         </div>
-        <div className="text-lg font-extrabold -mt-0.5">{now.toLocaleTimeString('id-ID', { hour12: false })}</div>
+        <div className="text-xl font-extrabold -mt-0.5">{now.toLocaleTimeString('id-ID', { hour12: false })}</div>
       </div>
 
       {/* Camera */}
@@ -95,7 +98,7 @@ export default function CheckInSheet({ open, onClose, onStored }: Props) {
           className="inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-white font-semibold shadow-md disabled:opacity-60"
           style={{ background: '#16A34A' }}
         >
-          <Camera size={16} /> {busy ? 'Menyimpan...' : 'Simpan Check-In'}
+          <Camera size={16} /> {busy ? 'Menyimpan...' : (mode === 'in' ? 'Simpan Check-In' : 'Simpan Check-Out')}
         </button>
       </div>
 

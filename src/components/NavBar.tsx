@@ -41,6 +41,7 @@ const mobileItemsByRole: Record<
   chief: [
     { href: '/chief/dashboard', label: 'Dashboard', icon: Home },
     { href: '/chief/approval', label: 'Approval', icon: ClipboardCheck },
+    { href: '/chief/history', label: 'History', icon: HistoryIcon }
   ],
   // keep hr minimal; add/trim as you like
   hr: [
@@ -89,7 +90,11 @@ const sidebarByRole: Record<Role, SidebarItem[]> = {
     { kind: 'link', href: '/supervisor/dashboard', label: 'Dashboard', icon: Home },
     { kind: 'link', href: '/supervisor/review', label: 'Review', icon: ClipboardList },
   ],
-  chief: [{ kind: 'link', href: '/chief/dashboard', label: 'Dashboard', icon: Home }],
+  chief: [
+    { kind: 'link', href: '/chief/dashboard', label: 'Dashboard', icon: Home },
+    { kind: 'link', href: '/chief/approval', label: 'Approval', icon: ClipboardCheck },
+    { kind: 'link', href: '/chief/history', label: 'History', icon: HistoryIcon }
+  ],
 }
 
 export function NavBar({ role }: { role: Role }) {

@@ -19,7 +19,19 @@ type PageHeaderProps = {
   style?: CSSProperties
   rounded?: boolean
   position?: PositionMode
+  /** Offset for sticky/fixed top (defaults to -10 to tuck under rounded corners) */
   topOffsetPx?: number
+
+  /** Make the header bleed edge-to-edge across the viewport */
+  fullBleed?: boolean
+  /**
+   * NEW: When true, full-bleed applies only on mobile (below md).
+   * At md+ the header stays inside the main column (so it won’t overlap the sidebar).
+   */
+  bleedMobileOnly?: boolean
+
+  /** Pull up by N pixels to cancel parent top padding (e.g., 24 for pt-6) */
+  pullUpPx?: number
 }
 
 export function PageHeader({
@@ -33,7 +45,11 @@ export function PageHeader({
   style,
   rounded = true,
   position = 'sticky',
-  topOffsetPx = -10, // ⬅ default offset here
+  topOffsetPx = -10,
+
+  fullBleed = false,
+  bleedMobileOnly = false,
+  pullUpPx = 0,
 }: PageHeaderProps) {
   const background = gradient ?? bg
 
@@ -52,10 +68,31 @@ export function PageHeader({
     return () => window.removeEventListener('resize', measure)
   }, [])
 
+  // For fixed headers, don’t force left/right when using bleed math.
   const posCls =
-    position === 'fixed' ? 'fixed left-0 right-0 z-50' : 'sticky z-50'
+    position === 'fixed'
+      ? (fullBleed || bleedMobileOnly ? 'fixed z-50' : 'fixed left-0 right-0 z-50')
+      : 'sticky z-50'
 
   const topStyle: CSSProperties = { top: topOffsetPx }
+  const pullUpStyle: CSSProperties = pullUpPx ? { marginTop: -pullUpPx } : {}
+
+  const useBleed = fullBleed || bleedMobileOnly
+
+  // Full-bleed without 0.5px seams; overscan by 2px. Cancel at md+ if mobileOnly.
+  const bleedCls = useBleed
+    ? cn(
+        'relative overflow-x-clip left-1/2 -translate-x-1/2 w-[calc(100dvw+2px)]',
+        bleedMobileOnly && 'md:left-auto md:translate-x-0 md:w-auto'
+      )
+    : ''
+
+  // Inner padding: safe-area on mobile when bleeding; normal px-5 at md+
+  const innerPadCls = useBleed
+    ? (bleedMobileOnly
+        ? 'pl-[max(env(safe-area-inset-left),1.25rem)] pr-[max(env(safe-area-inset-right),1.25rem)] md:px-5'
+        : 'pl-[max(env(safe-area-inset-left),1.25rem)] pr-[max(env(safe-area-inset-right),1.25rem)]')
+    : 'px-5'
 
   return (
     <>
@@ -64,13 +101,14 @@ export function PageHeader({
         className={cn(
           'overflow-hidden text-white',
           posCls,
+          bleedCls,
           rounded && 'rounded-b-[28px]',
-          className,
-          'shadow-sm'
+          'shadow-sm',
+          className
         )}
-        style={{ background, ...topStyle, ...style }}
+        style={{ background, ...topStyle, ...pullUpStyle, ...style }}
       >
-        <div className="max-w-6xl mx-auto px-5 py-5 flex items-center gap-2">
+        <div className={cn('max-w-6xl mx-auto py-5 flex items-center gap-2', innerPadCls)}>
           {backHref !== false && (
             <Link href={backHref} className="-ml-1 p-2 rounded-full hover:bg-white/10">
               <ChevronLeft className="size-6" />
@@ -86,6 +124,7 @@ export function PageHeader({
         </div>
       </section>
 
+      {/* Spacer for fixed headers so content below isn't covered */}
       {position === 'fixed' ? <div style={{ height: measuredH }} /> : null}
     </>
   )

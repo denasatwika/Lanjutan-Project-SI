@@ -81,7 +81,13 @@ export default function ProfilPage() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Profil" backHref="/employee/dashboard" />
+      <PageHeader
+        title="Profil"
+        backHref="/employee/dashboard"
+        fullBleed
+        bleedMobileOnly    // <-- key line
+        pullUpPx={24}      // cancels AppShell pt-6
+      />
 
       {/* Identity card */}
       <section className="card p-4">

@@ -8,7 +8,7 @@ import { useAuth } from '@/lib/state/auth'
 import { useRequests } from '@/lib/state/requests'
 import { format } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale/id'
-import { ChevronLeft, FileText, Clock3, Check, CircleAlert } from 'lucide-react'
+import { ChevronLeft, FileText, Clock3, Check, CircleAlert, ChevronRight } from 'lucide-react'
 import type { Request } from '@/lib/types'
 import { PageHeader } from '@/components/PageHeader'
 
@@ -53,7 +53,9 @@ export default function IzinPage(){
       <PageHeader
         title="Izin"
         backHref="/employee/dashboard"
-        gradient="linear-gradient(135deg, var(--B-950) 0%, var(--S-800) 100%)"
+        fullBleed
+        bleedMobileOnly    // <-- key line
+        pullUpPx={24}      // cancels AppShell pt-6
       />
 
       <div className="max-w-6xl mx-auto px-5">
@@ -73,16 +75,18 @@ export default function IzinPage(){
         <h3 className="text-2xl font-extrabold mt-6 mb-3">Pengajuan</h3>
         <div className="grid grid-cols-2 gap-4">
           <ActionCard
-            icon={<FileText className="size-5 text-amber-500"/>}
-            title="Pengajuan Izin"
-            desc="Ajukan izin menggunakan token yang dimiliki"
+            icon={<FileText className="size-5 text-amber-600" />}
+            title="Ajukan Izin"
+            desc="Pakai token izinmu."
             href="/employee/forms/leave"
+            bgColor="bg-[#F7DDB7]"   // izin → soft yellow
           />
           <ActionCard
-            icon={<Clock3 className="size-5 text-green-500"/>}
-            title="Pengajuan Lembur"
-            desc="Ajukan Lembur untuk mendapatkan token"
+            icon={<Clock3 className="size-5 text-green-600" />}
+            title="Ajukan Lembur"
+            desc="Klaim token lembur."
             href="/employee/forms/overtime"
+            bgColor="bg-[#DCFCE7]"   // lembur → soft green
           />
         </div>
 
@@ -133,12 +137,36 @@ function TokenTile({ label, value, color }:{ label:string; value:number; color:s
   )
 }
 
-function ActionCard({ icon, title, desc, href }:{ icon: React.ReactNode; title:string; desc:string; href:string }){
+type ActionCardProps = {
+  icon: React.ReactNode
+  title: string
+  desc: string
+  href: string
+  className?: string
+  bgColor?: string
+}
+
+function ActionCard({ icon, title, desc, href, bgColor = 'bg-gray-50', className }: ActionCardProps) {
   return (
-    <Link href={href} className="card p-4 block hover:shadow-md transition-shadow">
-      <div className="size-10 rounded-full grid place-items-center bg-gray-50 text-gray-700">{icon}</div>
-      <div className="mt-3 font-bold text-lg">{title}</div>
-      <div className="text-sm text-gray-500">{desc}</div>
+    <Link
+      href={href}
+      aria-label={title}
+      className="group relative block rounded-2xl p-4 bg-white border border-[#00156B] shadow-md transition-all"
+    >
+      <div className="flex items-start gap-3">
+        <div className={`size-10 rounded-full grid place-items-center shrink-0 ${bgColor}`}>
+          {icon}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="text-base font-extrabold leading-tight">{title}</div>
+          <div className="text-xs text-gray-500 leading-snug">{desc}</div>
+        </div>
+
+        <ChevronRight
+          aria-hidden
+          className="ml-auto mt-1 size-4 text-[#00156B] opacity-90 transition-transform duration-150 group-hover:translate-x-0.5"
+        />
+      </div>
     </Link>
   )
 }
