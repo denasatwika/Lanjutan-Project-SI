@@ -68,7 +68,13 @@ export default function ChiefApprovalsPage() {
     <main className="mx-auto w-full max-w-[640px] p-3 pb-28">
       {/* Sticky header */}
       <div className="sticky top-0 z-10 -mx-3 border-b border-slate-200 bg-white/95 px-3 pb-3 pt-2 backdrop-blur">
-        <PageHeader title="Persetujuan" backHref="/chief/dashboard" bg="var(--B-950)" />
+      <PageHeader
+        title="Persetujuan"
+        backHref="/chief/dashboard"
+        fullBleed
+        bleedMobileOnly    // <-- key line
+        pullUpPx={34}      // cancels AppShell pt-6
+      />
 
         {/* Filter chips (tidak mengubah URL) */}
         <div className="mt-3 flex items-center gap-2 overflow-x-auto">
@@ -192,7 +198,7 @@ function Chip({
       className={clsx(
         'inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-medium ring-1 transition',
         active
-          ? 'bg-slate-900 text-white ring-slate-900'
+          ? 'bg-[#00156B] text-white bg-[#00156B]'
           : 'bg-white text-slate-700 ring-slate-200 hover:bg-slate-50'
       )}
     >
