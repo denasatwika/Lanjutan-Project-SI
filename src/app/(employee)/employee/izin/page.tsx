@@ -78,14 +78,14 @@ export default function IzinPage(){
             icon={<FileText className="size-5 text-amber-600" />}
             title="Ajukan Izin"
             desc="Pakai token izinmu."
-            href="/employee/forms/leave"
+            href="/employee/izin/new/leave"
             bgColor="bg-[#F7DDB7]"   // izin → soft yellow
           />
           <ActionCard
             icon={<Clock3 className="size-5 text-green-600" />}
             title="Ajukan Lembur"
             desc="Klaim token lembur."
-            href="/employee/forms/overtime"
+            href="/employee/izin/new/overtime"
             bgColor="bg-[#DCFCE7]"   // lembur → soft green
           />
         </div>
