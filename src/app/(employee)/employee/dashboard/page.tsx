@@ -7,7 +7,7 @@ import CheckInSheet from '@/components/CheckInSheet'
 import { format } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale/id'
 import Link from 'next/link'
-import { CalendarDays, Clock, TrendingUp, Zap, Info } from 'lucide-react'
+import { CalendarDays, Clock, TrendingUp, Zap, Info, FileText, Inbox, User } from 'lucide-react'
 import { toast } from 'sonner'
 import { BottomSheet } from '@/components/ui/bottomSheet'
 
@@ -15,6 +15,38 @@ function useLiveClock(){
   const [now, setNow] = useState(new Date())
   useEffect(()=>{ const t = setInterval(()=> setNow(new Date()), 1000); return ()=> clearInterval(t) },[])
   return now
+}
+
+const NAVY = {
+  50:  '#eef2ff',
+  100: '#e0e7ff',
+  200: '#c7d2fe',
+  600: '#1e3a8a',
+  700: '#172554',
+  800: '#0b1535',
+}
+
+function MiniStat({
+  icon,
+  label,
+  href
+}: {
+  icon: React.ReactNode
+  label: string
+  href: string
+}) {
+  return (
+    <Link
+      href={href}
+      className="rounded-xl bg-white/10 p-3 backdrop-blur text-white min-w-[80px] flex flex-col items-center"
+    >
+      <div className="flex items-center gap-2 text-xs opacity-90">
+        {icon}
+        <span>{label}</span>
+      </div>
+      
+    </Link>
+  )
 }
 
 function formatDateLongID(d: Date){ return format(d, 'EEEE, d MMMM yyyy', { locale: idLocale }) }
@@ -143,7 +175,10 @@ function getDescPreview(day: Date){
       </section>
 
       {/* Wallet / Department gradient card */}
-      <section className="rounded-2xl p-5 text-white shadow-md" style={{ backgroundColor: '#00156B' }}>
+      <section className="rounded-2xl p-5 text-white shadow-md" 
+      style={{
+          background: `linear-gradient(135deg, ${NAVY[700]} 0%, ${NAVY[600]} 60%, ${NAVY[800]} 100%)`,
+        }}>
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
             <div className="text-xs leading-5 text-white/80">Wallet Address</div>
@@ -155,10 +190,10 @@ function getDescPreview(day: Date){
           </div>
         </div>
         <div className="mt-4 flex flex-wrap justify-center gap-2">
-          <Link href="/employee/riwayat" className="btn" style={{ backgroundColor: '#BD0016', color: 'white' }}>Riwayat</Link>
-          <Link href="/employee/izin" className="btn" style={{ backgroundColor: '#BD0016', color: 'white' }}>Izin</Link>
-          <Link href="/employee/inbox" className="btn" style={{ backgroundColor: '#BD0016', color: 'white' }}>Inbox</Link>
-          <Link href="/employee/profile" className="btn" style={{ backgroundColor: '#BD0016', color: 'white' }}>Profil</Link>
+          <MiniStat icon={<Clock size={14} />} label="Riwayat" href="/employee/riwayat" />
+          <MiniStat icon={<FileText size={14} />} label="Izin" href="/employee/izin" />
+          <MiniStat icon={<Inbox size={14} />} label="Inbox" href="/employee/inbox" />
+          <MiniStat icon={<User size={14} />} label="Profil" href="/employee/profile" />
         </div>
       </section>
 
