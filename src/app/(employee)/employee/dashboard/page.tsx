@@ -257,44 +257,72 @@ function getDescPreview(day: Date){
         />
       </section>
 
+      <div className="mt-6 mb-4 ml-3">
+        <h2 className="text-lg font-semibold">Kehadiran minggu ini</h2>
+      </div>
+
       {/* Recent days — scrollable up to 7 days */}
       <section className="max-h-[420px] overflow-auto">
-        <div className="rounded-2xl bg-white shadow-md border">
+        <div className="space-y-3">
           {days.map(({ date, checkIn, checkOut }, idx) => {
-            const present = !!checkIn
-            const statusText = present ? 'Hadir' : 'Absen'
-            const dot = present ? 'bg-green-500' : 'bg-rose-500'
-            const statusColor = present ? 'text-green-600' : 'text-rose-600'
-            const preview = getDescPreview(date)
-
+            const present = !!checkIn;
+            const statusText = present ? 'Hadir' : 'Absen';
+            const preview = getDescPreview(date);
+            
             return (
-              <div key={date.toISOString()} className={idx !== days.length - 1 ? 'p-4 md:p-5 border-b' : 'p-4 md:p-5'}>
-                <div className="flex items-start justify-between gap-3">
-                  {/* Left: date + time range + (optional) description preview */}
-                  <div>
-                    <div className="font text-lg md:text-xl">
-                      {formatDateLongID(date)}
+              <div 
+                key={date.toISOString()} 
+                className="group bg-white rounded-xl border border-gray-100 hover:border-gray-200 hover:shadow-sm transition-all duration-200 p-5"
+              >
+                <div className="flex items-center justify-between">
+                  {/* Left side - Date and time info */}
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3 mb-3">
+                      {/* Status indicator */}
+                      <div className={`w-3 h-3 rounded-full ${present ? 'bg-emerald-500' : 'bg-red-400'}`} />
+                      
+                      {/* Date */}
+                      <h3 className="text-gray-900 font-medium text-base">
+                        {formatDateLongID(date)}
+                      </h3>
                     </div>
-                    <div className="mt-1 text-base md:text-lg font-medium">
-                      {timeHHmm(checkIn)} – {timeHHmm(checkOut)}
+                    
+                    {/* Time range */}
+                    <div className="ml-6 flex items-center gap-4">
+                      <div className="text-sm text-gray-500">
+                        <span className="font-medium">Masuk:</span> {timeHHmm(checkIn)}
+                      </div>
+                      <div className="text-sm text-gray-500">
+                        <span className="font-medium">Keluar:</span> {timeHHmm(checkOut)}
+                      </div>
                     </div>
+                    
+                    {/* Description preview if exists */}
                     {preview && (
-                      <p className="mt-2 text-sm text-gray-600 leading-6 line-clamp-2">
-                        {preview}
-                      </p>
+                      <div className="ml-6 mt-2">
+                        <p className="text-sm text-gray-600 line-clamp-1">
+                          {preview}
+                        </p>
+                      </div>
                     )}
                   </div>
-
-                  {/* Right: status + edit button */}
-                  <div className="flex items-center gap-3">
-                    <div className={`inline-flex items-center gap-2 ${statusColor} font-semibold`}>
-                      <span className={`inline-block size-2 rounded-full ${dot}`} />
+                  
+                  {/* Right side - Status and action */}
+                  <div className="flex items-center gap-4">
+                    {/* Status badge */}
+                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
+                      present 
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+                        : 'bg-red-50 text-red-700 border border-red-200'
+                    }`}>
                       {statusText}
-                    </div>
+                    </span>
+                    
+                    {/* Edit button */}
                     <button
                       type="button"
                       onClick={() => openDaySheet(date)}
-                      className="grid place-items-center size-9 rounded-full border border-black/80 text-black hover:bg-black/5"
+                      className="opacity-60 group-hover:opacity-100 transition-opacity duration-200 p-2 rounded-lg hover:bg-gray-50 text-gray-500 hover:text-gray-700"
                       title="Tambah / Edit keterangan"
                     >
                       <Info className="size-5" />
@@ -302,7 +330,7 @@ function getDescPreview(day: Date){
                   </div>
                 </div>
               </div>
-            )
+            );
           })}
         </div>
       </section>

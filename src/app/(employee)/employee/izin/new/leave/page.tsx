@@ -255,7 +255,7 @@ export default function Page() {
   const previewUrl = form.lampiran && isImg ? URL.createObjectURL(form.lampiran) : null
 
   return (
-    <div className="pb-24">
+    <div className="">
       <PageHeader title="Pengajuan Izin" backHref="/employee/dashboard" fullBleed bleedMobileOnly pullUpPx={24} />
 
       <div className="mx-auto max-w-screen-sm px-4 mt-3 md:max-w-2xl">
@@ -310,40 +310,59 @@ export default function Page() {
               />
             </label>
 
-            <div>
-              <span className="text-sm text-gray-700">Lampiran (opsional)</span>
-              <div className="mt-1 flex items-center gap-3">
-                <input
-                  ref={fileRef}
-                  type="file"
-                  accept="image/*,application/pdf"
-                  onChange={onPickFile}
-                  className="rounded-xl border px-3 py-2 shadow-sm text-sm file:mr-3 file:rounded-lg file:border-0 file:px-3 file:py-2 file:bg-[#00156B] file:text-white focus-visible:ring-2 focus-visible:ring-offset-0"
-                  style={{ borderColor: '#00156B20' }}
-                />
-                {form.lampiran && (
-                  <button type="button" onClick={clearFile} className="rounded-xl border px-3 py-2 text-sm shadow-sm" style={{ borderColor: '#00156B20' }}>
-                    Hapus
-                  </button>
-                )}
-              </div>
-              {form.lampiran && (
-                <div className="mt-3">
-                  {isImg ? (
-                    <img src={previewUrl || ''} alt="Preview" className="max-h-40 rounded-xl border" />
-                  ) : (
-                    <div className="text-sm text-gray-600">
-                      {form.lampiran.name} ({Math.round((form.lampiran.size || 0) / 1024)} KB)
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+            {/* FILE PICKER + ACTIONS */}
+<div>
+  <span className="text-sm text-gray-700">Lampiran (opsional)</span>
+
+  {/* Make the row wrap so it never pushes horizontally */}
+  <div className="mt-1 flex flex-wrap items-center gap-3">
+    <input
+      ref={fileRef}
+      type="file"
+      accept="image/*,application/pdf"
+      onChange={onPickFile}
+      // Let it shrink and never overflow
+      className="min-w-0 flex-1 max-w-full rounded-xl border px-3 py-2 shadow-sm text-sm file:mr-3 file:rounded-lg file:border-0 file:px-3 file:py-2 file:bg-[#00156B] file:text-white focus-visible:ring-2 focus-visible:ring-offset-0"
+      style={{ borderColor: '#00156B20' }}
+    />
+    {form.lampiran && (
+      <button
+        type="button"
+        onClick={clearFile}
+        className="rounded-xl border px-3 py-2 text-sm shadow-sm"
+        style={{ borderColor: '#00156B20' }}
+      >
+        Hapus
+      </button>
+    )}
+  </div>
+
+  {/* PREVIEW (never overflow) */}
+  {form.lampiran && (
+    <div className="mt-3">
+      {isImg ? (
+        <div className="relative w-full overflow-hidden rounded-xl border">
+          {/* Important bits: block + w-full + h-auto + object-contain + max-h */}
+          <img
+            src={previewUrl || ''}
+            alt="Preview"
+            className="block w-full h-auto max-h-48 object-contain"
+          />
+        </div>
+      ) : (
+        <div className="truncate text-sm text-gray-600">
+          {form.lampiran.name} ({Math.round((form.lampiran.size || 0) / 1024)} KB)
+        </div>
+      )}
+    </div>
+  )}
+</div>
+
 
             <button
               onClick={submit}
               disabled={!valid}
-              className="w-full inline-flex items-center justify-center rounded-xl px-4 py-3 text-white font-semibold shadow-md disabled:opacity-60"
+              className="inline-flex items-center justify-center rounded-xl px-4 py-3 text-white font-semibold shadow-md disabled:opacity-60"
               style={{ background: '#16A34A' }}
             >
               Ajukan Izin
