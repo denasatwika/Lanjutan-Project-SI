@@ -38,12 +38,13 @@ function Popover({
   align?: 'start' | 'end'
 }) {
   const ref = useOutsideClose(() => onOpenChange(false))
+  const desktopAlignClass = align === 'end' ? 'sm:right-0 sm:left-auto' : 'sm:left-0 sm:right-auto'
   return (
     <div className="relative" ref={ref}>
       <div onClick={() => onOpenChange(!open)}>{trigger}</div>
       {open && (
         <div
-          className={`absolute z-50 mt-2 min-w-[260px] rounded-2xl border bg-white p-2 shadow-lg ${align === 'end' ? 'right-0' : 'left-0'}`}
+          className={`absolute z-50 mt-2 left-1/2 w-[calc(100vw-2rem)] max-w-sm -translate-x-1/2 rounded-2xl border bg-white p-2 shadow-lg sm:min-w-[260px] sm:w-auto sm:translate-x-0 ${desktopAlignClass}`}
         >
           {children}
         </div>
@@ -310,59 +311,45 @@ export default function Page() {
               />
             </label>
 
-            {/* FILE PICKER + ACTIONS */}
-<div>
-  <span className="text-sm text-gray-700">Lampiran (opsional)</span>
-
-  {/* Make the row wrap so it never pushes horizontally */}
-  <div className="mt-1 flex flex-wrap items-center gap-3">
-    <input
-      ref={fileRef}
-      type="file"
-      accept="image/*,application/pdf"
-      onChange={onPickFile}
-      // Let it shrink and never overflow
-      className="min-w-0 flex-1 max-w-full rounded-xl border px-3 py-2 shadow-sm text-sm file:mr-3 file:rounded-lg file:border-0 file:px-3 file:py-2 file:bg-[#00156B] file:text-white focus-visible:ring-2 focus-visible:ring-offset-0"
-      style={{ borderColor: '#00156B20' }}
-    />
-    {form.lampiran && (
-      <button
-        type="button"
-        onClick={clearFile}
-        className="rounded-xl border px-3 py-2 text-sm shadow-sm"
-        style={{ borderColor: '#00156B20' }}
-      >
-        Hapus
-      </button>
-    )}
-  </div>
-
-  {/* PREVIEW (never overflow) */}
-  {form.lampiran && (
-    <div className="mt-3">
-      {isImg ? (
-        <div className="relative w-full overflow-hidden rounded-xl border">
-          {/* Important bits: block + w-full + h-auto + object-contain + max-h */}
-          <img
-            src={previewUrl || ''}
-            alt="Preview"
-            className="block w-full h-auto max-h-48 object-contain"
-          />
-        </div>
-      ) : (
-        <div className="truncate text-sm text-gray-600">
-          {form.lampiran.name} ({Math.round((form.lampiran.size || 0) / 1024)} KB)
-        </div>
-      )}
-    </div>
-  )}
-</div>
-
+            <div>
+              <span className="text-sm text-gray-700">Lampiran (opsional)</span>
+              <div className="mt-1 flex flex-col gap-3 sm:flex-row sm:items-center">
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept="image/*,application/pdf"
+                  onChange={onPickFile}
+                  className="w-full rounded-xl border px-3 py-2 shadow-sm text-sm file:mr-3 file:rounded-lg file:border-0 file:px-3 file:py-2 file:bg-[#00156B] file:text-white focus-visible:ring-2 focus-visible:ring-offset-0 sm:w-auto"
+                  style={{ borderColor: '#00156B20' }}
+                />
+                {form.lampiran && (
+                  <button
+                    type="button"
+                    onClick={clearFile}
+                    className="w-full rounded-xl border px-3 py-2 text-sm shadow-sm self-start sm:w-auto sm:self-auto"
+                    style={{ borderColor: '#00156B20' }}
+                  >
+                    Hapus
+                  </button>
+                )}
+              </div>
+              {form.lampiran && (
+                <div className="mt-3">
+                  {isImg ? (
+                    <img src={previewUrl || ''} alt="Preview" className="max-h-40 max-w-full rounded-xl border" />
+                  ) : (
+                    <div className="text-sm text-gray-600 break-words">
+                      {form.lampiran.name} ({Math.round((form.lampiran.size || 0) / 1024)} KB)
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
 
             <button
               onClick={submit}
               disabled={!valid}
-              className="inline-flex items-center justify-center rounded-xl px-4 py-3 text-white font-semibold shadow-md disabled:opacity-60"
+              className="w-full inline-flex items-center justify-center rounded-xl px-4 py-3 text-white font-semibold shadow-md"
               style={{ background: '#16A34A' }}
             >
               Ajukan Izin

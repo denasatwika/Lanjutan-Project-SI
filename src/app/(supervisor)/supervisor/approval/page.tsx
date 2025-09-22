@@ -1,4 +1,3 @@
-// app/(supervisor)/supervisor/persetujuan/page.tsx
 'use client'
 
 import { useMemo, useState } from 'react'
@@ -68,13 +67,13 @@ export default function SupervisorApprovalsPage() {
     <main className="mx-auto w-full max-w-[640px] p-3 pb-28">
       {/* Sticky header */}
       <div className="sticky top-0 z-10 -mx-3 border-b border-slate-200 bg-white/95 px-3 pb-3 pt-2 backdrop-blur">
-      <PageHeader
-        title="Persetujuan"
-        backHref="/supervisor/dashboard"
-        fullBleed
-        bleedMobileOnly    // <-- key line
-        pullUpPx={34}      // cancels AppShell pt-6
-      />
+        <PageHeader
+          title="Persetujuan"
+          backHref="/supervisor/dashboard"
+          fullBleed
+          bleedMobileOnly
+          pullUpPx={34}      // cancels AppShell pt-6
+        />
 
         {/* Filter chips (tidak mengubah URL) */}
         <div className="mt-3 flex items-center gap-2 overflow-x-auto">
@@ -153,32 +152,7 @@ export default function SupervisorApprovalsPage() {
           </li>
         ))}
       </ul>
-
-      {/* Sticky bottom CTA (naik dari bottom-nav) */}
-      {pendingCount > 0 && (
-        <div
-          className="
-            fixed inset-x-0 z-20 mx-auto w-full max-w-[640px] p-3
-            bottom-[calc(env(safe-area-inset-bottom)+120px)]
-            sm:bottom-[84px]
-            pointer-events-none
-          "
-        >
-          <div className="pointer-events-auto rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-xl backdrop-blur">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-sm">
-                <span className="font-semibold">{pendingCount}</span> menunggu persetujuan
-              </p>
-              <Link
-                href="/supervisor/persetujuan"
-                className="rounded-xl bg-[#00156B] px-3 py-2 text-xs font-semibold text-white hover:brightness-110"
-              >
-                Tinjau sekarang
-              </Link>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Sticky CTA removed from here */}
     </main>
   )
 }

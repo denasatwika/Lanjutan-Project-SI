@@ -12,6 +12,15 @@ import { ChevronLeft, FileText, Clock3, Check, CircleAlert, ChevronRight } from 
 import type { Request } from '@/lib/types'
 import { PageHeader } from '@/components/PageHeader'
 
+const NAVY = {
+  50:  '#eef2ff',
+  100: '#e0e7ff',
+  200: '#c7d2fe',
+  600: '#1e3a8a',
+  700: '#172554',
+  800: '#0b1535',
+}
+
 const TOKENS = { cuti: 12, izin: 3, lembur: 6 }
 
 function StatusPill({ s }:{ s: Request['status'] }){
@@ -61,8 +70,9 @@ export default function IzinPage(){
       <div className="max-w-6xl mx-auto px-5">
         {/* Dompet Token */}
         <h2 className="text-2xl font-extrabold mb-3">Dompet Token</h2>
-        <div className="rounded-2xl p-4 text-white shadow-md" style={{ 
-          background: 'linear-gradient(135deg, var(--S-800) 0%, var(--R-500a) 100%)'
+        <div className="rounded-2xl p-4 text-white shadow-md" 
+          style={{
+          background: `linear-gradient(135deg, ${NAVY[700]} 0%, ${NAVY[600]} 60%, ${NAVY[800]} 100%)`,
         }}>
           <div className="grid grid-cols-3 gap-3">
             <TokenTile label="Cuti" value={cutiLeft} color="var(--B-500)"/>

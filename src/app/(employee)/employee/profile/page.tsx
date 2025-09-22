@@ -153,21 +153,6 @@ export default function ProfilPage() {
               onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
             />
           </InfoRow>
-
-          <div className="mt-4 flex items-center gap-3">
-            <button
-              onClick={saveProfile}
-              disabled={saving}
-              className="btn btn-primary"
-            >
-              {saving ? 'Menyimpan…' : 'Simpan'}
-            </button>
-            <button onClick={logout} className="btn">Logout</button>
-          </div>
-        </div>
-
-        <div className="card p-4">
-          <h3 className="font-bold mb-3">Organisasi</h3>
           <InfoRow icon={<Building2 size={16} />} label="Departemen">
             <input
               className="w-full bg-transparent outline-none"
@@ -182,6 +167,17 @@ export default function ProfilPage() {
               onChange={(e) => setForm((f) => ({ ...f, wallet: e.target.value }))}
             />
           </InfoRow>
+
+          <div className="mt-4 flex items-center gap-3">
+            <button
+              onClick={saveProfile}
+              disabled={saving}
+              className="btn btn-primary"
+            >
+              {saving ? 'Menyimpan…' : 'Simpan'}
+            </button>
+            <button onClick={logout} className="btn">Logout</button>
+          </div>
         </div>
       </section>
 

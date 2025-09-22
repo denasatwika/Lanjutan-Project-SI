@@ -1,8 +1,7 @@
-// app/(supervisor)/supervisor/page.tsx
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Users, Briefcase, Clock3, CheckCircle2, ArrowRight, FileText, Timer, TrendingUp } from 'lucide-react'
+import { Users, Briefcase, Clock3, CheckCircle2, ArrowRight, FileText, Timer, TrendingUp, XCircle } from 'lucide-react'
 import Link from 'next/link'
 import clsx from 'clsx'
 
@@ -68,7 +67,7 @@ export default function supervisorDashboard() {
   const absen = Math.max(0, totalKaryawan - (mode === 'today' ? (MOCK.today.hadir + MOCK.today.izin) : 0))
 
   return (
-    <main className="mx-auto w-full max-w-[640px] p-3 pb-24">
+    <main className="mx-auto w-full max-w-[640px] p-3 pb-28">
       {/* Top hero card */}
       <section
         className="relative overflow-hidden rounded-2xl p-4 text-white"
@@ -93,8 +92,8 @@ export default function supervisorDashboard() {
 
         {/* Mini stats */}
         <div className="mt-4 mb-2 grid grid-cols-3 gap-2">
-          <MiniStat icon={<Users className="size-4" />} label="Karyawan" value={totalKaryawan} />
           <MiniStat icon={<CheckCircle2 className="size-4" />} label="Hadir" value={totalHadir} />
+          <MiniStat icon={<XCircle className="size-4" />} label="Absen" value={absen} />
           <MiniStat icon={<Clock3 className="size-4" />} label="Menunggu" value={pending} />
         </div>
 
@@ -177,6 +176,32 @@ export default function supervisorDashboard() {
           </Card>
         </div>
       </section>
+
+      {/* Sticky bottom CTA moved here */}
+      {pending > 0 && (
+        <div
+          className="
+            fixed inset-x-0 z-20 mx-auto w-full max-w-[640px] p-3
+            bottom-[calc(env(safe-area-inset-bottom)+120px)]
+            sm:bottom-[84px]
+            pointer-events-none
+          "
+        >
+          <div className="pointer-events-auto rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-xl backdrop-blur">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm">
+                <span className="font-semibold">{pending}</span> menunggu persetujuan
+              </p>
+              <Link
+                href="/supervisor/approval"
+                className="rounded-xl bg-[#00156B] px-3 py-2 text-xs font-semibold text-white hover:brightness-110"
+              >
+                Tinjau sekarang
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   )
 }
