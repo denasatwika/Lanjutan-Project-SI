@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Filter, Check, X, Search, Calendar, Clock3, User2 } from 'lucide-react'
+import { Filter, Check, Search, Calendar, Clock3, User2 } from 'lucide-react'
 import clsx from 'clsx'
 import { PageHeader } from '@/components/PageHeader'
 import { useRequests } from '@/lib/state/requests'
@@ -12,6 +12,7 @@ import {
   formatOvertimePeriod,
 } from '@/lib/utils/requestDisplay'
 import { LeaveRequest, OvertimeRequest } from '@/lib/types'
+import { RequestDetailDrawer } from '@/components/RequestDetailDrawer'
 
 type TypeFilter = 'all' | 'leave' | 'overtime'
 type Status = 'draft' | 'pending' | 'approved' | 'rejected'
@@ -41,6 +42,7 @@ export default function ChiefApprovalsPage() {
   }, [data, type, onlyPending, q])
 
   const pendingCount = filtered.filter((r) => r.status === 'pending').length
+  const [selected, setSelected] = useState<DecoratedRequest | null>(null)
 
   return (
     <main className="mx-auto w-full max-w-[640px] p-3 pb-28">
@@ -119,28 +121,30 @@ export default function ChiefApprovalsPage() {
                   {r.reason && <p className="line-clamp-2 mt-1 text-slate-500">Alasan: {r.reason}</p>}
                 </div>
 
-                {r.status === 'pending' && (
-                  <div className="mt-3 flex gap-2">
-                    <button
-                      className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                      onClick={() => alert(`Reject ${r.id}`)}
-                    >
-                      <X className="size-4" /> Tolak
-                    </button>
-                    <button
-                      className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#00156B] px-3 py-2 text-sm font-semibold text-white hover:brightness-110"
-                      onClick={() => alert(`Approve ${r.id}`)}
-                    >
-                      <Check className="size-4" /> Setujui
-                    </button>
-                  </div>
-                )}
+                <div className="mt-3 flex gap-2">
+                  <button
+                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                    onClick={() => setSelected(r)}
+                  >
+                    <Clock3 className="size-4" /> Detail
+                  </button>
+                  <button
+                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#00156B] px-3 py-2 text-sm font-semibold text-white hover:brightness-110"
+                    onClick={() => setSelected(r)}
+                  >
+                    <Check className="size-4" /> Tinjau
+                  </button>
+                </div>
               </div>
             </div>
           </li>
         ))}
       </ul>
-      {/* Sticky CTA removed from here */}
+      <RequestDetailDrawer
+        request={selected}
+        onClose={() => setSelected(null)}
+        role="chief"
+      />
     </main>
   )
 }
