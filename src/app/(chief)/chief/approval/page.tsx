@@ -1,9 +1,7 @@
-// app/(supervisor)/supervisor/persetujuan/page.tsx
 'use client'
 
 import { useMemo, useState } from 'react'
-import Link from 'next/link'
-import { Filter, Check, X, Timer, Calendar, Clock3, User2, Search } from 'lucide-react'
+import { Filter, Check, X, Search, Calendar, Clock3, User2 } from 'lucide-react'
 import clsx from 'clsx'
 import { PageHeader } from '@/components/PageHeader'
 import { useRequests } from '@/lib/state/requests'
@@ -18,7 +16,7 @@ import { LeaveRequest, OvertimeRequest } from '@/lib/types'
 type TypeFilter = 'all' | 'leave' | 'overtime'
 type Status = 'draft' | 'pending' | 'approved' | 'rejected'
 
-export default function SupervisorApprovalsPage() {
+export default function ChiefApprovalsPage() {
   // === FILTER STATE (tanpa ubah URL) ===
   const [type, setType] = useState<TypeFilter>('all')
   const [onlyPending, setOnlyPending] = useState(true)
@@ -30,7 +28,7 @@ export default function SupervisorApprovalsPage() {
   const filtered = useMemo(() => {
     const query = q.trim().toLowerCase()
     return data
-      .filter((r) => type === 'all' || r.type === type)
+      .filter((r) => (type === 'all' || r.type === type))
       .filter((r) => (!onlyPending ? true : r.status === 'pending'))
       .filter((r) =>
         query
@@ -48,16 +46,16 @@ export default function SupervisorApprovalsPage() {
     <main className="mx-auto w-full max-w-[640px] p-3 pb-28">
       {/* Sticky header */}
       <div className="sticky top-0 z-10 -mx-3 border-b border-slate-200 bg-white/95 px-3 pb-3 pt-2 backdrop-blur">
-      <PageHeader
-        title="Persetujuan"
-        backHref="/supervisor/dashboard"
-        fullBleed
-        bleedMobileOnly    // <-- key line
-        pullUpPx={34}      // cancels AppShell pt-6
-      />
+        <PageHeader
+          title="Persetujuan"
+          backHref="/chief/dashboard"
+          fullBleed
+          bleedMobileOnly
+          pullUpPx={34}      // cancels AppShell pt-6
+        />
 
         {/* Filter chips (tidak mengubah URL) */}
-        <div className="mt-3 flex items-center gap-2 overflow-x-auto">
+        <div className="mt-3 mb-3 flex items-center gap-2 overflow-x-auto">
           <Chip active={type === 'all'} onClick={() => setType('all')}>
             <Filter className="size-4" /> Semua
           </Chip>
@@ -67,17 +65,8 @@ export default function SupervisorApprovalsPage() {
           <Chip active={type === 'overtime'} onClick={() => setType('overtime')}>
             <Clock3 className="size-4" /> Lembur
           </Chip>
-
-          <div className="mx-1 h-6 w-px flex-none bg-slate-200" />
-
-          <Chip
-            active={onlyPending}
-            onClick={() => setOnlyPending((v) => !v)}
-          >
-            <Timer className="size-4" /> Pending saja
-          </Chip>
-
-          <div className="relative ml-auto min-w-[160px]">
+        </div>
+        <div className="relative ml-auto min-w-[160px]">
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
@@ -86,7 +75,6 @@ export default function SupervisorApprovalsPage() {
             />
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
           </div>
-        </div>
 
         <p className="mt-2 text-xs text-slate-500">
           Menampilkan <span className="font-semibold">{filtered.length}</span> permintaan
@@ -116,11 +104,17 @@ export default function SupervisorApprovalsPage() {
                 <div className="mt-2 text-xs text-slate-600">
                   {r.type === 'leave' ? (
                     <>
-                      <p>{r.leaveTypeLabel ?? 'Izin/Cuti'} • <span className="font-medium">{formatLeavePeriod(r as LeaveRequest)}</span></p>
+                      <p>
+                        {r.leaveTypeLabel ?? 'Izin/Cuti'} •{' '}
+                        <span className="font-medium">{formatLeavePeriod(r as LeaveRequest)}</span>
+                      </p>
                       <p>Durasi <span className="font-medium">{(r as LeaveRequest).days} hari</span></p>
                     </>
                   ) : (
-                    <p>Lembur <span className="font-medium">{(r as OvertimeRequest).hours} jam</span> • {formatOvertimePeriod(r as OvertimeRequest)}</p>
+                    <p>
+                      Lembur <span className="font-medium">{(r as OvertimeRequest).hours} jam</span>{' '}
+                      • {formatOvertimePeriod(r as OvertimeRequest)}
+                    </p>
                   )}
                   {r.reason && <p className="line-clamp-2 mt-1 text-slate-500">Alasan: {r.reason}</p>}
                 </div>
@@ -146,32 +140,7 @@ export default function SupervisorApprovalsPage() {
           </li>
         ))}
       </ul>
-
-      {/* Sticky bottom CTA (naik dari bottom-nav) */}
-      {pendingCount > 0 && (
-        <div
-          className="
-            fixed inset-x-0 z-20 mx-auto w-full max-w-[640px] p-3
-            bottom-[calc(env(safe-area-inset-bottom)+120px)]
-            sm:bottom-[84px]
-            pointer-events-none
-          "
-        >
-          <div className="pointer-events-auto rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-xl backdrop-blur">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-sm">
-                <span className="font-semibold">{pendingCount}</span> menunggu persetujuan
-              </p>
-              <Link
-                href="/supervisor/persetujuan"
-                className="rounded-xl bg-[#00156B] px-3 py-2 text-xs font-semibold text-white hover:brightness-110"
-              >
-                Tinjau sekarang
-              </Link>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Sticky CTA removed from here */}
     </main>
   )
 }
