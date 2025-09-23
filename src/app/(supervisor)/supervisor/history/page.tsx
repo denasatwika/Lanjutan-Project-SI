@@ -7,62 +7,20 @@ import { Calendar, Clock3, Filter, Search, User2, X } from 'lucide-react'
 import { format, isWithinInterval, subDays, parseISO } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale/id'
 import { PageHeader } from '@/components/PageHeader'
+import { useRequests } from '@/lib/state/requests'
+import {
+  DecoratedRequest,
+  decorateRequest,
+  formatLeavePeriod,
+  formatOvertimePeriod,
+} from '@/lib/utils/requestDisplay'
+import { LeaveRequest, OvertimeRequest } from '@/lib/types'
 
 /** Brand color */
 const BRAND = '#00156B'
 
-type Status = 'pending' | 'approved' | 'rejected'
+type Status = 'draft' | 'pending' | 'approved' | 'rejected'
 type Kind = 'leave' | 'overtime'
-
-type Req = {
-  id: string
-  user: { name: string; department: string }
-  type: Kind
-  status: Status
-  createdAt: string // ISO
-  updatedAt?: string // ISO
-  payload?: any
-}
-
-/** --- MOCK DATA (ganti nanti dengan fetch/store kamu) --- */
-const MOCK: Req[] = [
-  {
-    id: 'REQ-1102',
-    user: { name: 'Nadia Putri', department: 'Tech' },
-    type: 'overtime',
-    status: 'approved',
-    createdAt: '2025-08-27T14:05:00Z',
-    updatedAt: '2025-08-28T03:18:00Z',
-    payload: { date: '2025-08-27', startTime: '19:00', endTime: '22:00', reason: 'Hotfix release' },
-  },
-  {
-    id: 'REQ-1097',
-    user: { name: 'Ardi Saputra', department: 'Business' },
-    type: 'leave',
-    status: 'rejected',
-    createdAt: '2025-08-26T01:11:00Z',
-    updatedAt: '2025-08-27T02:40:00Z',
-    payload: { kind: 'cuti', date: '2025-09-02', reason: 'Keperluan keluarga' },
-  },
-  {
-    id: 'REQ-1091',
-    user: { name: 'Maya Cahyani', department: 'HR' },
-    type: 'leave',
-    status: 'approved',
-    createdAt: '2025-08-24T05:12:00Z',
-    updatedAt: '2025-08-24T05:40:00Z',
-    payload: { kind: 'sakit', start: '2025-08-25', end: '2025-08-26', reason: 'Kontrol dokter' },
-  },
-  {
-    id: 'REQ-1088',
-    user: { name: 'Raka Mahesa', department: 'Tech' },
-    type: 'overtime',
-    status: 'approved',
-    createdAt: '2025-08-20T10:10:00Z',
-    updatedAt: '2025-08-20T12:20:00Z',
-    payload: { date: '2025-08-19', startTime: '18:30', endTime: '21:00', reason: 'Support deployment' },
-  },
-]
 
 type TypeFilter = 'all' | 'leave' | 'overtime'
 type StatusFilter = 'all' | Status
@@ -75,6 +33,9 @@ export default function SupervisorHistoryPage() {
   const [range, setRange] = useState<RangeKey>('30')
   const [q, setQ] = useState('')
 
+  const requests = useRequests((s) => s.items)
+  const data = useMemo<DecoratedRequest[]>(() => requests.map((r) => decorateRequest(r)), [requests])
+
   const now = new Date()
   const startDate =
     range === '7' ? subDays(now, 7)
@@ -83,24 +44,24 @@ export default function SupervisorHistoryPage() {
     : null
 
   const filtered = useMemo(() => {
-    return MOCK.filter((r) => {
+    return data.filter((r) => {
       // date window uses updatedAt if exists, else createdAt
       const d = parseISO(r.updatedAt ?? r.createdAt)
       const inRange = startDate ? isWithinInterval(d, { start: startDate, end: now }) : true
       const byType = typeF === 'all' ? true : r.type === typeF
       const byStatus = statusF === 'all' ? true : r.status === statusF
       const text =
-        (r.user.name + ' ' + r.user.department + ' ' + (r.payload?.reason || '')).toLowerCase()
+        `${r.employee.name} ${r.employee.department} ${r.reason ?? ''}`.toLowerCase()
       const byQuery = q.trim() ? text.includes(q.trim().toLowerCase()) : true
       return inRange && byType && byStatus && byQuery
     }).sort((a, b) =>
       (b.updatedAt ?? b.createdAt).localeCompare(a.updatedAt ?? a.createdAt)
     )
-  }, [typeF, statusF, q, startDate, now])
+  }, [data, typeF, statusF, q, startDate, now])
 
   // group by date (yyyy-mm-dd) of updatedAt/createdAt
   const groups = useMemo(() => {
-    const map: Record<string, Req[]> = {}
+    const map: Record<string, DecoratedRequest[]> = {}
     for (const r of filtered) {
       const key = (r.updatedAt ?? r.createdAt).slice(0, 10)
       if (!map[key]) map[key] = []
@@ -116,7 +77,7 @@ export default function SupervisorHistoryPage() {
     rejected: filtered.filter((x) => x.status === 'rejected').length,
   }), [filtered])
 
-  const [detail, setDetail] = useState<Req | null>(null)
+  const [detail, setDetail] = useState<DecoratedRequest | null>(null)
 
   return (
     <main className="mx-auto w-full max-w-[640px] p-3 pb-20">
@@ -190,24 +151,22 @@ export default function SupervisorHistoryPage() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold">{r.user.name}</p>
-                        <p className="text-xs text-slate-500">{r.user.department} • {r.id}</p>
+                        <p className="truncate text-sm font-semibold">{r.employee.name}</p>
+                        <p className="text-xs text-slate-500">{r.employee.department} • {r.id}</p>
                       </div>
                       <StatusBadge status={r.status} />
                     </div>
 
                     <div className="mt-2 text-xs text-slate-600">
                       {r.type === 'leave' ? (
-                        <p>
-                          {labelLeave(r.payload)}
-                        </p>
+                        <p>{labelLeaveRequest(r as LeaveRequest, r.leaveTypeLabel)}</p>
                       ) : (
                         <p>
-                          Lembur <span className="font-medium">{r.payload?.startTime}–{r.payload?.endTime}</span> • {fDate(r.payload?.date)}
+                          Lembur <span className="font-medium">{formatOvertimePeriod(r as OvertimeRequest)}</span>
                         </p>
                       )}
-                      {r.payload?.reason && (
-                        <p className="line-clamp-2 mt-1 text-slate-500">Alasan: {r.payload.reason}</p>
+                      {r.reason && (
+                        <p className="line-clamp-2 mt-1 text-slate-500">Alasan: {r.reason}</p>
                       )}
                     </div>
 
@@ -249,28 +208,13 @@ function fmtDate(keyYYYYMMDD: string) {
   const d = parseISO(keyYYYYMMDD)
   return format(d, 'EEEE, d MMM yyyy', { locale: idLocale })
 }
-function fDate(iso?: string) {
-  if (!iso) return '-'
-  return format(parseISO(iso), 'd MMM yyyy', { locale: idLocale })
-}
 function fDateTime(iso: string) {
   const d = parseISO(iso)
   return format(d, 'd MMM yyyy, HH:mm', { locale: idLocale })
 }
-function labelLeave(payload: any) {
-  const kind = payload?.kind
-  if (payload?.start && payload?.end) {
-    return `${kindLabel(kind)} • ${fDate(payload.start)} → ${fDate(payload.end)}`
-  }
-  if (payload?.date) {
-    return `${kindLabel(kind)} • ${fDate(payload.date)}`
-  }
-  return kindLabel(kind)
-}
-function kindLabel(kind?: string) {
-  if (kind === 'cuti') return 'Cuti'
-  if (kind === 'sakit') return 'Sakit'
-  return 'Izin'
+function labelLeaveRequest(req: LeaveRequest, label?: string) {
+  const base = label ?? 'Izin'
+  return `${base} • ${formatLeavePeriod(req)}`
 }
 
 function Chip({
@@ -299,13 +243,20 @@ function Chip({
 
 function StatusBadge({ status }: { status: Status }) {
   const map = {
+    draft: 'bg-slate-100 text-slate-600 ring-1 ring-slate-200',
     pending: 'bg-amber-50 text-amber-700 ring-1 ring-amber-100',
     approved: 'bg-green-50 text-green-700 ring-1 ring-green-100',
     rejected: 'bg-rose-50 text-rose-700 ring-1 ring-rose-100',
   } as const
   return (
     <span className={clsx('rounded-full px-2 py-1 text-[11px] font-medium', map[status])}>
-      {status === 'pending' ? 'Menunggu' : status === 'approved' ? 'Disetujui' : 'Ditolak'}
+      {status === 'pending'
+        ? 'Menunggu'
+        : status === 'approved'
+        ? 'Disetujui'
+        : status === 'rejected'
+        ? 'Ditolak'
+        : 'Draft'}
     </span>
   )
 }
@@ -316,12 +267,14 @@ function DetailModal({
   onClose,
 }: {
   open: boolean
-  req: Req | null
+  req: DecoratedRequest | null
   onClose: () => void
 }) {
   if (!open || !req) return null
   const when = fDateTime(req.updatedAt ?? req.createdAt)
-  const jenis = req.type === 'leave' ? labelLeave(req.payload) : `Lembur ${req.payload?.startTime}–${req.payload?.endTime} • ${fDate(req.payload?.date)}`
+  const jenis = req.type === 'leave'
+    ? labelLeaveRequest(req as LeaveRequest, req.leaveTypeLabel)
+    : `Lembur ${formatOvertimePeriod(req as OvertimeRequest)}`
   return (
     <div className="fixed inset-0 z-50">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
@@ -334,12 +287,15 @@ function DetailModal({
         </div>
 
         <div className="mt-4 space-y-3">
-          <Row label="Karyawan" value={req.user.name} />
-          <Row label="Departemen" value={req.user.department} />
+          <Row label="Karyawan" value={req.employee.name} />
+          <Row label="Departemen" value={req.employee.department} />
           <Row label="Jenis" value={jenis} />
           <Row label="Status" value={<StatusBadge status={req.status} />} />
           <Row label="Waktu" value={when} />
-          {req.payload?.reason && <Row label="Alasan" value={req.payload.reason} />}
+          {req.type === 'leave' && <Row label="Durasi" value={`${(req as LeaveRequest).days} hari`} />}
+          {req.type === 'overtime' && <Row label="Durasi" value={`${(req as OvertimeRequest).hours} jam`} />}
+          {req.reason && <Row label="Alasan" value={req.reason} />}
+          <Row label="Lampiran" value={req.attachmentUrl} />
           {req.id && <Row label="ID" value={<code className="text-xs">{req.id}</code>} />}
         </div>
 

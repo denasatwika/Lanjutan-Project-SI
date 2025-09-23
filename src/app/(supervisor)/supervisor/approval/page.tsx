@@ -1,65 +1,44 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import Link from 'next/link'
-import { Filter, Check, X, Timer, Calendar, Clock3, User2 } from 'lucide-react'
+import { Filter, Check, X, Search, Calendar, Clock3, User2 } from 'lucide-react'
 import clsx from 'clsx'
 import { PageHeader } from '@/components/PageHeader'
+import { useRequests } from '@/lib/state/requests'
+import {
+  DecoratedRequest,
+  decorateRequest,
+  formatLeavePeriod,
+  formatOvertimePeriod,
+} from '@/lib/utils/requestDisplay'
+import { LeaveRequest, OvertimeRequest } from '@/lib/types'
 
 type TypeFilter = 'all' | 'leave' | 'overtime'
-type Status = 'pending' | 'approved' | 'rejected'
-
-type Req = {
-  id: string
-  user: { name: string; department: string }
-  type: 'leave' | 'overtime'
-  status: Status
-  createdAt: string // ISO
-  forDate?: string // ISO (leave)
-  hours?: number   // overtime
-  reason?: string
-}
-
-const MOCK: Req[] = [
-  {
-    id: 'REQ-1023',
-    user: { name: 'Nadia Putri', department: 'Tech' },
-    type: 'overtime',
-    status: 'pending',
-    createdAt: '2025-08-28T08:25:00Z',
-    hours: 3,
-    reason: 'Release hotfix',
-  },
-  {
-    id: 'REQ-1018',
-    user: { name: 'Ardi Saputra', department: 'Business' },
-    type: 'leave',
-    status: 'pending',
-    createdAt: '2025-08-27T14:05:00Z',
-    forDate: '2025-08-29',
-    reason: 'Urusan keluarga',
-  },
-  {
-    id: 'REQ-1002',
-    user: { name: 'Maya Cahyani', department: 'HR' },
-    type: 'leave',
-    status: 'approved',
-    createdAt: '2025-08-25T03:11:00Z',
-    forDate: '2025-09-02',
-    reason: 'Kontrol kesehatan',
-  },
-]
+type Status = 'draft' | 'pending' | 'approved' | 'rejected'
 
 export default function SupervisorApprovalsPage() {
   // === FILTER STATE (tanpa ubah URL) ===
   const [type, setType] = useState<TypeFilter>('all')
   const [onlyPending, setOnlyPending] = useState(true)
+  const [q, setQ] = useState('')
+
+  const requests = useRequests((s) => s.items)
+  const data = useMemo<DecoratedRequest[]>(() => requests.map((r) => decorateRequest(r)), [requests])
 
   const filtered = useMemo(() => {
-    return MOCK.filter(
-      (r) => (type === 'all' || r.type === type) && (!onlyPending || r.status === 'pending')
-    )
-  }, [type, onlyPending])
+    const query = q.trim().toLowerCase()
+    return data
+      .filter((r) => (type === 'all' || r.type === type))
+      .filter((r) => (!onlyPending ? true : r.status === 'pending'))
+      .filter((r) =>
+        query
+          ? `${r.employee.name} ${r.employee.department} ${r.reason ?? ''}`
+              .toLowerCase()
+              .includes(query)
+          : true
+      )
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+  }, [data, type, onlyPending, q])
 
   const pendingCount = filtered.filter((r) => r.status === 'pending').length
 
@@ -76,7 +55,7 @@ export default function SupervisorApprovalsPage() {
         />
 
         {/* Filter chips (tidak mengubah URL) */}
-        <div className="mt-3 flex items-center gap-2 overflow-x-auto">
+        <div className="mt-3 mb-3 flex items-center gap-2 overflow-x-auto">
           <Chip active={type === 'all'} onClick={() => setType('all')}>
             <Filter className="size-4" /> Semua
           </Chip>
@@ -86,16 +65,16 @@ export default function SupervisorApprovalsPage() {
           <Chip active={type === 'overtime'} onClick={() => setType('overtime')}>
             <Clock3 className="size-4" /> Lembur
           </Chip>
-
-          <div className="mx-1 h-6 w-px flex-none bg-slate-200" />
-
-          <Chip
-            active={onlyPending}
-            onClick={() => setOnlyPending((v) => !v)}
-          >
-            <Timer className="size-4" /> Pending saja
-          </Chip>
         </div>
+        <div className="relative ml-auto min-w-[160px]">
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Cari nama/alasan…"
+              className="w-full pl-9 pr-3 py-2 rounded-xl border text-sm outline-none focus:ring-2 focus:ring-[rgba(0,21,107,0.25)]"
+            />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
+          </div>
 
         <p className="mt-2 text-xs text-slate-500">
           Menampilkan <span className="font-semibold">{filtered.length}</span> permintaan
@@ -116,17 +95,26 @@ export default function SupervisorApprovalsPage() {
               <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold">{r.user.name}</p>
-                    <p className="text-xs text-slate-500">{r.user.department} • {r.id}</p>
+                    <p className="truncate text-sm font-semibold">{r.employee.name}</p>
+                    <p className="text-xs text-slate-500">{r.employee.department} • {r.id}</p>
                   </div>
                   <StatusBadge status={r.status} />
                 </div>
 
                 <div className="mt-2 text-xs text-slate-600">
                   {r.type === 'leave' ? (
-                    <p>Izin/Cuti untuk tanggal <span className="font-medium">{r.forDate}</span></p>
+                    <>
+                      <p>
+                        {r.leaveTypeLabel ?? 'Izin/Cuti'} •{' '}
+                        <span className="font-medium">{formatLeavePeriod(r as LeaveRequest)}</span>
+                      </p>
+                      <p>Durasi <span className="font-medium">{(r as LeaveRequest).days} hari</span></p>
+                    </>
                   ) : (
-                    <p>Lembur <span className="font-medium">{r.hours} jam</span></p>
+                    <p>
+                      Lembur <span className="font-medium">{(r as OvertimeRequest).hours} jam</span>{' '}
+                      • {formatOvertimePeriod(r as OvertimeRequest)}
+                    </p>
                   )}
                   {r.reason && <p className="line-clamp-2 mt-1 text-slate-500">Alasan: {r.reason}</p>}
                 </div>
@@ -183,13 +171,20 @@ function Chip({
 
 function StatusBadge({ status }: { status: Status }) {
   const map = {
+    draft: 'bg-slate-100 text-slate-600 ring-1 ring-slate-200',
     pending: 'bg-amber-50 text-amber-700 ring-1 ring-amber-100',
     approved: 'bg-green-50 text-green-700 ring-1 ring-green-100',
     rejected: 'bg-rose-50 text-rose-700 ring-1 ring-rose-100',
   } as const
   return (
     <span className={clsx('rounded-full px-2 py-1 text-[11px] font-medium', map[status])}>
-      {status === 'pending' ? 'Menunggu' : status === 'approved' ? 'Disetujui' : 'Ditolak'}
+      {status === 'pending'
+        ? 'Menunggu'
+        : status === 'approved'
+        ? 'Disetujui'
+        : status === 'rejected'
+        ? 'Ditolak'
+        : 'Draft'}
     </span>
   )
 }

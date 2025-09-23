@@ -7,62 +7,31 @@ import { useRequests } from '@/lib/state/requests'
 import { PageHeader } from '@/components/PageHeader'
 import { StatusBadge } from '@/components/ui/StatusBadges'
 import { Eye, Filter, X } from 'lucide-react'
-import { format } from 'date-fns'
-import { id as idLocale } from 'date-fns/locale/id'
 import { toast } from 'sonner'
 import clsx from 'clsx'
+import {
+  DecoratedRequest,
+  decorateRequest,
+  formatLeavePeriod,
+  formatOvertimePeriod,
+} from '@/lib/utils/requestDisplay'
+import { LeaveRequest, OvertimeRequest } from '@/lib/types'
 
 type TabKey = 'mine' | 'others' | 'done' | 'all'
 type TypeFilter = 'all' | 'leave' | 'overtime'
 
-// Treat approverId as OPTIONAL so old data still works
-type Req = {
-  id: string
-  userId: string
-  user?: { name?: string; department?: string }
-  type: 'leave' | 'overtime'
-  status: 'pending' | 'approved' | 'rejected'
-  createdAt: string
-  updatedAt?: string
-  approverId?: string
-  payload?: any
-}
-
-// Dummy users (samakan id-nya dengan seedRequests.userId)
-const PEOPLE: Record<string, { name: string; department: string }> = {
-  u_alex:  { name: 'Alex Klemer',  department: 'Marketing' },
-  u_mark:  { name: 'Mark Brown',   department: 'Sales' },
-  u_david: { name: 'David Brown',  department: 'Operations' },
-  u_ava:   { name: 'Ava Smith',    department: 'Production' },
-}
-
-function fDate(d?: string) {
-  if (!d) return '-'
-  return format(new Date(d), 'd MMM yyyy', { locale: idLocale })
-}
-function fTimeHM(s?: string) {
-  if (!s) return ''
-  return s
-}
-function fTypeLabel(t: 'leave' | 'overtime', payload: any) {
-  if (t === 'overtime') return 'Lembur'
-  const kind = payload?.kind
-  if (kind === 'cuti') return 'Cuti'
-  if (kind === 'sakit') return 'Sakit'
-  return 'Izin'
+function fTypeLabel(req: DecoratedRequest) {
+  if (req.type === 'overtime') return 'Lembur'
+  return req.leaveTypeLabel ?? 'Izin'
 }
 const isDone = (status: string) => status === 'approved' || status === 'rejected'
 
 export default function HRApprovalPage() {
   const me = useAuth((s) => s.user)
   const myId = me?.id ?? ''
-  const requests = useRequests((s) => s.items) as Req[]
+  const requests = useRequests((s) => s.items)
 
-  // Enrich: join userId -> user
-  const list = useMemo(
-    () => requests.map((r) => ({ ...r, user: PEOPLE[r.userId] })),
-    [requests]
-  )
+  const list = useMemo(() => requests.map((r) => decorateRequest(r)), [requests])
 
   // === FILTER STATE (tanpa ubah URL => bebas 404) ===
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all')
@@ -88,15 +57,17 @@ export default function HRApprovalPage() {
                          buckets.all
 
     const byType = typeFilter === 'all' ? raw : raw.filter((r) => r.type === typeFilter)
+    const query = q.trim().toLowerCase()
 
     return byType
       .filter((r) =>
-        q.trim()
-          ? (r.user?.name || '').toLowerCase().includes(q.trim().toLowerCase()) ||
-            (r.payload?.reason || '').toLowerCase().includes(q.trim().toLowerCase())
+        query
+          ? `${r.employee.name} ${r.employee.department} ${r.reason ?? ''}`
+              .toLowerCase()
+              .includes(query)
           : true
       )
-      .sort((a, b) => (b.updatedAt ?? b.createdAt).localeCompare(a.updatedAt ?? a.createdAt))
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
   }, [buckets, tab, typeFilter, q])
 
   const counts = {
@@ -106,7 +77,7 @@ export default function HRApprovalPage() {
     all:    buckets.all.length,
   }
 
-  const [review, setReview] = useState<Req | null>(null)
+  const [review, setReview] = useState<DecoratedRequest | null>(null)
 
   return (
     <div className="pb-8 overflow-x-hidden">
@@ -174,31 +145,26 @@ export default function HRApprovalPage() {
           </div>
 
           {current.map((r) => {
-            const jenis = fTypeLabel(r.type, r.payload)
-            const period =
-              r.type === 'overtime'
-                ? `${fDate(r.payload?.date)} • ${fTimeHM(r.payload?.startTime)}–${fTimeHM(r.payload?.endTime)}`
-                : r.payload?.start && r.payload?.end
-                ? `${fDate(r.payload.start)} → ${fDate(r.payload.end)}`
-                : r.payload?.date
-                ? fDate(r.payload.date)
-                : '-'
+            const jenis = fTypeLabel(r)
+            const period = r.type === 'overtime'
+              ? formatOvertimePeriod(r as OvertimeRequest)
+              : formatLeavePeriod(r as LeaveRequest)
 
-            const skor = r.payload?.kpi ?? '—'
-            const dept = r.user?.department ?? '—'
-            const name = r.user?.name ?? '—'
+            const info = r.type === 'overtime' ? `${r.hours} jam` : `${r.days} hari`
+            const dept = r.employee.department
+            const name = r.employee.name
             const badgeStatus = (r.status === 'approved' ? 'signed' : r.status) as 'pending' | 'signed' | 'rejected'
 
             return (
               <div key={r.id} className="grid grid-cols-[1.2fr,1fr,0.9fr,1.4fr,0.6fr,0.8fr,0.6fr] items-center border-t">
                 <Cell>
                   <div className="font-semibold">{name}</div>
-                  <div className="text-gray-500 text-sm line-clamp-1">{r.payload?.reason}</div>
+                  <div className="text-gray-500 text-sm line-clamp-1">{r.reason}</div>
                 </Cell>
                 <Cell>{dept}</Cell>
                 <Cell>{jenis}</Cell>
                 <Cell>{period}</Cell>
-                <Cell><span className="font-bold">{skor}</span></Cell>
+                <Cell><span className="font-bold">{info}</span></Cell>
                 <Cell>
                   <StatusBadge status={badgeStatus} />
                 </Cell>
@@ -233,7 +199,7 @@ export default function HRApprovalPage() {
     </div>
   )
 
-  function doUpdate(req: Req | null, status: 'approved' | 'rejected', _note?: string) {
+  function doUpdate(req: DecoratedRequest | null, status: 'approved' | 'rejected', _note?: string) {
     if (!req) return
     const api: any = (useRequests as any).getState?.()
     if (api?.updateStatus) {
@@ -297,7 +263,7 @@ function ReviewModal({
 }: {
   open: boolean
   onClose: () => void
-  req: Req | null
+  req: DecoratedRequest | null
   onApprove: (note?: string) => void
   onReject: (note?: string) => void
 }) {
@@ -305,15 +271,10 @@ function ReviewModal({
 
   if (!open || !req) return null
 
-  const jenis = fTypeLabel(req.type, req.payload)
-  const period =
-    req.type === 'overtime'
-      ? `${fDate(req.payload?.date)} • ${req.payload?.startTime ?? ''}–${req.payload?.endTime ?? ''}`
-      : req.payload?.start && req.payload?.end
-      ? `${fDate(req.payload?.start)} → ${fDate(req.payload?.end)}`
-      : req.payload?.date
-      ? fDate(req.payload?.date)
-      : '-'
+  const jenis = fTypeLabel(req)
+  const period = req.type === 'overtime'
+    ? formatOvertimePeriod(req as OvertimeRequest)
+    : formatLeavePeriod(req as LeaveRequest)
 
   const badgeStatus = (req.status === 'approved' ? 'signed' : req.status) as 'pending' | 'signed' | 'rejected'
 
@@ -329,12 +290,14 @@ function ReviewModal({
         </div>
 
         <div className="mt-4 space-y-3">
-          <Row label="Karyawan"   value={req.user?.name ?? '—'} />
-          <Row label="Departemen" value={req.user?.department ?? '—'} />
+          <Row label="Karyawan"   value={req.employee.name} />
+          <Row label="Departemen" value={req.employee.department} />
           <Row label="Jenis"      value={jenis} />
           <Row label="Periode"    value={period} />
-          {req.payload?.reason && <Row label="Alasan"   value={req.payload?.reason} />}
-          {req.payload?.kpi    && <Row label="Skor KPI" value={req.payload?.kpi} />}
+          {req.type === 'leave' && <Row label="Durasi" value={`${req.days} hari`} />}
+          {req.type === 'overtime' && <Row label="Durasi" value={`${req.hours} jam`} />}
+          {req.reason && <Row label="Alasan"   value={req.reason} />}
+          <Row label="Lampiran" value={req.attachmentUrl} />
           <Row label="Status saat ini" value={<StatusBadge status={badgeStatus} />} />
         </div>
 
