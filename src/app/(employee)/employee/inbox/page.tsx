@@ -68,8 +68,8 @@ function StatusPill({ status }: { status: Request['status'] }) {
 }
 
 export default function InboxPage() {
-  const user = useAuth((s) => s.user)!
-  const all = useRequests((s) => s.forUser(user.id))
+  const user = useAuth((s) => s.user)
+  const all = useRequests((s) => (user ? s.forUser(user.id) : []))
   const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all')
 
   // Only leave + overtime, excluding drafts
@@ -97,6 +97,12 @@ export default function InboxPage() {
         pullUpPx={24}      // cancels AppShell pt-6
       />
 
+      {!user ? (
+        <section className="card p-5 text-sm text-gray-600">
+          Silakan login untuk melihat notifikasi pengajuan Anda.
+        </section>
+      ) : (
+        <>
       {/* Filters */}
       <div className="flex items-center gap-2">
         {[
@@ -220,6 +226,8 @@ export default function InboxPage() {
           </div>
         )}
       </div>
+        </>
+      )}
     </div>
   )
 }

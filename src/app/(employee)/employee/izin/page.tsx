@@ -39,8 +39,8 @@ function prettyDate(iso?: string){
 }
 
 export default function IzinPage(){
-  const user = useAuth(s=>s.user)!
-  const all = useRequests(s=>s.forUser(user.id))
+  const user = useAuth(s=>s.user)
+  const all = useRequests(s=> user ? s.forUser(user.id) : [])
 
   const { cutiLeft, izinLeft, lemburLeft } = useMemo(()=>{
     // NOTE: We try to read payload.kind for leave category; fallback to counting as 'izin'.
@@ -67,7 +67,12 @@ export default function IzinPage(){
         pullUpPx={24}      // cancels AppShell pt-6
       />
 
-      <div className="max-w-6xl mx-auto px-5">
+      {!user ? (
+        <div className="card max-w-6xl mx-auto px-5 py-6 text-sm text-gray-600">
+          Silakan login untuk melihat kuota dan riwayat pengajuan izin.
+        </div>
+      ) : (
+        <div className="max-w-6xl mx-auto px-5">
         {/* Dompet Token */}
         <h2 className="text-2xl font-extrabold mb-3">Dompet Token</h2>
         <div className="rounded-2xl p-4 text-white shadow-md" 
@@ -133,7 +138,8 @@ export default function IzinPage(){
             </div>
           ))}
         </div>
-      </div>
+        </div>
+      )}
     </div>
   )
 }
