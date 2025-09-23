@@ -54,7 +54,8 @@ function fTypeLabel(t: 'leave' | 'overtime', payload: any) {
 const isDone = (status: string) => status === 'approved' || status === 'rejected'
 
 export default function HRApprovalPage() {
-  const me = useAuth((s) => s.user)!
+  const me = useAuth((s) => s.user)
+  const myId = me?.id ?? ''
   const requests = useRequests((s) => s.items) as Req[]
 
   // Enrich: join userId -> user
@@ -71,12 +72,12 @@ export default function HRApprovalPage() {
   // Buckets (pending mine/others + done/all)
   const buckets = useMemo(() => {
     const pending = list.filter((r) => r.status === 'pending')
-    const mine   = pending.filter((r) => (r.approverId ? r.approverId === me.id : true))
-    const others = pending.filter((r) => (r.approverId ? r.approverId !== me.id : false))
+    const mine   = myId ? pending.filter((r) => (r.approverId ? r.approverId === myId : true)) : []
+    const others = myId ? pending.filter((r) => (r.approverId ? r.approverId !== myId : false)) : pending
     const done   = list.filter((r) => isDone(r.status))
     const all    = list
     return { mine, others, done, all }
-  }, [list, me.id])
+  }, [list, myId])
 
   // Apply tab → type → search
   const current = useMemo(() => {
@@ -112,6 +113,12 @@ export default function HRApprovalPage() {
       <PageHeader title="Persetujuan" backHref="/hr/dashboard/kehadiran" bg="var(--B-950)" />
 
       <div className="max-w-7xl mx-auto px-5 mt-4 space-y-4">
+        {!me ? (
+          <section className="card p-6 text-sm text-gray-600">
+            Silakan login sebagai HR untuk mengelola persetujuan.
+          </section>
+        ) : (
+          <>
         {/* Filters bar */}
         <div className="rounded-2xl bg-[#EFF4FF]/60 border p-2 flex flex-wrap items-center gap-2">
           {/* Tabs */}
@@ -211,6 +218,8 @@ export default function HRApprovalPage() {
             <div className="px-6 py-12 text-center text-gray-500">Tidak ada pengajuan untuk filter ini.</div>
           )}
         </section>
+          </>
+        )}
       </div>
 
       {/* Review modal */}

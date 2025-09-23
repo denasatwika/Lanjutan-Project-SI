@@ -53,12 +53,12 @@ function formatDateShortID(d: Date) { return format(d, 'EEE, dd/MM/yyyy', { loca
 function timeHHmm(d?: Date) { return d ? format(d, 'HH:mm', { locale: idLocale }) : '--:--' }
 
 export default function Page() {
-    const user = useAuth(s => s.user)!
-    const att = useAttendance(s => s.forUser(user.id))
+    const user = useAuth(s => s.user)
+    const att = useAttendance(s => (user ? s.forUser(user.id) : []))
     const now = useLiveClock()
     const [showCheckIn, setShowCheckIn] = useState(false)
 
-    const firstName = useMemo(() => user.name.split(' ')[0], [user.name])
+    const firstName = useMemo(() => user?.name?.split(' ')[0] ?? 'User', [user?.name])
     const initial = firstName.charAt(0).toUpperCase()
 
     function dayISO(d: Date) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x.toISOString() }
@@ -76,20 +76,21 @@ export default function Page() {
 
     // Load existing description when sheet opens
     useEffect(() => {
-        if (!sheetOpen || !selectedDay) return
+        if (!user || !sheetOpen || !selectedDay) return
         try {
             const raw = localStorage.getItem(descKey(user.id, dayISO(selectedDay)))
             setDesc(raw ?? '')
         } catch { setDesc('') }
-    }, [sheetOpen, selectedDay, user.id])
+    }, [sheetOpen, selectedDay, user?.id])
 
     function saveDesc() {
-        if (!selectedDay) return
+        if (!user || !selectedDay) return
         localStorage.setItem(descKey(user.id, dayISO(selectedDay)), (desc ?? '').trim())
         setSheetOpen(false)
     }
 
     function getDescPreview(day: Date) {
+        if (!user) return ''
         try {
             const raw = localStorage.getItem(descKey(user.id, dayISO(day))) ?? ''
             return raw
@@ -143,6 +144,14 @@ export default function Page() {
 
     // NEW: dynamic CTA label (logic stays the same as your old storage model)
     const ctaLabel = today.working ? 'Check-Out' : 'Check-In'
+
+    if (!user) {
+        return (
+            <main className="mx-auto w-full max-w-[640px] space-y-5 p-3 pb-28">
+                <section className="card p-5 text-sm text-gray-600">Silakan login untuk mengakses dashboard karyawan.</section>
+            </main>
+        )
+    }
 
     return (
         <main className="mx-auto w-full max-w-[640px] space-y-5 p-3 pb-28">

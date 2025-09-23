@@ -30,8 +30,8 @@ function punctualBadge(checkIn?: Date) {
 }
 
 export default function RiwayatKehadiranPage() {
-  const user  = useAuth(s => s.user)!
-  const items = useAttendance(s => s.forUser(user.id))
+  const user  = useAuth(s => s.user)
+  const items = useAttendance(s => (user ? s.forUser(user.id) : []))
 
   // Group attendance by day -> {date, checkIn, checkOut}
   const rows = useMemo(() => {
@@ -65,21 +65,22 @@ export default function RiwayatKehadiranPage() {
 
   // Load existing description on open
   useEffect(() => {
-    if (!sheetOpen || !selectedDay) return
+    if (!user || !sheetOpen || !selectedDay) return
     try {
       const raw = localStorage.getItem(descKey(user.id, dayISO(selectedDay)))
       setDesc(raw ?? '')
     } catch { setDesc('') }
-  }, [sheetOpen, selectedDay, user.id])
+  }, [sheetOpen, selectedDay, user?.id])
 
   function saveDesc() {
-    if (!selectedDay) return
+    if (!user || !selectedDay) return
     localStorage.setItem(descKey(user.id, dayISO(selectedDay)), (desc ?? '').trim())
     toast.success('Keterangan disimpan')
     setSheetOpen(false)
   }
 
   function getDesc(day: Date) {
+    if (!user) return ''
     try {
       return localStorage.getItem(descKey(user.id, dayISO(day))) ?? ''
     } catch { return '' }
@@ -95,9 +96,14 @@ export default function RiwayatKehadiranPage() {
         pullUpPx={24}      // cancels AppShell pt-6
       />
 
-
-      <div className="max-w-6xl mx-auto px-4 mt-3">
-        <div className="rounded-2xl bg-white shadow-md border overflow-hidden">
+      {!user ? (
+        <section className="card max-w-6xl mx-auto mt-4 px-4 py-6 text-sm text-gray-600">
+          Silakan login untuk melihat riwayat kehadiran Anda.
+        </section>
+      ) : (
+        <>
+          <div className="max-w-6xl mx-auto px-4 mt-3">
+            <div className="rounded-2xl bg-white shadow-md border overflow-hidden">
           {/* Horizontal scroll with tighter layout */}
           <div className="overflow-x-auto">
             <div className="min-w-[1100px]">
@@ -175,45 +181,47 @@ export default function RiwayatKehadiranPage() {
           </div>
         </div>
 
-        <div className="mt-1.5 text-[11px] text-gray-500">Geser ke samping untuk melihat lebih banyak kolom</div>
-      </div>
-
-      {/* -------- Sheet-in: single description editor -------- */}
-      <BottomSheet open={sheetOpen} onClose={() => setSheetOpen(false)} className="max-h-[90dvh]">
-        {selectedDay && (
-          <div className="space-y-3">
-            <div className="mx-auto w-max rounded-2xl px-4 py-2 text-center text-white shadow-md" style={{ background: 'var(--B-900)' }}>
-              <div className="text-sm font-semibold">{fmtFull(selectedDay)}</div>
-            </div>
-
-            <div className="rounded-2xl border p-3">
-              <h3 className="font-semibold mb-2 text-[15px]">Keterangan Hari Ini</h3>
-              <textarea
-                value={desc}
-                onChange={(e)=> setDesc(e.target.value)}
-                rows={4}
-                placeholder="Contoh: Weekly meeting dengan tim, review dokumen, implementasi fitur X."
-                className="w-full rounded-xl border px-3 py-2 text-[14px]"
-              />
-              <div className="mt-2 flex items-center justify-end gap-2">
-                <button
-                  onClick={() => setDesc('')}
-                  className="rounded-xl border px-3 py-1.5 text-[13px]"
-                >
-                  Kosongkan
-                </button>
-                <button
-                  onClick={saveDesc}
-                  className="rounded-xl px-3 py-1.5 text-white text-[13px] font-semibold shadow-md"
-                  style={{ background: '#16A34A' }}
-                >
-                  Simpan
-                </button>
-              </div>
-            </div>
+            <div className="mt-1.5 text-[11px] text-gray-500">Geser ke samping untuk melihat lebih banyak kolom</div>
           </div>
-        )}
-      </BottomSheet>
+
+          {/* -------- Sheet-in: single description editor -------- */}
+          <BottomSheet open={sheetOpen} onClose={() => setSheetOpen(false)} className="max-h-[90dvh]">
+            {selectedDay && (
+              <div className="space-y-3">
+                <div className="mx-auto w-max rounded-2xl px-4 py-2 text-center text-white shadow-md" style={{ background: 'var(--B-900)' }}>
+                  <div className="text-sm font-semibold">{fmtFull(selectedDay)}</div>
+                </div>
+
+                <div className="rounded-2xl border p-3">
+                  <h3 className="font-semibold mb-2 text-[15px]">Keterangan Hari Ini</h3>
+                  <textarea
+                    value={desc}
+                    onChange={(e)=> setDesc(e.target.value)}
+                    rows={4}
+                    placeholder="Contoh: Weekly meeting dengan tim, review dokumen, implementasi fitur X."
+                    className="w-full rounded-xl border px-3 py-2 text-[14px]"
+                  />
+                  <div className="mt-2 flex items-center justify-end gap-2">
+                    <button
+                      onClick={() => setDesc('')}
+                      className="rounded-xl border px-3 py-1.5 text-[13px]"
+                    >
+                      Kosongkan
+                    </button>
+                    <button
+                      onClick={saveDesc}
+                      className="rounded-xl px-3 py-1.5 text-white text-[13px] font-semibold shadow-md"
+                      style={{ background: '#16A34A' }}
+                    >
+                      Simpan
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </BottomSheet>
+        </>
+      )}
     </div>
   )
 }
