@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Filter, Check, Search, Calendar, Clock3, User2 } from 'lucide-react'
+import { Filter, SearchCheck, Search, Calendar, Clock3, User2 } from 'lucide-react'
 import clsx from 'clsx'
 import { PageHeader } from '@/components/PageHeader'
 import { useRequests } from '@/lib/state/requests'
@@ -77,12 +77,6 @@ export default function SupervisorApprovalsPage() {
             />
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
           </div>
-
-        <p className="mt-2 text-xs text-slate-500">
-          Menampilkan <span className="font-semibold">{filtered.length}</span> permintaan
-          {onlyPending ? ' (pending)' : ''}. Pending:{' '}
-          <span className="font-semibold">{pendingCount}</span>
-        </p>
       </div>
 
       {/* List */}
@@ -122,18 +116,12 @@ export default function SupervisorApprovalsPage() {
                 </div>
 
                 {r.status === 'pending' && (
-                  <div className="mt-3 flex gap-2">
+                  <div className="mt-3 flex flex-row-reverse gap-2">
                     <button
-                      className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                      className="inline-flex flex-2 items-center justify-center gap-2 rounded-xl bg-[#00156B] px-3 py-2 text-sm font-semibold text-white hover:brightness-110"
                       onClick={() => setSelected(r)}
                     >
-                      <Clock3 className="size-4" /> Detail
-                    </button>
-                    <button
-                      className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#00156B] px-3 py-2 text-sm font-semibold text-white hover:brightness-110"
-                      onClick={() => setSelected(r)}
-                    >
-                      <Check className="size-4" /> Tinjau
+                      <SearchCheck className="size-5" /> Tinjau
                     </button>
                   </div>
                 )}
