@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic'
 
 import { useMemo, useState, useEffect, useCallback } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
-import { Filter, SearchCheck, Search, Calendar, Clock3, User2 } from 'lucide-react'
+import { Filter, SearchCheck, Search, Calendar, Clock3, User2, Check } from 'lucide-react'
 import clsx from 'clsx'
 import { PageHeader } from '@/components/PageHeader'
 import { useRequests } from '@/lib/state/requests'
@@ -14,13 +14,13 @@ import {
   formatLeavePeriod,
   formatOvertimePeriod,
 } from '@/lib/utils/requestDisplay'
-import { LeaveRequest, OvertimeRequest } from '@/lib/types'
 import { RequestDetailDrawer } from '@/components/RequestDetailDrawer'
+import { LeaveRequest, OvertimeRequest } from '@/lib/types'
 
 type TypeFilter = 'all' | 'leave' | 'overtime'
 type Status = 'draft' | 'pending' | 'approved' | 'rejected'
 
-export default function ChiefApprovalsPage() {
+export default function SupervisorApprovalsPage() {
   // === FILTER STATE (tanpa ubah URL) ===
   const [type, setType] = useState<TypeFilter>('all')
   const [onlyPending, setOnlyPending] = useState(true)
@@ -81,7 +81,7 @@ export default function ChiefApprovalsPage() {
       <div className="sticky top-0 z-10 -mx-3 border-b border-slate-200 bg-white/95 px-3 pb-3 pt-2 backdrop-blur">
         <PageHeader
           title="Persetujuan"
-          backHref="/chief/dashboard"
+          backHref="/supervisor/dashboard"
           fullBleed
           bleedMobileOnly
           pullUpPx={34}      // cancels AppShell pt-6
@@ -159,10 +159,12 @@ export default function ChiefApprovalsPage() {
           </li>
         ))}
       </ul>
+      {/* Sticky CTA removed from here */}
+
       <RequestDetailDrawer
         request={selected}
         onClose={() => selectRequest(null)}
-        role="chief"
+        role="supervisor"
       />
     </main>
   )

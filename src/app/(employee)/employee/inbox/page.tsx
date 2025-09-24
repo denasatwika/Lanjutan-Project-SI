@@ -12,6 +12,7 @@ import { PageHeader } from '@/components/PageHeader'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import clsx from 'clsx'
+import { mockLeaveTypes } from '@/lib/mock/requests'
 
 // ------------------------------
 // Small local "read" store (persisted in localStorage)
@@ -68,8 +69,8 @@ function StatusPill({ status }: { status: Request['status'] }) {
 }
 
 export default function InboxPage() {
-  const user = useAuth((s) => s.user)!
-  const all = useRequests((s) => s.forUser(user.id))
+  const user = useAuth((s) => s.user)
+  const all = useRequests((s) => (user ? s.forEmployee(user.id) : []))
   const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all')
 
   // Only leave + overtime, excluding drafts
@@ -89,8 +90,20 @@ export default function InboxPage() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Inbox" backHref="/employee/dashboard" />
+      <PageHeader
+        title="Inbox"
+        backHref="/employee/dashboard"
+        fullBleed
+        bleedMobileOnly    // <-- key line
+        pullUpPx={24}      // cancels AppShell pt-6
+      />
 
+      {!user ? (
+        <section className="card p-5 text-sm text-gray-600">
+          Silakan login untuk melihat notifikasi pengajuan Anda.
+        </section>
+      ) : (
+        <>
       {/* Filters */}
       <div className="flex items-center gap-2">
         {[
@@ -138,21 +151,21 @@ export default function InboxPage() {
 
           const title =
             isLeave
-              ? `Permintaan ${r.payload?.kind === 'cuti' ? 'Cuti' : 'Izin'}`
+              ? `Permintaan ${mockLeaveTypes[r.leaveTypeId]?.label ?? 'Izin'}`
               : 'Permintaan Lembur'
 
           const desc =
             isLeave
               ? [
-                  r.payload?.start ? `Awal: ${fDate(r.payload?.start)}` : null,
-                  r.payload?.end ? `Akhir: ${fDate(r.payload?.end)}` : null,
+                  r.startDate ? `Mulai: ${fDate(r.startDate)}` : null,
+                  r.endDate ? `Selesai: ${fDate(r.endDate)}` : null,
                 ]
                   .filter(Boolean)
                   .join(' • ')
               : [
-                  r.payload?.date ? `Tanggal: ${fDate(r.payload?.date)}` : null,
-                  r.payload?.startTime && r.payload?.endTime
-                    ? `Jam: ${r.payload.startTime}–${r.payload.endTime}`
+                  r.workDate ? `Tanggal: ${fDate(r.workDate)}` : null,
+                  r.startTime && r.endTime
+                    ? `Jam: ${r.startTime}–${r.endTime}`
                     : null,
                 ]
                   .filter(Boolean)
@@ -183,9 +196,9 @@ export default function InboxPage() {
 
                 {desc && <div className="text-sm text-gray-700 mt-2">{desc}</div>}
 
-                {r.payload?.reason && (
+                {r.reason && (
                   <div className="text-sm text-gray-500 mt-1 line-clamp-2">
-                    Alasan: {r.payload.reason}
+                    Alasan: {r.reason}
                   </div>
                 )}
 
@@ -214,6 +227,8 @@ export default function InboxPage() {
           </div>
         )}
       </div>
+        </>
+      )}
     </div>
   )
 }

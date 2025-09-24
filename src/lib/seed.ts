@@ -1,15 +1,13 @@
 import { Attendance, Request, User } from './types'
+import { mockRequests } from './mock/requests'
 
 export const seedUsers: User[] = [
-  { id:'u-emp', name:'Alex Employee', role:'employee' },
-  { id:'u-sup', name:'Sam Supervisor', role:'supervisor' },
-  { id:'u-hr', name:'Hana HR', role:'hr' },
-  { id:'u-chief', name:'Chris Chief', role:'chief' },
+  { id:'u-emp', name:'Alex Employee', role:'employee', department:'Engineering' },
+  { id:'u-sup', name:'Sam Supervisor', role:'supervisor', department:'Operations' },
+  { id:'u-hr', name:'Hana HR', role:'hr', department:'Human Resources' },
+  { id:'u-chief', name:'Chris Chief', role:'chief', department:'Executive' },
 ]
 
-export const seedRequests: Request[] = [
-  { id:'r-1', userId:'u-emp', type:'leave', status:'pending', createdAt:new Date().toISOString(), updatedAt:new Date().toISOString(), payload:{ days:2, reason:'Family' }},
-  { id:'r-2', userId:'u-emp', type:'overtime', status:'approved', createdAt:new Date().toISOString(), updatedAt:new Date().toISOString(), payload:{ hours:3, reason:'Release' }},
-]
+export const seedRequests: Request[] = mockRequests
 
 export const seedAttendance: Attendance[] = []

@@ -18,20 +18,29 @@ type PartialUser = {
 
 export default function ProfilPage() {
   const auth = useAuth()
-  const user = auth.user!
-  const firstName = useMemo(() => user.name?.split(' ')[0] ?? 'User', [user.name])
+  const user = auth.user
+  const firstName = useMemo(() => user?.name?.split(' ')[0] ?? 'User', [user?.name])
   const initial = firstName.charAt(0).toUpperCase()
 
+  const initialForm = useMemo<PartialUser>(() => {
+    const u = user as any
+    return {
+      name: user?.name ?? '',
+      email: u?.email ?? '',
+      phone: u?.phone ?? '',
+      department: u?.department ?? '—',
+      wallet: u?.wallet ?? '—',
+      avatarUrl: u?.avatarUrl ?? null,
+    }
+  }, [user])
+
   // local editable state (front-end only)
-  const [form, setForm] = useState<PartialUser>({
-    name: user.name,
-    // email: user.email,
-    phone: (user as any).phone ?? '',
-    department: (user as any).department ?? '—',
-    wallet: (user as any).wallet ?? '—',
-    avatarUrl: (user as any).avatarUrl ?? null,
-  })
+  const [form, setForm] = useState<PartialUser>(initialForm)
   const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    setForm(initialForm)
+  }, [initialForm])
 
   // theme toggle (darkMode: 'class')
   const [dark, setDark] = useState<boolean>(() =>
@@ -44,6 +53,10 @@ export default function ProfilPage() {
   }, [dark])
 
   async function saveProfile() {
+    if (!user) {
+      toast.error('Silakan login terlebih dahulu')
+      return
+    }
     setSaving(true)
     try {
       // Try to update the auth store if it exposes a method; otherwise just toast (early validation).
@@ -68,7 +81,7 @@ export default function ProfilPage() {
       // Try to persist to store if supported
       const api: any = (useAuth as any).getState?.()
       if (api?.update) api.update({ avatarUrl: dataUrl })
-      else if (api?.setUser) api.setUser({ ...user, avatarUrl: dataUrl })
+      else if (api?.setUser && user) api.setUser({ ...user, avatarUrl: dataUrl })
     }
     reader.readAsDataURL(file)
   }
@@ -81,8 +94,20 @@ export default function ProfilPage() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Profil" backHref="/employee/dashboard" />
+      <PageHeader
+        title="Profil"
+        backHref="/employee/dashboard"
+        fullBleed
+        bleedMobileOnly    // <-- key line
+        pullUpPx={24}      // cancels AppShell pt-6
+      />
 
+      {!user ? (
+        <section className="card p-4 text-sm text-gray-500">
+          Silakan login untuk melihat dan mengubah profil karyawan.
+        </section>
+      ) : (
+      <>
       {/* Identity card */}
       <section className="card p-4">
         <div className="flex items-center gap-4">
@@ -111,9 +136,9 @@ export default function ProfilPage() {
 
           <div className="flex-1">
             <input
-              className="w-full bg-transparent text-xl md:text-2xl font-extrabold outline-none"
-              value={form.name ?? ''}
-              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                className="w-full bg-transparent text-xl md:text-2xl font-extrabold outline-none"
+                value={form.name ?? ''}
+                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
             />
             <div className="mt-1 text-sm text-gray-500">EMPLOYEE</div>
           </div>
@@ -126,7 +151,7 @@ export default function ProfilPage() {
           >
             {dark ? <Sun size={16} /> : <Moon size={16} />} {dark ? 'Light' : 'Dark'}
           </button>
-        </div>
+         </div>
       </section>
 
       {/* Contact & Org */}
@@ -147,21 +172,6 @@ export default function ProfilPage() {
               onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
             />
           </InfoRow>
-
-          <div className="mt-4 flex items-center gap-3">
-            <button
-              onClick={saveProfile}
-              disabled={saving}
-              className="btn btn-primary"
-            >
-              {saving ? 'Menyimpan…' : 'Simpan'}
-            </button>
-            <button onClick={logout} className="btn">Logout</button>
-          </div>
-        </div>
-
-        <div className="card p-4">
-          <h3 className="font-bold mb-3">Organisasi</h3>
           <InfoRow icon={<Building2 size={16} />} label="Departemen">
             <input
               className="w-full bg-transparent outline-none"
@@ -176,8 +186,19 @@ export default function ProfilPage() {
               onChange={(e) => setForm((f) => ({ ...f, wallet: e.target.value }))}
             />
           </InfoRow>
+
+          <div className="mt-4 flex items-center gap-3">
+            <button
+              onClick={saveProfile}
+              disabled={saving}
+              className="btn btn-primary"
+            >
+              {saving ? 'Menyimpan…' : 'Simpan'}
+            </button>
+            <button onClick={logout} className="btn">Logout</button>
+          </div>
         </div>
-      </section>
+     </section>
 
       {/* Security */}
       <section className="card p-4">
@@ -191,6 +212,8 @@ export default function ProfilPage() {
           </button>
         </InfoRow>
       </section>
+      </>
+      )}
     </div>
   )
 }
