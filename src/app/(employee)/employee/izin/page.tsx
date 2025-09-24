@@ -11,6 +11,16 @@ import { id as idLocale } from 'date-fns/locale/id'
 import { ChevronLeft, FileText, Clock3, Check, CircleAlert, ChevronRight } from 'lucide-react'
 import type { Request } from '@/lib/types'
 import { PageHeader } from '@/components/PageHeader'
+import { mockLeaveTypes } from '@/lib/mock/requests'
+
+const NAVY = {
+  50:  '#eef2ff',
+  100: '#e0e7ff',
+  200: '#c7d2fe',
+  600: '#1e3a8a',
+  700: '#172554',
+  800: '#0b1535',
+}
 
 const TOKENS = { cuti: 12, izin: 3, lembur: 6 }
 
@@ -29,15 +39,28 @@ function prettyDate(iso?: string){
   return format(new Date(iso), 'd MMMM yyyy', { locale: idLocale })
 }
 
+function formatRange(start: string, end: string) {
+  if (!start) return prettyDate(end)
+  if (!end || start === end) return prettyDate(start)
+  return `${prettyDate(start)} – ${prettyDate(end)}`
+}
+
 export default function IzinPage(){
-  const user = useAuth(s=>s.user)!
-  const all = useRequests(s=>s.forUser(user.id))
+  const user = useAuth(s=>s.user)
+  const all = useRequests(s=> user ? s.forEmployee(user.id) : [])
 
   const { cutiLeft, izinLeft, lemburLeft } = useMemo(()=>{
-    // NOTE: We try to read payload.kind for leave category; fallback to counting as 'izin'.
-    const usedCuti = all.filter(r=> r.type==='leave' && ['approved','pending'].includes(r.status) && (r.payload?.kind==='cuti')).length
-    const usedIzin = all.filter(r=> r.type==='leave' && ['approved','pending'].includes(r.status) && (r.payload?.kind!=='cuti')).length
-    const usedLembur = all.filter(r=> r.type==='overtime' && ['approved','pending'].includes(r.status)).length
+    const relevant = all.filter(r => ['approved','pending'].includes(r.status))
+    const leave = relevant.filter((r): r is Request & { type: 'leave' } => r.type === 'leave')
+    const overtime = relevant.filter((r): r is Request & { type: 'overtime' } => r.type === 'overtime')
+
+    const usedCuti = leave.filter((r) => mockLeaveTypes[r.leaveTypeId]?.code === 'cuti').length
+    const usedIzin = leave.filter((r) => {
+      const code = mockLeaveTypes[r.leaveTypeId]?.code
+      return code && code !== 'cuti'
+    }).length
+    const usedLembur = overtime.length
+
     return {
       cutiLeft: Math.max(0, TOKENS.cuti - usedCuti),
       izinLeft: Math.max(0, TOKENS.izin - usedIzin),
@@ -58,11 +81,17 @@ export default function IzinPage(){
         pullUpPx={24}      // cancels AppShell pt-6
       />
 
-      <div className="max-w-6xl mx-auto px-5">
+      {!user ? (
+        <div className="card max-w-6xl mx-auto px-5 py-6 text-sm text-gray-600">
+          Silakan login untuk melihat kuota dan riwayat pengajuan izin.
+        </div>
+      ) : (
+        <div className="max-w-6xl mx-auto px-5">
         {/* Dompet Token */}
         <h2 className="text-2xl font-extrabold mb-3">Dompet Token</h2>
-        <div className="rounded-2xl p-4 text-white shadow-md" style={{ 
-          background: 'linear-gradient(135deg, var(--S-800) 0%, var(--R-500a) 100%)'
+        <div className="rounded-2xl p-4 text-white shadow-md" 
+          style={{
+          background: `linear-gradient(135deg, ${NAVY[700]} 0%, ${NAVY[600]} 60%, ${NAVY[800]} 100%)`,
         }}>
           <div className="grid grid-cols-3 gap-3">
             <TokenTile label="Cuti" value={cutiLeft} color="var(--B-500)"/>
@@ -78,14 +107,14 @@ export default function IzinPage(){
             icon={<FileText className="size-5 text-amber-600" />}
             title="Ajukan Izin"
             desc="Pakai token izinmu."
-            href="/employee/forms/leave"
+            href="/employee/izin/new/leave"
             bgColor="bg-[#F7DDB7]"   // izin → soft yellow
           />
           <ActionCard
             icon={<Clock3 className="size-5 text-green-600" />}
             title="Ajukan Lembur"
             desc="Klaim token lembur."
-            href="/employee/forms/overtime"
+            href="/employee/izin/new/overtime"
             bgColor="bg-[#DCFCE7]"   // lembur → soft green
           />
         </div>
@@ -107,15 +136,17 @@ export default function IzinPage(){
                 <div className="mt-2 text-sm text-gray-700 space-y-1">
                   {r.type==='leave' ? (
                     <>
-                      {r.payload?.start && <div>Awal Izin : {prettyDate(r.payload.start)}</div>}
-                      {r.payload?.end && <div>Akhir Izin : {prettyDate(r.payload.end)}</div>}
-                      {r.payload?.reason && <div>Alasan Izin : {r.payload.reason}</div>}
+                      <div>Jenis : {mockLeaveTypes[r.leaveTypeId]?.label ?? '—'}</div>
+                      <div>Periode : {formatRange(r.startDate, r.endDate)}</div>
+                      <div>Durasi : {r.days} hari</div>
+                      {r.reason && <div>Alasan : {r.reason}</div>}
                     </>
                   ) : (
                     <>
-                      {r.payload?.date && <div>Tanggal Lembur : {prettyDate(r.payload.date)}</div>}
-                      {(r.payload?.startTime || r.payload?.endTime) && <div>Jam Lembur : {r.payload.startTime ?? '--:--'} - {r.payload.endTime ?? '--:--'}</div>}
-                      {r.payload?.reason && <div>Alasan Lembur : {r.payload.reason}</div>}
+                      <div>Tanggal Lembur : {prettyDate(r.workDate)}</div>
+                      <div>Jam Lembur : {r.startTime} - {r.endTime}</div>
+                      <div>Total : {r.hours} jam</div>
+                      {r.reason && <div>Alasan : {r.reason}</div>}
                     </>
                   )}
                 </div>
@@ -123,7 +154,8 @@ export default function IzinPage(){
             </div>
           ))}
         </div>
-      </div>
+        </div>
+      )}
     </div>
   )
 }

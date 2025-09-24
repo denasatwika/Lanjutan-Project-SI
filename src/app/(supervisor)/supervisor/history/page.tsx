@@ -1,4 +1,4 @@
-// app/(chief)/chief/riwayat/page.tsx
+// app/(supervisor)/supervisor/riwayat/page.tsx
 'use client'
 
 import { useMemo, useState } from 'react'
@@ -26,7 +26,7 @@ type TypeFilter = 'all' | 'leave' | 'overtime'
 type StatusFilter = 'all' | Status
 type RangeKey = '7' | '30' | '90' | 'all'
 
-export default function ChiefHistoryPage() {
+export default function SupervisorHistoryPage() {
   // --- FILTER STATE (lokal; tidak mengubah URL) ---
   const [typeF, setTypeF] = useState<TypeFilter>('all')
   const [statusF, setStatusF] = useState<StatusFilter>('all')
@@ -45,11 +45,13 @@ export default function ChiefHistoryPage() {
 
   const filtered = useMemo(() => {
     return data.filter((r) => {
+      // date window uses updatedAt if exists, else createdAt
       const d = parseISO(r.updatedAt ?? r.createdAt)
       const inRange = startDate ? isWithinInterval(d, { start: startDate, end: now }) : true
       const byType = typeF === 'all' ? true : r.type === typeF
       const byStatus = statusF === 'all' ? true : r.status === statusF
-      const text = `${r.employee.name} ${r.employee.department} ${r.reason ?? ''}`.toLowerCase()
+      const text =
+        `${r.employee.name} ${r.employee.department} ${r.reason ?? ''}`.toLowerCase()
       const byQuery = q.trim() ? text.includes(q.trim().toLowerCase()) : true
       return inRange && byType && byStatus && byQuery
     }).sort((a, b) =>
@@ -57,6 +59,7 @@ export default function ChiefHistoryPage() {
     )
   }, [data, typeF, statusF, q, startDate, now])
 
+  // group by date (yyyy-mm-dd) of updatedAt/createdAt
   const groups = useMemo(() => {
     const map: Record<string, DecoratedRequest[]> = {}
     for (const r of filtered) {
@@ -64,6 +67,7 @@ export default function ChiefHistoryPage() {
       if (!map[key]) map[key] = []
       map[key].push(r)
     }
+    // return as array of [key, items] sorted desc by date
     return Object.entries(map).sort(([a], [b]) => b.localeCompare(a))
   }, [filtered])
 
@@ -77,15 +81,17 @@ export default function ChiefHistoryPage() {
 
   return (
     <main className="mx-auto w-full max-w-[640px] p-3 pb-20">
+      {/* Sticky header */}
       <div className="sticky top-0 z-10 -mx-3 border-b border-slate-200 bg-white/95 px-3 pb-3 pt-2 backdrop-blur">
         <PageHeader
-          title="Riwayat"
-          backHref="/chief/dashboard"
-          fullBleed
-          bleedMobileOnly
-          pullUpPx={34}
-        />
+        title="Riwayat"
+        backHref="/supervisor/dashboard"
+        fullBleed
+        bleedMobileOnly    // <-- key line
+        pullUpPx={34}      // cancels AppShell pt-6
+      />
 
+        {/* Filters */}
         <div className="mt-3 flex items-center gap-2 overflow-x-auto">
           <Chip active={typeF === 'all'} onClick={() => setTypeF('all')}>
             <Filter className="size-4" /> Semua
@@ -110,6 +116,7 @@ export default function ChiefHistoryPage() {
           <Chip active={range === '90'} onClick={() => setRange('90')}>90H</Chip>
           <Chip active={range === 'all'} onClick={() => setRange('all')}>Semua</Chip>
 
+          {/* Search */}
           <div className="relative ml-auto min-w-[160px]">
             <input
               value={q}
@@ -127,6 +134,7 @@ export default function ChiefHistoryPage() {
         </p>
       </div>
 
+      {/* Groups by date */}
       <div className="mt-3 space-y-6">
         {groups.map(([key, items]) => (
           <section key={key} className="space-y-2">
@@ -153,7 +161,9 @@ export default function ChiefHistoryPage() {
                       {r.type === 'leave' ? (
                         <p>{labelLeaveRequest(r as LeaveRequest, r.leaveTypeLabel)}</p>
                       ) : (
-                        <p>Lembur <span className="font-medium">{formatOvertimePeriod(r as OvertimeRequest)}</span></p>
+                        <p>
+                          Lembur <span className="font-medium">{formatOvertimePeriod(r as OvertimeRequest)}</span>
+                        </p>
                       )}
                       {r.reason && (
                         <p className="line-clamp-2 mt-1 text-slate-500">Alasan: {r.reason}</p>
@@ -186,6 +196,7 @@ export default function ChiefHistoryPage() {
         )}
       </div>
 
+      {/* Detail side modal */}
       <DetailModal open={!!detail} req={detail} onClose={() => setDetail(null)} />
     </main>
   )

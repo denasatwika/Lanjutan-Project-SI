@@ -36,7 +36,8 @@ const mobileItemsByRole: Record<
   ],
   supervisor: [
     { href: '/supervisor/dashboard', label: 'Dashboard', icon: Home },
-    { href: '/supervisor/review', label: 'Review', icon: ClipboardList },
+    { href: '/supervisor/approval', label: 'Approval', icon: ClipboardCheck },
+    { href: '/supervisor/history', label: 'History', icon: HistoryIcon }
   ],
   chief: [
     { href: '/chief/dashboard', label: 'Dashboard', icon: Home },
@@ -88,7 +89,8 @@ const sidebarByRole: Record<Role, SidebarItem[]> = {
   ],
   supervisor: [
     { kind: 'link', href: '/supervisor/dashboard', label: 'Dashboard', icon: Home },
-    { kind: 'link', href: '/supervisor/review', label: 'Review', icon: ClipboardList },
+    { kind: 'link', href: '/supervisor/approval', label: 'Approval', icon: ClipboardCheck },
+    { kind: 'link', href: '/supervisor/history', label: 'History', icon: HistoryIcon }
   ],
   chief: [
     { kind: 'link', href: '/chief/dashboard', label: 'Dashboard', icon: Home },
