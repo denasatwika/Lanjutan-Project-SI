@@ -1,5 +1,6 @@
 'use client'
 
+import { ReactNode } from 'react'
 import { DecoratedRequest, formatLeavePeriod, formatOvertimePeriod } from '@/lib/utils/requestDisplay'
 import { LeaveRequest, OvertimeRequest } from '@/lib/types'
 import { X, FileText, Clock, CalendarDays } from 'lucide-react'
@@ -92,8 +93,8 @@ function DetailRow({
   code,
 }: {
   label: string
-  value?: React.ReactNode
-  icon?: React.ReactNode
+  value?: ReactNode
+  icon?: ReactNode
   multiline?: boolean
   code?: boolean
 }) {
