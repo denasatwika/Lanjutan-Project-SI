@@ -6,6 +6,10 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { useAuth } from '@/lib/state/auth'
+import { useRequests } from '@/lib/state/requests'
+import { decorateRequest } from '@/lib/utils/requestDisplay'
+import { formatDistanceToNow } from 'date-fns'
+import { id as idLocale } from 'date-fns/locale'
 import clsx from 'clsx'
 
 /** Navy tokens */
@@ -113,12 +117,19 @@ const MOCK = {
 export default function supervisorDashboard() {
   const [mode, setMode] = useState<Mode>('today')
   const user = useAuth(s => s.user)
+  const requests = useRequests((s) => s.items)
+  const pendingRequests = useMemo(() => (
+    requests
+      .map((r) => decorateRequest(r))
+      .filter((r) => r.status === 'pending')
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+  ), [requests])
   const totalKaryawan = MOCK.top.totalKaryawan
   const totalHadir = useMemo(
     () => (mode === 'today' ? MOCK.today.hadir : MOCK.week.hadir),
     [mode]
   )
-  const pending = MOCK.top.pendingToApprove
+  const pending = pendingRequests.length
 
   const izin = mode === 'today' ? MOCK.today.izin : MOCK.week.izin
   const lembur = mode === 'today' ? MOCK.today.lemburJam : MOCK.week.lemburJam
@@ -188,9 +199,19 @@ export default function supervisorDashboard() {
           </Link>
         </div>
         <div className="rounded-2xl border border-slate-100 bg-white p-2 shadow-sm">
-          {MOCK.approvalsPreview.map((a, idx) => (
-            <ApprovalItem key={a.id} {...a} last={idx === MOCK.approvalsPreview.length - 1} />
+          {pendingRequests.slice(0, 3).map((r, idx) => (
+            <ApprovalItem
+              key={r.id}
+              id={r.id}
+              kind={r.type}
+              name={r.employee.name}
+              submittedAt={formatDistanceToNow(new Date(r.createdAt), { addSuffix: true, locale: idLocale })}
+              last={idx === Math.min(3, pendingRequests.length) - 1}
+            />
           ))}
+          {pendingRequests.length === 0 && (
+            <p className="py-6 text-center text-xs text-slate-500">Belum ada permintaan menunggu persetujuan.</p>
+          )}
         </div>
       </section>
 
@@ -372,7 +393,7 @@ function ApprovalItem({
           {kind === 'leave' ? 'Izin' : 'Lembur'} • {id} • {submittedAt}
         </p>
       </div>
-      <Link href="/supervisor/approval" className="text-xs font-semibold text-[--B-800] underline underline-offset-2">
+      <Link href={`/supervisor/approval?request=${id}`} className="text-xs font-semibold text-[--B-800] underline underline-offset-2">
         Review
       </Link>
     </div>

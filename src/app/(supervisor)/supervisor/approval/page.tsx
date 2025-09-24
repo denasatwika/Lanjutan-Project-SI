@@ -1,7 +1,10 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import { Filter, SearchCheck, Search, Calendar, Clock3, User2 } from 'lucide-react'
+export const dynamic = 'force-dynamic'
+
+import { useMemo, useState, useEffect, useCallback } from 'react'
+import { useRouter, usePathname } from 'next/navigation'
+import { Filter, SearchCheck, Search, Calendar, Clock3, User2, Check } from 'lucide-react'
 import clsx from 'clsx'
 import { PageHeader } from '@/components/PageHeader'
 import { useRequests } from '@/lib/state/requests'
@@ -43,6 +46,34 @@ export default function SupervisorApprovalsPage() {
 
   const pendingCount = filtered.filter((r) => r.status === 'pending').length
   const [selected, setSelected] = useState<DecoratedRequest | null>(null)
+  const [mounted, setMounted] = useState(false)
+  const router = useRouter()
+  const pathname = usePathname()
+
+  const selectRequest = useCallback((req: DecoratedRequest | null, pushUrl = true) => {
+    setSelected(req)
+    if (!pushUrl) return
+    const next = req ? `${pathname}?request=${req.id}` : pathname
+    router.replace(next, { scroll: false })
+  }, [pathname, router])
+
+  useEffect(() => {
+    setMounted(true)
+
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    const reqId = params.get('request')
+    if (!reqId) {
+      selectRequest(null, false)
+      return
+    }
+    const match = data.find((r) => r.id === reqId)
+    if (match) {
+      selectRequest(match, false)
+    }
+  }, [data, selectRequest])
+
+  if (!mounted) return null
 
   return (
     <main className="mx-auto w-full max-w-[640px] p-3 pb-28">
@@ -115,16 +146,14 @@ export default function SupervisorApprovalsPage() {
                   {r.reason && <p className="line-clamp-2 mt-1 text-slate-500">Alasan: {r.reason}</p>}
                 </div>
 
-                {r.status === 'pending' && (
-                  <div className="mt-3 flex flex-row-reverse gap-2">
-                    <button
-                      className="inline-flex flex-2 items-center justify-center gap-2 rounded-xl bg-[#00156B] px-3 py-2 text-sm font-semibold text-white hover:brightness-110"
-                      onClick={() => setSelected(r)}
-                    >
-                      <SearchCheck className="size-5" /> Tinjau
-                    </button>
-                  </div>
-                )}
+                <div className="mt-3 flex flex-row-reverse gap-2">
+                  <button
+                    className="inline-flex flex-2 items-center justify-center gap-2 rounded-xl bg-[#00156B] px-8 py-2 text-sm font-semibold text-white hover:brightness-110"
+                    onClick={() => selectRequest(r)}
+                  >
+                    <SearchCheck className="size-6" /> Tinjau
+                  </button>
+                </div>
               </div>
             </div>
           </li>
@@ -134,7 +163,7 @@ export default function SupervisorApprovalsPage() {
 
       <RequestDetailDrawer
         request={selected}
-        onClose={() => setSelected(null)}
+        onClose={() => selectRequest(null)}
         role="supervisor"
       />
     </main>
