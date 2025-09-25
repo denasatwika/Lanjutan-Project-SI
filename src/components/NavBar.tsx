@@ -2,8 +2,10 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname } from 'next/navigation'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import Cookies from 'js-cookie'
 import { cn } from '@/lib/utils/cn'
 import {
   LayoutGrid,
@@ -15,6 +17,15 @@ import {
   Home,
   Inbox,
   User,
+  // extra for HR drawer header
+  Menu,
+  // icons used inside HRSidebar (aliases to match the code you shared)
+  LayoutGrid as LayoutDashboard,
+  ChevronDown,
+  History as FileClock,
+  ClipboardCheck as FileCheck,
+  LogOut,
+  X,
 } from 'lucide-react'
 
 type Role = 'employee' | 'supervisor' | 'chief' | 'hr'
@@ -22,7 +33,7 @@ type Role = 'employee' | 'supervisor' | 'chief' | 'hr'
 const NAVY = '#00156B'
 const RED = '#BD0016'
 
-/** ---- MOBILE: exactly your map (per-role pages can differ) ---- */
+/** ----------------------- MOBILE items (unchanged) ----------------------- */
 const mobileItemsByRole: Record<
   Exclude<Role, 'hr'> | 'hr',
   { href: string; label: string; icon: any }[]
@@ -37,14 +48,13 @@ const mobileItemsByRole: Record<
   supervisor: [
     { href: '/supervisor/dashboard', label: 'Dashboard', icon: Home },
     { href: '/supervisor/approval', label: 'Approval', icon: ClipboardCheck },
-    { href: '/supervisor/history', label: 'History', icon: HistoryIcon }
+    { href: '/supervisor/history', label: 'History', icon: HistoryIcon },
   ],
   chief: [
     { href: '/chief/dashboard', label: 'Dashboard', icon: Home },
     { href: '/chief/approval', label: 'Approval', icon: ClipboardCheck },
-    { href: '/chief/history', label: 'History', icon: HistoryIcon }
+    { href: '/chief/history', label: 'History', icon: HistoryIcon },
   ],
-  // keep hr minimal; add/trim as you like
   hr: [
     { href: '/hr/dashboard', label: 'Dashboard', icon: LayoutGrid },
     { href: '/hr/approval', label: 'Approval', icon: ClipboardCheck },
@@ -53,74 +63,209 @@ const mobileItemsByRole: Record<
   ],
 }
 
-/** ---- DESKTOP/TABLET: HR-sidebar style for all roles ---- */
-type SidebarItem =
-  | { kind: 'link'; href: string; label: string; icon?: any }
-  | {
-      kind: 'group'
-      href: string
-      label: string
-      icon?: any
-      children: { href: string; label: string; icon?: any }[]
-    }
+/** ========================================================================
+ *  HR SIDEBAR (INLINE)
+ *  - Static on md+ (like your existing desktop HR sidebar style)
+ *  - Drawer on <md with overlay and Escape-to-close
+ *  - Uses your original Sidebar behavior & styles, adapted to HR routes
+ * ======================================================================= */
+function HRSidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const pathname = usePathname()
+  const [openMenu, setOpenMenu] = useState('Dashboard')
 
-const sidebarByRole: Record<Role, SidebarItem[]> = {
-  hr: [
+  const NAV_ITEMS = [
     {
-      kind: 'group',
-      href: '/hr/dashboard',
-      label: 'Dashboard',
-      icon: LayoutGrid,
-      children: [
-        { href: '/hr/dashboard/kehadiran', label: 'Kehadiran', icon: CalendarCheck2 },
-        { href: '/hr/dashboard/dokumen', label: 'Dokumen', icon: FileText },
+      name: 'Dashboard',
+      icon: LayoutDashboard,
+      sub: [
+        { name: 'Kehadiran', href: '/hr/dashboard/kehadiran', icon: CalendarCheck2 },
+        { name: 'Dokumen', href: '/hr/dashboard/dokumen', icon: FileText },
       ],
     },
-    { kind: 'link', href: '/hr/approval', label: 'Approval', icon: ClipboardCheck },
-    { kind: 'link', href: '/hr/dokumen', label: 'Dokumen', icon: FileText },
-    { kind: 'link', href: '/hr/history', label: 'History', icon: HistoryIcon },
-  ],
-  employee: [
-    { kind: 'link', href: '/employee/dashboard', label: 'Beranda', icon: Home },
-    { kind: 'link', href: '/employee/riwayat', label: 'Riwayat', icon: HistoryIcon },
-    { kind: 'link', href: '/employee/izin', label: 'Izin', icon: ClipboardList },
-    { kind: 'link', href: '/employee/inbox', label: 'Inbox', icon: Inbox },
-    { kind: 'link', href: '/employee/profile', label: 'Profil', icon: User },
-  ],
-  supervisor: [
-    { kind: 'link', href: '/supervisor/dashboard', label: 'Dashboard', icon: Home },
-    { kind: 'link', href: '/supervisor/approval', label: 'Approval', icon: ClipboardCheck },
-    { kind: 'link', href: '/supervisor/history', label: 'History', icon: HistoryIcon }
-  ],
-  chief: [
-    { kind: 'link', href: '/chief/dashboard', label: 'Dashboard', icon: Home },
-    { kind: 'link', href: '/chief/approval', label: 'Approval', icon: ClipboardCheck },
-    { kind: 'link', href: '/chief/history', label: 'History', icon: HistoryIcon }
-  ],
-}
+    { name: 'Approval', icon: FileCheck, href: '/hr/approval' },
+    { name: 'Dokumen', icon: FileText, href: '/hr/dokumen' },
+    { name: 'History', icon: FileClock, href: '/hr/history' },
+  ]
 
-export function NavBar({ role }: { role: Role }) {
-  const pathname = usePathname()
-  const mobileItems = mobileItemsByRole[role] ?? []
-  const sidebarItems = sidebarByRole[role] ?? []
+  const handleLogout = () => {
+    Cookies.remove('auth_token')
+    localStorage.removeItem('user')
+    window.location.href = '/'
+  }
+
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open, onClose])
 
   return (
-    <nav className="z-50">
-      {/* Mobile floating pill (exactly your role map). */}
-      <div className="fixed inset-x-0 bottom-4 md:hidden">
-        <MobilePill items={mobileItems} pathname={pathname} />
+    <>
+      {/* Overlay for mobile */}
+      <div
+        className={`fixed inset-0 z-30 bg-black/40 md:hidden ${open ? 'block' : 'hidden'}`}
+        onClick={onClose}
+        aria-hidden="true"
+      />
+
+      <aside
+        role="navigation"
+        aria-label="HR Sidebar"
+        className={`fixed inset-y-0 left-0 z-40 w-72 bg-white p-4 transition-transform duration-200 ease-out
+        ${open ? 'translate-x-0' : '-translate-x-full'}
+        md:static md:translate-x-0 md:inset-auto md:min-h-screen flex flex-col`}
+      >
+        {/* Mobile header */}
+        <div className="mb-4 flex items-center justify-between md:hidden">
+          <span className="font-semibold">Menu</span>
+          <button
+            onClick={onClose}
+            aria-label="Close sidebar"
+            className="rounded-lg p-2 hover:bg-gray-100"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {/* Logo */}
+        <div className="flex items-center gap-2 px-2 pb-4 border-b">
+        <div className="size-8 rounded-full grid place-items-center font-bold text-white" style={{ background: NAVY }}>
+          B
+        </div>
+        <div className="text-lg font-extrabold">
+          <span style={{ color: RED }}>My</span>
+          <span style={{ color: NAVY }}>Baliola</span>
+        </div>
       </div>
 
-      {/* Desktop / tablet: clean HRSidebar style. */}
-      <div className="hidden md:block">
-        <Sidebar items={sidebarItems} pathname={pathname} />
+        {/* Navigation */}
+        <nav className="space-y-2 flex-grow">
+          {NAV_ITEMS.map((item) => {
+            const isMenuOpen = openMenu === item.name
+
+            if ('sub' in item && item.sub) {
+              return (
+                <div key={item.name}>
+                  <button
+                    onClick={() => setOpenMenu(isMenuOpen ? '' : item.name)}
+                    className="w-full flex items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-sm text-blue-950 hover:bg-gray-100 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <item.icon className="h-5 w-5" />
+                      <span>{item.name}</span>
+                    </div>
+                    <ChevronDown
+                      className={`h-5 w-5 text-red-600 transition-transform ${isMenuOpen ? 'rotate-180' : ''}`}
+                    />
+                  </button>
+
+                  {isMenuOpen && (
+                    <div className="mt-1 space-y-1 pl-6">
+                      {item.sub.map((sub) => {
+                        const isActive = pathname === sub.href
+                        return (
+                          <Link
+                            key={sub.href}
+                            href={sub.href}
+                            onClick={onClose}
+                            className={`flex items-center gap-2 rounded-r-full p-2.5 pl-4 text-sm transition-colors ${
+                              isActive ? 'bg-blue-950 text-white' : 'text-blue-950 hover:bg-gray-100'
+                            }`}
+                          >
+                            {sub.icon ? <sub.icon className="h-4 w-4" /> : null}
+                            {sub.name}
+                          </Link>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )
+            }
+
+            const isActive = pathname === (item as any).href
+            return (
+              <Link
+                key={(item as any).href}
+                href={(item as any).href!}
+                onClick={onClose}
+                className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors ${
+                  isActive ? 'bg-blue-950 text-white' : 'text-blue-950 hover:bg-gray-100'
+                }`}
+              >
+                <item.icon className="h-5 w-5" />
+                <span>{item.name}</span>
+              </Link>
+            )
+          })}
+        </nav>
+
+        {/* Logout */}
+        <div className="pt-100">
+          <button
+            onClick={handleLogout}
+            className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-100"
+          >
+            <LogOut className="h-5 w-5" />
+            <span>Logout</span>
+          </button>
+        </div>
+      </aside>
+    </>
+  )
+}
+
+/** =============================== NAV BAR ================================ */
+export function NavBar({ role }: { role: Role }) {
+  const pathname = usePathname()
+  const [hrSidebarOpen, setHrSidebarOpen] = useState(false)
+
+  // HR: sidebar UI (drawer on mobile; static on md+)
+  if (role === 'hr') {
+    return (
+      <nav className="z-50">
+        {/* Top bar (mobile) with hamburger */}
+        <div className="md:hidden sticky top-0 z-50 bg-white/80 backdrop-blur border-b">
+          <div className="flex items-center gap-3 px-4 py-3">
+            <button
+              aria-label="Open menu"
+              onClick={() => setHrSidebarOpen(true)}
+              className="rounded-lg p-2 hover:bg-gray-100"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+            <div className="font-extrabold">
+              My<span className="text-[#00156B]">Baliola</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Static sidebar on md+ */}
+        <div className="hidden md:block">
+          <HRSidebar open={true} onClose={() => {}} />
+        </div>
+
+        {/* Drawer on mobile */}
+        <div className="md:hidden">
+          <HRSidebar open={hrSidebarOpen} onClose={() => setHrSidebarOpen(false)} />
+        </div>
+      </nav>
+    )
+  }
+
+  // Non-HR roles: keep your existing mobile pill
+  return (
+    <nav className="z-50">
+      <div className="fixed inset-x-0 bottom-4 md:hidden">
+        <MobilePill items={mobileItemsByRole[role] ?? []} pathname={pathname} />
       </div>
+      {/* You can optionally keep / add a desktop sidebar for these roles later */}
     </nav>
   )
 }
 
-/* ------------------------------ Mobile pill ------------------------------- */
-
+/** ------------------------------ Mobile pill ----------------------------- */
 function MobilePill({
   items,
   pathname,
@@ -146,7 +291,7 @@ function MobilePill({
                   <span
                     className={cn(
                       'grid place-items-center h-9 w-9 rounded-xl transition',
-                      active ? 'bg-[#FF4E58] text-white shadow' : 'text-white'
+                      active ? 'bg-[#FF4E58] text-white shadow' : 'text-white',
                     )}
                   >
                     <Icon className={cn(active ? 'h-5 w-5' : 'h-6 w-6')} />
@@ -163,140 +308,5 @@ function MobilePill({
         </ul>
       </div>
     </div>
-  )
-}
-
-/* --------------------------- Desktop/Tablet side --------------------------- */
-
-function Sidebar({ items, pathname }: { items: SidebarItem[]; pathname: string }) {
-  return (
-    <div className="rounded-2xl bg-white shadow-md border p-4 overflow-visible">
-      {/* Brand */}
-      <div className="flex items-center gap-2 px-2 pb-4 border-b">
-        <div className="size-8 rounded-full grid place-items-center font-bold text-white" style={{ background: NAVY }}>
-          B
-        </div>
-        <div className="text-lg font-extrabold">
-          <span className="text-gray-900">My</span>
-          <span style={{ color: NAVY }}>Baliola</span>
-        </div>
-      </div>
-
-      {/* Menu */}
-      <nav className="mt-4 space-y-1">
-        {items.map((it) =>
-          it.kind === 'link' ? (
-            <SidebarMainLink key={it.href} item={it} pathname={pathname} />
-          ) : (
-            <SidebarGroup key={it.href} item={it} pathname={pathname} />
-          ),
-        )}
-      </nav>
-    </div>
-  )
-}
-
-function SidebarMainLink({
-  item,
-  pathname,
-}: {
-  item: Extract<SidebarItem, { kind: 'link' }>
-  pathname: string
-}) {
-  const active = pathname === item.href || pathname.startsWith(item.href + '/')
-  const Icon = item.icon
-  const base =
-    'relative overflow-visible flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition-colors'
-  return (
-    <Link href={item.href} className={cn(base, active ? `text-[${NAVY}]` : 'text-gray-700 hover:bg-gray-50')}>
-      {active && (
-        <span
-          aria-hidden
-          className="absolute left-[-8px] top-1/2 -translate-y-1/2 h-8 w-1.5 rounded-r-md"
-          style={{ background: RED }}
-        />
-      )}
-      {Icon ? <Icon size={18} className="text-current" /> : null}
-      <span>{item.label}</span>
-    </Link>
-  )
-}
-
-function SidebarGroup({
-  item,
-  pathname,
-}: {
-  item: Extract<SidebarItem, { kind: 'group' }>
-  pathname: string
-}) {
-  const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
-  const [open, setOpen] = useState(isActive)
-
-  const base =
-    'relative overflow-visible flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition-colors'
-  const activeCls = `text-[${NAVY}] bg-white`
-  const inactiveCls = 'text-gray-700 hover:bg-gray-50'
-  const Icon = item.icon
-
-  return (
-    <div className="group relative">
-      <button onClick={() => setOpen((v) => !v)} className={cn(base, isActive ? activeCls : inactiveCls, 'w-full text-left')}>
-        {isActive && (
-          <span
-            aria-hidden
-            className="absolute left-[-8px] top-1/2 -translate-y-1/2 h-8 w-1.5 rounded-r-md"
-            style={{ background: RED }}
-          />
-        )}
-        {Icon ? <Icon size={18} style={{ color: isActive ? NAVY : undefined }} /> : null}
-        <span>{item.label}</span>
-        <span className="ml-auto md:hidden">{open ? '▾' : '▸'}</span>
-      </button>
-
-      {/* Mobile accordion (kept for completeness if ever rendered ≤ md) */}
-      <div className={cn('mt-1 space-y-1 md:hidden', open ? 'block' : 'hidden')}>
-        {item.children.map((c) => (
-          <SubLink key={c.href} href={c.href} pathname={pathname} icon={c.icon} label={c.label} />
-        ))}
-      </div>
-
-      {/* Desktop hover submenu */}
-      <div className="hidden md:block">
-        <div className="absolute left-2 right-2 top-[calc(100%+4px)] z-30 hidden group-hover:block">
-          <div className="rounded-xl border bg-white shadow-lg p-2 space-y-1">
-            {item.children.map((c) => (
-              <SubLink key={c.href} href={c.href} pathname={pathname} icon={c.icon} label={c.label} />
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function SubLink({
-  href,
-  pathname,
-  icon: Icon,
-  label,
-}: {
-  href: string
-  pathname: string
-  icon?: any
-  label: string
-}) {
-  const active = pathname === href
-  return (
-    <Link
-      href={href}
-      className={cn(
-        'flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold',
-        active ? `text-[${NAVY}] bg-gray-50` : 'text-gray-700 hover:bg-gray-50',
-      )}
-      style={active ? { color: NAVY } : undefined}
-    >
-      {Icon ? <Icon size={18} /> : null}
-      {label}
-    </Link>
   )
 }
