@@ -1,12 +1,11 @@
 'use client'
 
-import { useMemo, useRef, useState, useEffect, useCallback } from 'react'
+import { useMemo, useRef, useState, useEffect } from 'react'
 import { PageHeader } from '@/components/PageHeader'
 import { toast } from 'sonner'
-import { format } from 'date-fns'
-import { id as idLocale } from 'date-fns/locale'
-import { DayPicker } from 'react-day-picker'
-import { Calendar as CalendarIcon, ChevronDown } from 'lucide-react'
+import { ChevronDown } from 'lucide-react'
+import DateRangePicker from '@/components/DateRangePicker'
+import type { DateRange } from 'react-day-picker'
 
 type Jenis = 'Cuti' | 'Sakit' | 'Lembur' | 'Lainnya'
 
@@ -66,7 +65,7 @@ function SelectBox<T extends string>({
   options: { value: T; label: string }[]
 }) {
   const [open, setOpen] = useState(false)
-  const selected = options.find(o => o.value === value)?.label ?? 'Pilih'
+  const selected = options.find(o => o.value === value)?.label ?? 'Select'
   return (
     <label className="block">
       <span className="text-sm text-gray-700">{label}</span>
@@ -106,7 +105,7 @@ function SelectBox<T extends string>({
   )
 }
 
-/* --- Date helpers & DatePicker --- */
+/* --- Date helpers --- */
 function toISODate(d?: Date) {
   if (!d) return ''
   const y = d.getFullYear()
@@ -120,79 +119,6 @@ function fromISODate(s?: string) {
   return isNaN(d.getTime()) ? undefined : d
 }
 
-function DatePicker({
-  label,
-  value,
-  onChange,
-  min,
-  max,
-}: {
-  label: string
-  value: string
-  onChange: (v: string) => void
-  min?: string
-  max?: string
-}) {
-  const [open, setOpen] = useState(false)
-  const selected = fromISODate(value)
-  const minDate = fromISODate(min)
-  const maxDate = fromISODate(max)
-
-  return (
-    <div className="grid gap-1.5">
-      <span className="text-sm text-gray-700">{label}</span>
-      <Popover
-        open={open}
-        onOpenChange={setOpen}
-        trigger={
-          <button
-            type="button"
-            className="w-full rounded-xl border px-3 py-3 text-left shadow-sm flex items-center justify-between"
-            style={{ borderColor: '#00156B20', boxShadow: '0 1px 2px rgba(0,0,0,.06)' }}
-          >
-            <span className="inline-flex items-center gap-2">
-              <CalendarIcon className="size-4 opacity-70" />
-              {selected ? (
-                <span>{format(selected, 'd MMMM yyyy', { locale: idLocale })}</span>
-              ) : (
-                <span className="text-gray-400">Pilih tanggal</span>
-              )}
-            </span>
-            <ChevronDown className="size-4 opacity-70" />
-          </button>
-        }
-      >
-        <DayPicker
-          mode="single"
-          selected={selected}
-          onSelect={(d) => {
-            onChange(d ? toISODate(d) : '')
-            setOpen(false)
-          }}
-          locale={idLocale}
-          fromDate={minDate}
-          toDate={maxDate}
-          className="rdp-root"
-          classNames={{
-            caption: 'px-2 py-2 text-center font-medium',
-            nav: 'flex items-center justify-between px-2',
-            button_previous: 'px-2 py-1 rounded-lg hover:bg-gray-100',
-            button_next: 'px-2 py-1 rounded-lg hover:bg-gray-100',
-            month: 'p-2',
-            table: 'w-full border-collapse',
-            head_cell: 'text-gray-500 text-xs font-medium pb-1',
-            row: '',
-            cell: 'p-1',
-            day: 'w-9 h-9 rounded-lg hover:bg-gray-100',
-            day_selected: 'bg-[#00156B] text-white hover:bg-[#00156B] hover:text-white',
-            day_today: 'border border-[#00156B33]',
-            day_outside: 'text-gray-300',
-          }}
-        />
-      </Popover>
-    </div>
-  )
-}
 
 export default function Page() {
   const [form, setForm] = useState<{
@@ -244,75 +170,77 @@ export default function Page() {
       fd.append('alasan', form.alasan)
       if (form.lampiran) fd.append('lampiran', form.lampiran)
       // await fetch('/api/izin', { method: 'POST', body: fd })
-      toast.success('Pengajuan izin terkirim')
+      toast.success('Leave request submitted')
       setForm({ jenis: 'Cuti', dari: '', sampai: '', alasan: '', lampiran: null })
       if (fileRef.current) fileRef.current.value = ''
     } catch {
-      toast.error('Gagal mengajukan izin')
+      toast.error('Failed to submit leave request')
     }
   }
 
   const isImg = form.lampiran?.type.startsWith('image/')
   const previewUrl = form.lampiran && isImg ? URL.createObjectURL(form.lampiran) : null
 
+  const dateRange = useMemo<DateRange>(() => ({
+    from: fromISODate(form.dari),
+    to: fromISODate(form.sampai),
+  }), [form.dari, form.sampai])
+
   return (
     <div className="">
-      <PageHeader title="Pengajuan Izin" backHref="/employee/dashboard" fullBleed bleedMobileOnly pullUpPx={24} />
+      <PageHeader title="Leave Request" backHref="/employee/dashboard" fullBleed bleedMobileOnly pullUpPx={24} />
 
       <div className="mx-auto max-w-screen-sm px-4 mt-3 md:max-w-2xl">
         <div className="rounded-2xl bg-white shadow-md border p-4">
           <div className="grid gap-4 text-[15px]">
             <SelectBox<Jenis>
-              label="Jenis izin"
+              label="Leave type"
               value={form.jenis}
               onChange={(v) => setForm(s => ({ ...s, jenis: v }))}
               options={[
-                { value: 'Cuti', label: 'Cuti' },
-                { value: 'Sakit', label: 'Sakit' },
-                { value: 'Lembur', label: 'Lembur' },
-                { value: 'Lainnya', label: 'Lainnya' },
+                { value: 'Cuti', label: 'Annual Leave' },
+                { value: 'Sakit', label: 'Sick Leave' },
+                { value: 'Lembur', label: 'Overtime' },
+                { value: 'Lainnya', label: 'Other' },
               ]}
             />
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <DatePicker
-                label="Tanggal mulai"
-                value={form.dari}
-                onChange={(v) => setForm(s => ({ ...s, dari: v }))}
-                max={form.sampai || undefined}
-              />
-              <DatePicker
-                label="Tanggal selesai"
-                value={form.sampai}
-                onChange={(v) => setForm(s => ({ ...s, sampai: v }))}
-                min={form.dari || undefined}
-              />
-            </div>
+            <DateRangePicker
+              label="Leave dates"
+              range={dateRange}
+              onChange={(next: DateRange) =>
+                setForm((s) => ({
+                  ...s,
+                  dari: next.from ? toISODate(next.from) : '',
+                  sampai: next.to ? toISODate(next.to) : '',
+                }))
+              }
+            />
 
             {form.dari && form.sampai && new Date(form.dari) > new Date(form.sampai) && (
               <div className="text-sm text-rose-600 -mt-2">
-                Tanggal selesai tidak boleh lebih awal dari tanggal mulai.
+                End date cannot be earlier than the start date.
               </div>
             )}
 
             <div className="rounded-xl border px-3 py-2 text-gray-600" style={{ borderColor: '#00156B20' }}>
-              Total: <span className="font-semibold text-gray-800">{hari}</span> hari
+              Total: <span className="font-semibold text-gray-800">{hari}</span> days
             </div>
 
             <label className="block">
-              <span className="text-sm text-gray-700">Alasan izin</span>
+              <span className="text-sm text-gray-700">Leave reason</span>
               <textarea
                 rows={5}
                 value={form.alasan}
                 onChange={e => setForm(s => ({ ...s, alasan: e.target.value }))}
                 className="w-full mt-1 rounded-xl border px-3 py-3 shadow-sm focus-visible:ring-2 focus-visible:ring-offset-0"
                 style={{ borderColor: '#00156B20', boxShadow: '0 1px 2px rgba(0,0,0,.06)' }}
-                placeholder="Contoh: acara keluarga, kontrol dokter, dll."
+                placeholder="Example: family event, doctor appointment, etc."
               />
             </label>
 
             <div>
-              <span className="text-sm text-gray-700">Lampiran (opsional)</span>
+              <span className="text-sm text-gray-700">Attachment (optional)</span>
               <div className="mt-1 flex flex-col gap-3 sm:flex-row sm:items-center">
                 <input
                   ref={fileRef}
@@ -329,7 +257,7 @@ export default function Page() {
                     className="w-full rounded-xl border px-3 py-2 text-sm shadow-sm self-start sm:w-auto sm:self-auto"
                     style={{ borderColor: '#00156B20' }}
                   >
-                    Hapus
+                    Remove
                   </button>
                 )}
               </div>
@@ -352,7 +280,7 @@ export default function Page() {
               className="w-full inline-flex items-center justify-center rounded-xl px-4 py-3 text-white font-semibold shadow-md"
               style={{ background: '#16A34A' }}
             >
-              Ajukan Izin
+              Submit Leave Request
             </button>
           </div>
         </div>

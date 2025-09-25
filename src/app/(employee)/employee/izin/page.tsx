@@ -14,7 +14,7 @@ import { PageHeader } from '@/components/PageHeader'
 import { mockLeaveTypes } from '@/lib/mock/requests'
 
 const NAVY = {
-  50:  '#eef2ff',
+  50: '#eef2ff',
   100: '#e0e7ff',
   200: '#c7d2fe',
   600: '#1e3a8a',
@@ -24,18 +24,18 @@ const NAVY = {
 
 const TOKENS = { cuti: 12, izin: 3, lembur: 6 }
 
-function StatusPill({ s }:{ s: Request['status'] }){
+function StatusPill({ s }: { s: Request['status'] }) {
   const map: Record<Request['status'], string> = {
     draft: 'bg-gray-100 text-gray-700',
     pending: 'bg-amber-100 text-amber-800',
     approved: 'bg-green-100 text-green-700',
     rejected: 'bg-red-100 text-red-700',
   }
-  return <span className={`px-3 py-1 rounded-full text-xs font-medium ${map[s]}`}>{s[0].toUpperCase()+s.slice(1)}</span>
+  return <span className={`px-3 py-1 rounded-full text-xs font-medium ${map[s]}`}>{s[0].toUpperCase() + s.slice(1)}</span>
 }
 
-function prettyDate(iso?: string){
-  if(!iso) return '-'
+function prettyDate(iso?: string) {
+  if (!iso) return '-'
   return format(new Date(iso), 'd MMMM yyyy', { locale: idLocale })
 }
 
@@ -45,12 +45,12 @@ function formatRange(start: string, end: string) {
   return `${prettyDate(start)} – ${prettyDate(end)}`
 }
 
-export default function IzinPage(){
-  const user = useAuth(s=>s.user)
-  const all = useRequests(s=> user ? s.forEmployee(user.id) : [])
+export default function IzinPage() {
+  const user = useAuth(s => s.user)
+  const all = useRequests(s => user ? s.forEmployee(user.id) : [])
 
-  const { cutiLeft, izinLeft, lemburLeft } = useMemo(()=>{
-    const relevant = all.filter(r => ['approved','pending'].includes(r.status))
+  const { cutiLeft, izinLeft, lemburLeft } = useMemo(() => {
+    const relevant = all.filter(r => ['approved', 'pending'].includes(r.status))
     const leave = relevant.filter((r): r is Request & { type: 'leave' } => r.type === 'leave')
     const overtime = relevant.filter((r): r is Request & { type: 'overtime' } => r.type === 'overtime')
 
@@ -66,19 +66,19 @@ export default function IzinPage(){
       izinLeft: Math.max(0, TOKENS.izin - usedIzin),
       lemburLeft: Math.max(0, TOKENS.lembur - usedLembur)
     }
-  },[all])
+  }, [all])
 
-  const history = useMemo(()=> [...all].sort((a,b)=> b.createdAt.localeCompare(a.createdAt)), [all])
+  const history = useMemo(() => [...all].sort((a, b) => b.createdAt.localeCompare(a.createdAt)), [all])
 
   return (
     <div className="space-y-6">
       {/* Top curved header */}
       <PageHeader
-        title="Izin"
+        title="Requests"
         backHref="/employee/dashboard"
         fullBleed
         bleedMobileOnly    // <-- key line
-        pullUpPx={24}      // cancels AppShell pt-6
+        pullUpPx={16}      // cancels AppShell pt-6
       />
 
       {!user ? (
@@ -87,83 +87,89 @@ export default function IzinPage(){
         </div>
       ) : (
         <div className="max-w-6xl mx-auto px-5">
-        {/* Dompet Token */}
-        <h2 className="text-2xl font-extrabold mb-3">Dompet Token</h2>
-        <div className="rounded-2xl p-4 text-white shadow-md" 
-          style={{
-          background: `linear-gradient(135deg, ${NAVY[700]} 0%, ${NAVY[600]} 60%, ${NAVY[800]} 100%)`,
-        }}>
-          <div className="grid grid-cols-3 gap-3">
-            <TokenTile label="Cuti" value={cutiLeft} color="var(--B-500)"/>
-            <TokenTile label="Izin" value={izinLeft} color="#F59E0B"/>
-            <TokenTile label="Lembur" value={lemburLeft} color="#22C55E"/>
+          {/* Dompet Token */}
+          <div className="mt-6 mb-4 ml-3">
+            <h2 className="text-lg font-semibold">Token Wallet</h2>
           </div>
-        </div>
-
-        {/* Pengajuan */}
-        <h3 className="text-2xl font-extrabold mt-6 mb-3">Pengajuan</h3>
-        <div className="grid grid-cols-2 gap-4">
-          <ActionCard
-            icon={<FileText className="size-5 text-amber-600" />}
-            title="Ajukan Izin"
-            desc="Pakai token izinmu."
-            href="/employee/izin/new/leave"
-            bgColor="bg-[#F7DDB7]"   // izin → soft yellow
-          />
-          <ActionCard
-            icon={<Clock3 className="size-5 text-green-600" />}
-            title="Ajukan Lembur"
-            desc="Klaim token lembur."
-            href="/employee/izin/new/overtime"
-            bgColor="bg-[#DCFCE7]"   // lembur → soft green
-          />
-        </div>
-
-        {/* Riwayat */}
-        <h3 className="text-2xl font-extrabold mt-6 mb-3">Riwayat</h3>
-        <div className="space-y-3">
-          {history.map(r=> (
-            <div key={r.id} className="card p-4 flex gap-3 items-start">
-              <div className="shrink-0 size-10 rounded-full grid place-items-center" style={{ background: r.type==='leave' ? 'rgba(245, 158, 11, .15)' : 'rgba(34,197,94,.15)' }}>
-                {r.type==='leave' ? <CircleAlert className="size-5 text-amber-500"/> : <Check className="size-5 text-green-600"/>}
-              </div>
-              <div className="flex-1">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-lg font-bold">Pengajuan {r.type==='leave'? 'Izin' : 'Lembur'}</h4>
-                  <StatusPill s={r.status} />
-                </div>
-                <div className="text-sm text-gray-500">{prettyDate(r.createdAt)}</div>
-                <div className="mt-2 text-sm text-gray-700 space-y-1">
-                  {r.type==='leave' ? (
-                    <>
-                      <div>Jenis : {mockLeaveTypes[r.leaveTypeId]?.label ?? '—'}</div>
-                      <div>Periode : {formatRange(r.startDate, r.endDate)}</div>
-                      <div>Durasi : {r.days} hari</div>
-                      {r.reason && <div>Alasan : {r.reason}</div>}
-                    </>
-                  ) : (
-                    <>
-                      <div>Tanggal Lembur : {prettyDate(r.workDate)}</div>
-                      <div>Jam Lembur : {r.startTime} - {r.endTime}</div>
-                      <div>Total : {r.hours} jam</div>
-                      {r.reason && <div>Alasan : {r.reason}</div>}
-                    </>
-                  )}
-                </div>
-              </div>
+          <div className="rounded-2xl p-4 text-white shadow-md"
+            style={{
+              background: `linear-gradient(135deg, ${NAVY[700]} 0%, ${NAVY[600]} 60%, ${NAVY[800]} 100%)`,
+            }}>
+            <div className="grid grid-cols-3 gap-3">
+              <TokenTile label="Cuti" value={cutiLeft} color="var(--B-500)" />
+              <TokenTile label="Izin" value={izinLeft} color="#F59E0B" />
+              <TokenTile label="Lembur" value={lemburLeft} color="#22C55E" />
             </div>
-          ))}
-        </div>
+          </div>
+
+          {/* Pengajuan */}
+          <div className="mt-6 mb-4 ml-3">
+            <h2 className="text-lg font-semibold">Make Request</h2>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <ActionCard
+              icon={<FileText className="size-5 text-amber-600" />}
+              title="Leave"
+              desc="Make leave request using Token."
+              href="/employee/izin/new/leave"
+              bgColor="bg-[#F7DDB7]"   // izin → soft yellow
+            />
+            <ActionCard
+              icon={<Clock3 className="size-5 text-green-600" />}
+              title="Overtime"
+              desc="Claim OVT Token."
+              href="/employee/izin/new/overtime"
+              bgColor="bg-[#DCFCE7]"   // lembur → soft green
+            />
+          </div>
+
+          {/* Riwayat */}
+          <div className="mt-6 mb-4 ml-3">
+            <h2 className="text-lg font-semibold">History</h2>
+          </div>
+          <div className="space-y-3">
+            {history.map(r => (
+              <div key={r.id} className="card p-4 flex gap-3 items-start">
+                <div className="shrink-0 size-10 rounded-full grid place-items-center" style={{ background: r.type === 'leave' ? 'rgba(245, 158, 11, .15)' : 'rgba(34,197,94,.15)' }}>
+                  {r.type === 'leave' ? <CircleAlert className="size-5 text-amber-500" /> : <Check className="size-5 text-green-600" />}
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-lg font-bold">Pengajuan {r.type === 'leave' ? 'Izin' : 'Lembur'}</h4>
+                    <StatusPill s={r.status} />
+                  </div>
+                  <div className="text-sm text-gray-500">{prettyDate(r.createdAt)}</div>
+                  <div className="mt-2 text-sm text-gray-700 space-y-1">
+                    {r.type === 'leave' ? (
+                      <>
+                        <div>Jenis : {mockLeaveTypes[r.leaveTypeId]?.label ?? '—'}</div>
+                        <div>Periode : {formatRange(r.startDate, r.endDate)}</div>
+                        <div>Durasi : {r.days} hari</div>
+                        {r.reason && <div>Alasan : {r.reason}</div>}
+                      </>
+                    ) : (
+                      <>
+                        <div>Tanggal Lembur : {prettyDate(r.workDate)}</div>
+                        <div>Jam Lembur : {r.startTime} - {r.endTime}</div>
+                        <div>Total : {r.hours} jam</div>
+                        {r.reason && <div>Alasan : {r.reason}</div>}
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
   )
 }
 
-function TokenTile({ label, value, color }:{ label:string; value:number; color:string }){
+function TokenTile({ label, value, color }: { label: string; value: number; color: string }) {
   return (
     <div className="rounded-xl bg-white/10 p-4 border border-white/20 backdrop-blur">
-      <div className="w-8 h-8 grid place-items-center rounded-full text-sm font-bold" style={{ color, background:'white' }}>{value}</div>
+      <div className="w-8 h-8 grid place-items-center rounded-full text-sm font-bold" style={{ color, background: 'white' }}>{value}</div>
       <div className="mt-3 font-semibold">{label}</div>
     </div>
   )
