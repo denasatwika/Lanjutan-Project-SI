@@ -21,7 +21,7 @@ type TypeFilter = 'all' | 'leave' | 'overtime'
 type Status = 'draft' | 'pending' | 'approved' | 'rejected'
 
 export default function SupervisorApprovalsPage() {
-  // === FILTER STATE (tanpa ubah URL) ===
+  // === LOCAL FILTER STATE (does not update the URL) ===
   const [type, setType] = useState<TypeFilter>('all')
   const [onlyPending, setOnlyPending] = useState(true)
   const [q, setQ] = useState('')
@@ -80,30 +80,30 @@ export default function SupervisorApprovalsPage() {
       {/* Sticky header */}
       <div className="sticky top-0 z-10 -mx-3 border-b border-slate-200 bg-white/95 px-3 pb-3 pt-2 backdrop-blur">
         <PageHeader
-          title="Persetujuan"
+          title="Approvals"
           backHref="/supervisor/dashboard"
           fullBleed
           bleedMobileOnly
           pullUpPx={34}      // cancels AppShell pt-6
         />
 
-        {/* Filter chips (tidak mengubah URL) */}
+        {/* Filter chips (do not update the URL) */}
         <div className="mt-3 mb-3 flex items-center gap-2 overflow-x-auto">
           <Chip active={type === 'all'} onClick={() => setType('all')}>
-            <Filter className="size-4" /> Semua
+            <Filter className="size-4" /> All
           </Chip>
           <Chip active={type === 'leave'} onClick={() => setType('leave')}>
-            <Calendar className="size-4" /> Izin/Cuti
+            <Calendar className="size-4" /> Leave
           </Chip>
           <Chip active={type === 'overtime'} onClick={() => setType('overtime')}>
-            <Clock3 className="size-4" /> Lembur
+            <Clock3 className="size-4" /> Overtime
           </Chip>
         </div>
         <div className="relative ml-auto min-w-[160px]">
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Cari nama/alasan…"
+              placeholder="Search name/reason…"
               className="w-full pl-9 pr-3 py-2 rounded-xl border text-sm outline-none focus:ring-2 focus:ring-[rgba(0,21,107,0.25)]"
             />
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
@@ -132,18 +132,18 @@ export default function SupervisorApprovalsPage() {
                   {r.type === 'leave' ? (
                     <>
                       <p>
-                        {r.leaveTypeLabel ?? 'Izin/Cuti'} •{' '}
+                        {r.leaveTypeLabel ?? 'Leave'} •{' '}
                         <span className="font-medium">{formatLeavePeriod(r as LeaveRequest)}</span>
                       </p>
-                      <p>Durasi <span className="font-medium">{(r as LeaveRequest).days} hari</span></p>
+                      <p>Duration <span className="font-medium">{(r as LeaveRequest).days} days</span></p>
                     </>
                   ) : (
                     <p>
-                      Lembur <span className="font-medium">{(r as OvertimeRequest).hours} jam</span>{' '}
+                      Overtime <span className="font-medium">{(r as OvertimeRequest).hours} hours</span>{' '}
                       • {formatOvertimePeriod(r as OvertimeRequest)}
                     </p>
                   )}
-                  {r.reason && <p className="line-clamp-2 mt-1 text-slate-500">Alasan: {r.reason}</p>}
+                  {r.reason && <p className="line-clamp-2 mt-1 text-slate-500">Reason: {r.reason}</p>}
                 </div>
 
                 <div className="mt-3 flex flex-row-reverse gap-2">
@@ -151,7 +151,7 @@ export default function SupervisorApprovalsPage() {
                     className="inline-flex flex-2 items-center justify-center gap-2 rounded-xl bg-[#00156B] px-8 py-2 text-sm font-semibold text-white hover:brightness-110"
                     onClick={() => selectRequest(r)}
                   >
-                    <SearchCheck className="size-6" /> Tinjau
+                    <SearchCheck className="size-6" /> Review
                   </button>
                 </div>
               </div>
@@ -204,11 +204,11 @@ function StatusBadge({ status }: { status: Status }) {
   return (
     <span className={clsx('rounded-full px-2 py-1 text-[11px] font-medium', map[status])}>
       {status === 'pending'
-        ? 'Menunggu'
+        ? 'Pending'
         : status === 'approved'
-        ? 'Disetujui'
+        ? 'Approved'
         : status === 'rejected'
-        ? 'Ditolak'
+        ? 'Rejected'
         : 'Draft'}
     </span>
   )

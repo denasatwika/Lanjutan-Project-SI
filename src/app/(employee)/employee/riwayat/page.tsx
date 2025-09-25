@@ -19,17 +19,17 @@ function fmtFull(d: Date)     { return format(d, 'EEEE, d MMMM yyyy', { locale: 
 // Single description per day (stored in localStorage)
 const descKey = (userId: string, iso: string) => `desc:${userId}:${iso}`
 
-// Simple punctual rule: <= 09:00 = Tepat Waktu; otherwise Terlambat
+// Simple punctual rule: <= 09:00 = On Time; otherwise Late
 function punctualBadge(checkIn?: Date) {
   if (!checkIn) return { label: '—', color: 'bg-gray-200 text-gray-600' }
   const limit = new Date(checkIn); limit.setHours(9,0,0,0)
   const onTime = checkIn.getTime() <= limit.getTime()
   return onTime
-    ? { label: 'Tepat Waktu', color: 'bg-green-500 text-white' }
-    : { label: 'Terlambat',   color: 'bg-rose-500 text-white' }
+    ? { label: 'On Time', color: 'bg-green-500 text-white' }
+    : { label: 'Late',    color: 'bg-rose-500 text-white' }
 }
 
-export default function RiwayatKehadiranPage() {
+export default function AttendanceHistoryPage() {
   const user  = useAuth(s => s.user)
   const items = useAttendance(s => (user ? s.forUser(user.id) : []))
 
@@ -75,7 +75,7 @@ export default function RiwayatKehadiranPage() {
   function saveDesc() {
     if (!user || !selectedDay) return
     localStorage.setItem(descKey(user.id, dayISO(selectedDay)), (desc ?? '').trim())
-    toast.success('Keterangan disimpan')
+    toast.success('Description saved')
     setSheetOpen(false)
   }
 
@@ -89,7 +89,7 @@ export default function RiwayatKehadiranPage() {
   return (
     <div className="pb-6">
       <PageHeader
-        title="Riwayat Kehadiran"
+        title="History"
         backHref="/employee/dashboard"
         fullBleed
         bleedMobileOnly    // <-- key line
@@ -98,7 +98,7 @@ export default function RiwayatKehadiranPage() {
 
       {!user ? (
         <section className="card max-w-6xl mx-auto mt-4 px-4 py-6 text-sm text-gray-600">
-          Silakan login untuk melihat riwayat kehadiran Anda.
+          Please login to view your attendance history.
         </section>
       ) : (
         <>
@@ -110,10 +110,10 @@ export default function RiwayatKehadiranPage() {
               {/* Header (smaller paddings & text) */}
               <div className="grid grid-cols-[3.25rem,11rem,8.25rem,8.25rem,1fr,3.5rem] items-center bg-gray-50 text-gray-600 text-[13px] font-medium">
                 <div className="px-3 py-2.5">No</div>
-                <div className="px-2 py-2.5">Tanggal</div>
-                <div className="px-2 py-2.5">Masuk</div>
-                <div className="px-2 py-2.5">Keluar</div>
-                <div className="px-2 py-2.5">Status & Keterangan</div>
+                <div className="px-2 py-2.5">Date</div>
+                <div className="px-2 py-2.5">Check In</div>
+                <div className="px-2 py-2.5">Check Out</div>
+                <div className="px-2 py-2.5">Status & Description</div>
                 <div className="px-2 py-2.5 text-right pr-3">Edit</div>
               </div>
 
@@ -149,7 +149,7 @@ export default function RiwayatKehadiranPage() {
                     {/* Status + punctual + single description */}
                     <div className="px-2 py-2.5 text-gray-500">
                       <div className="flex items-center gap-2 mb-0.5">
-                        <span className="text-gray-600 font-medium">Hadir</span>
+                        <span className="text-gray-600 font-medium">Present</span>
                         <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10.5px] font-semibold ${punctual.color}`}>
                           {punctual.label}
                         </span>
@@ -165,7 +165,7 @@ export default function RiwayatKehadiranPage() {
                         onClick={() => openFor(r.date)}
                         className="grid place-items-center w-8 h-8 rounded-full text-white"
                         style={{ backgroundColor: '#22c55e' }}
-                        title="Edit keterangan"
+                        title="Edit description"
                       >
                         <Pencil className="w-4 h-4" />
                       </button>
@@ -175,13 +175,13 @@ export default function RiwayatKehadiranPage() {
               })}
 
               {rows.length === 0 && (
-                <div className="px-4 py-6 text-center text-gray-500 text-sm">Belum ada kehadiran.</div>
+                <div className="px-4 py-6 text-center text-gray-500 text-sm">No attendance records yet.</div>
               )}
             </div>
           </div>
         </div>
 
-            <div className="mt-1.5 text-[11px] text-gray-500">Geser ke samping untuk melihat lebih banyak kolom</div>
+            <div className="mt-1.5 text-[11px] text-gray-500">Scroll horizontally to see more columns</div>
           </div>
 
           {/* -------- Sheet-in: single description editor -------- */}
@@ -193,12 +193,12 @@ export default function RiwayatKehadiranPage() {
                 </div>
 
                 <div className="rounded-2xl border p-3">
-                  <h3 className="font-semibold mb-2 text-[15px]">Keterangan Hari Ini</h3>
+                  <h3 className="font-semibold mb-2 text-[15px]">Today's Description</h3>
                   <textarea
                     value={desc}
                     onChange={(e)=> setDesc(e.target.value)}
                     rows={4}
-                    placeholder="Contoh: Weekly meeting dengan tim, review dokumen, implementasi fitur X."
+                    placeholder="Example: Weekly meeting with team, document review, feature X implementation."
                     className="w-full rounded-xl border px-3 py-2 text-[14px]"
                   />
                   <div className="mt-2 flex items-center justify-end gap-2">
@@ -206,14 +206,14 @@ export default function RiwayatKehadiranPage() {
                       onClick={() => setDesc('')}
                       className="rounded-xl border px-3 py-1.5 text-[13px]"
                     >
-                      Kosongkan
+                      Clear
                     </button>
                     <button
                       onClick={saveDesc}
                       className="rounded-xl px-3 py-1.5 text-white text-[13px] font-semibold shadow-md"
                       style={{ background: '#16A34A' }}
                     >
-                      Simpan
+                      Save
                     </button>
                   </div>
                 </div>

@@ -1,11 +1,12 @@
-// app/(chief)/chief/riwayat/page.tsx
+// app/(chief)/chief/history/page.tsx
 'use client'
 
 import { useMemo, useState } from 'react'
 import clsx from 'clsx'
-import { Calendar, Clock3, Filter, Search, User2, X } from 'lucide-react'
-import { format, isWithinInterval, subDays, parseISO } from 'date-fns'
-import { id as idLocale } from 'date-fns/locale/id'
+import { Search, User2, X, ChevronDown } from 'lucide-react'
+import type { DateRange } from 'react-day-picker'
+import { format, parseISO } from 'date-fns'
+import { enUS as enLocale } from 'date-fns/locale/en-US'
 import { PageHeader } from '@/components/PageHeader'
 import { useRequests } from '@/lib/state/requests'
 import {
@@ -15,6 +16,8 @@ import {
   formatOvertimePeriod,
 } from '@/lib/utils/requestDisplay'
 import { LeaveRequest, OvertimeRequest } from '@/lib/types'
+// Import your new component
+import DateRangePicker from '@/components/DateRangePicker'
 
 /** Brand color */
 const BRAND = '#00156B'
@@ -24,29 +27,124 @@ type Kind = 'leave' | 'overtime'
 
 type TypeFilter = 'all' | 'leave' | 'overtime'
 type StatusFilter = 'all' | Status
-type RangeKey = '7' | '30' | '90' | 'all'
+type Opt<T extends string> = { value: T; label: string }
+
+function SimpleDropdown<T extends string>({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string
+  value: T
+  onChange: (v: T) => void
+  options: Opt<T>[]
+}) {
+  const [open, setOpen] = useState(false)
+  const current = options.find(o => o.value === value)?.label ?? 'Select'
+
+  return (
+    <div className="relative">
+      <label className="block text-xs text-gray-600">{label}</label>
+
+      {/* Trigger */}
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="mt-1 w-full rounded-xl border bg-white px-3 py-3 text-left shadow-sm flex items-center justify-between"
+        style={{ borderColor: '#00156B20', boxShadow: '0 1px 2px rgba(0,0,0,.06)' }}
+      >
+        <span className="truncate">{current}</span>
+        <ChevronDown className="size-4 opacity-70" />
+      </button>
+
+      {/* Overlay (mobile-friendly click-outside) */}
+      {open && (
+        <div
+          className="fixed inset-0 z-40 sm:bg-transparent"
+          onClick={() => setOpen(false)}
+        />
+      )}
+
+      {/* Menu */}
+      {open && (
+        <div
+          className="z-50 absolute left-0 right-0 mt-2 rounded-2xl border bg-white shadow-lg sm:max-h-72 sm:overflow-auto
+                     sm:absolute sm:left-0 sm:right-0
+                     sm:[box-shadow:0_10px_30px_rgba(0,0,0,.08)]"
+          style={{ borderColor: '#00156B20' }}
+          role="listbox"
+        >
+          <ul className="py-1">
+            {options.map(opt => {
+              const active = opt.value === value
+              return (
+                <li key={opt.value}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onChange(opt.value)
+                      setOpen(false)
+                    }}
+                    className={`w-full text-left px-3 py-2 rounded-xl
+                                hover:bg-gray-100 active:bg-gray-100
+                                ${active ? 'bg-indigo-50 font-medium' : ''}`}
+                  >
+                    {opt.label}
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function ChiefHistoryPage() {
-  // --- FILTER STATE (lokal; tidak mengubah URL) ---
+  // --- LOCAL FILTER STATE (does not change the URL) ---
   const [typeF, setTypeF] = useState<TypeFilter>('all')
   const [statusF, setStatusF] = useState<StatusFilter>('all')
-  const [range, setRange] = useState<RangeKey>('30')
+  const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined })
   const [q, setQ] = useState('')
 
   const requests = useRequests((s) => s.items)
   const data = useMemo<DecoratedRequest[]>(() => requests.map((r) => decorateRequest(r)), [requests])
 
-  const now = new Date()
-  const startDate =
-    range === '7' ? subDays(now, 7)
-    : range === '30' ? subDays(now, 30)
-    : range === '90' ? subDays(now, 90)
-    : null
+  const rangeWindow = useMemo(() => {
+    const start = dateRange.from ? new Date(dateRange.from) : undefined
+    if (start) start.setHours(0, 0, 0, 0)
+    const end = dateRange.to ? new Date(dateRange.to) : undefined
+    if (end) end.setHours(23, 59, 59, 999)
+    return { start, end }
+  }, [dateRange])
+
+  const matchesRange = useMemo(() => {
+    const { start, end } = rangeWindow
+    const check = (iso?: string) => {
+      if (!iso) return false
+      const d = parseISO(iso)
+      if (Number.isNaN(d.getTime())) return false
+      if (start && end) return d >= start && d <= end
+      if (start) return d >= start
+      if (end) return d <= end
+      return true
+    }
+    return (req: DecoratedRequest) => {
+      if (!start && !end) return true
+      if (req.type === 'leave') {
+        const leave = req as LeaveRequest
+        return check(leave.startDate) || check(leave.endDate)
+      }
+      const overtime = req as OvertimeRequest
+      return check(overtime.workDate)
+    }
+  }, [rangeWindow])
 
   const filtered = useMemo(() => {
     return data.filter((r) => {
-      const d = parseISO(r.updatedAt ?? r.createdAt)
-      const inRange = startDate ? isWithinInterval(d, { start: startDate, end: now }) : true
+      const inRange = matchesRange(r)
       const byType = typeF === 'all' ? true : r.type === typeF
       const byStatus = statusF === 'all' ? true : r.status === statusF
       const text = `${r.employee.name} ${r.employee.department} ${r.reason ?? ''}`.toLowerCase()
@@ -55,7 +153,7 @@ export default function ChiefHistoryPage() {
     }).sort((a, b) =>
       (b.updatedAt ?? b.createdAt).localeCompare(a.updatedAt ?? a.createdAt)
     )
-  }, [data, typeF, statusF, q, startDate, now])
+  }, [data, typeF, statusF, q, matchesRange])
 
   const groups = useMemo(() => {
     const map: Record<string, DecoratedRequest[]> = {}
@@ -79,52 +177,62 @@ export default function ChiefHistoryPage() {
     <main className="mx-auto w-full max-w-[640px] p-3 pb-20">
       <div className="sticky top-0 z-10 -mx-3 border-b border-slate-200 bg-white/95 px-3 pb-3 pt-2 backdrop-blur">
         <PageHeader
-          title="Riwayat"
+          title="History"
           backHref="/chief/dashboard"
           fullBleed
           bleedMobileOnly
           pullUpPx={34}
         />
 
-        <div className="mt-3 flex items-center gap-2 overflow-x-auto">
-          <Chip active={typeF === 'all'} onClick={() => setTypeF('all')}>
-            <Filter className="size-4" /> Semua
-          </Chip>
-          <Chip active={typeF === 'leave'} onClick={() => setTypeF('leave')}>
-            <Calendar className="size-4" /> Izin/Cuti
-          </Chip>
-          <Chip active={typeF === 'overtime'} onClick={() => setTypeF('overtime')}>
-            <Clock3 className="size-4" /> Lembur
-          </Chip>
-
-          <div className="mx-1 h-6 w-px flex-none bg-slate-200" />
-
-          <Chip active={statusF === 'all'} onClick={() => setStatusF('all')}>Semua status</Chip>
-          <Chip active={statusF === 'approved'} onClick={() => setStatusF('approved')}>Disetujui</Chip>
-          <Chip active={statusF === 'rejected'} onClick={() => setStatusF('rejected')}>Ditolak</Chip>
-
-          <div className="mx-1 h-6 w-px flex-none bg-slate-200" />
-
-          <Chip active={range === '7'} onClick={() => setRange('7')}>7H</Chip>
-          <Chip active={range === '30'} onClick={() => setRange('30')}>30H</Chip>
-          <Chip active={range === '90'} onClick={() => setRange('90')}>90H</Chip>
-          <Chip active={range === 'all'} onClick={() => setRange('all')}>Semua</Chip>
-
-          <div className="relative ml-auto min-w-[160px]">
-            <input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Cari nama/alasan…"
-              className="w-full pl-9 pr-3 py-2 rounded-xl border text-sm outline-none focus:ring-2 focus:ring-[rgba(0,21,107,0.25)]"
-            />
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
-          </div>
+        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <SimpleDropdown
+            label="Type"
+            value={typeF}
+            onChange={setTypeF}
+            options={[
+              { value: 'all', label: 'All types' },
+              { value: 'leave', label: 'Leave' },
+              { value: 'overtime', label: 'Overtime' },
+            ]}
+          />
+          <SimpleDropdown
+            label="Status"
+            value={statusF}
+            onChange={setStatusF}
+            options={[
+              { value: 'all', label: 'All statuses' },
+              { value: 'approved', label: 'Approved' },
+              { value: 'rejected', label: 'Rejected' },
+            ]}
+          />
+        </div>
+        <DateRangePicker
+            label="Date range"
+            range={dateRange}
+            onChange={setDateRange}
+            className="sm:col-span-2 mt-3"
+          />
+        <div className="relative mt-3 ml-auto min-w-[160px]">
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search name/reason…"
+            className="w-full pl-9 pr-3 py-2 rounded-xl border text-sm outline-none focus:ring-2 focus:ring-[rgba(0,21,107,0.25)]"
+          />
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
         </div>
 
-        <p className="mt-2 text-xs text-slate-500">
-          {counts.total} item • Disetujui: <span className="font-semibold">{counts.approved}</span> • Ditolak:{' '}
-          <span className="font-semibold">{counts.rejected}</span>
-        </p>
+        <div className="mt-3 flex items-center gap-2 text-sm">
+          <span className="bg-slate-100 text-slate-700 px-2 py-1 rounded-full font-medium">
+            {counts.total} items
+          </span>
+          <span className="bg-green-100 text-green-700 px-2 py-1 rounded-full font-medium">
+            {counts.approved} approved
+          </span>
+          <span className="bg-red-100 text-red-700 px-2 py-1 rounded-full font-medium">
+            {counts.rejected} rejected
+          </span>
+        </div>
       </div>
 
       <div className="mt-3 space-y-6">
@@ -153,23 +261,23 @@ export default function ChiefHistoryPage() {
                       {r.type === 'leave' ? (
                         <p>{labelLeaveRequest(r as LeaveRequest, r.leaveTypeLabel)}</p>
                       ) : (
-                        <p>Lembur <span className="font-medium">{formatOvertimePeriod(r as OvertimeRequest)}</span></p>
+                        <p>Overtime <span className="font-medium">{formatOvertimePeriod(r as OvertimeRequest)}</span></p>
                       )}
                       {r.reason && (
-                        <p className="line-clamp-2 mt-1 text-slate-500">Alasan: {r.reason}</p>
+                        <p className="line-clamp-2 mt-1 text-slate-500">Reason: {r.reason}</p>
                       )}
                     </div>
 
                     <div className="mt-3 flex items-center justify-between">
                       <p className="text-[11px] text-slate-500">
-                        Diperbarui: {fDateTime(r.updatedAt ?? r.createdAt)}
+                        Updated: {fDateTime(r.updatedAt ?? r.createdAt)}
                       </p>
                       <button
                         onClick={() => setDetail(r)}
                         className="text-xs font-semibold rounded-xl px-3 py-1.5 border hover:bg-slate-50 text-[color:var(--brand,_#00156B)]"
                         style={{ ['--brand' as any]: BRAND }}
                       >
-                        Detail
+                        Details
                       </button>
                     </div>
                   </div>
@@ -181,12 +289,12 @@ export default function ChiefHistoryPage() {
 
         {groups.length === 0 && (
           <div className="rounded-2xl border border-dashed p-8 text-center text-slate-500">
-            Tidak ada riwayat untuk filter ini.
+            No history for this filter.
           </div>
         )}
       </div>
 
-      <DetailModal open={!!detail} req={detail} onClose={() => setDetail(null)} />
+      <DetailsModal open={!!detail} req={detail} onClose={() => setDetail(null)} />
     </main>
   )
 }
@@ -195,14 +303,14 @@ export default function ChiefHistoryPage() {
 
 function fmtDate(keyYYYYMMDD: string) {
   const d = parseISO(keyYYYYMMDD)
-  return format(d, 'EEEE, d MMM yyyy', { locale: idLocale })
+  return format(d, 'EEEE, d MMM yyyy', { locale: enLocale })
 }
 function fDateTime(iso: string) {
   const d = parseISO(iso)
-  return format(d, 'd MMM yyyy, HH:mm', { locale: idLocale })
+  return format(d, 'd MMM yyyy, HH:mm', { locale: enLocale })
 }
 function labelLeaveRequest(req: LeaveRequest, label?: string) {
-  const base = label ?? 'Izin'
+  const base = label ?? 'Leave'
   return `${base} • ${formatLeavePeriod(req)}`
 }
 
@@ -240,17 +348,17 @@ function StatusBadge({ status }: { status: Status }) {
   return (
     <span className={clsx('rounded-full px-2 py-1 text-[11px] font-medium', map[status])}>
       {status === 'pending'
-        ? 'Menunggu'
+        ? 'Pending'
         : status === 'approved'
-        ? 'Disetujui'
+        ? 'Approved'
         : status === 'rejected'
-        ? 'Ditolak'
+        ? 'Rejected'
         : 'Draft'}
     </span>
   )
 }
 
-function DetailModal({
+function DetailsModal({
   open,
   req,
   onClose,
@@ -263,28 +371,28 @@ function DetailModal({
   const when = fDateTime(req.updatedAt ?? req.createdAt)
   const jenis = req.type === 'leave'
     ? labelLeaveRequest(req as LeaveRequest, req.leaveTypeLabel)
-    : `Lembur ${formatOvertimePeriod(req as OvertimeRequest)}`
+    : `Overtime ${formatOvertimePeriod(req as OvertimeRequest)}`
   return (
     <div className="fixed inset-0 z-50">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
       <div className="absolute right-0 top-0 h-full w-full sm:w-[520px] bg-white shadow-xl p-5 overflow-auto">
         <div className="flex items-center justify-between">
-          <h2 className="text-xl font-extrabold">Detail Riwayat</h2>
+          <h2 className="text-xl font-extrabold">History Details</h2>
           <button onClick={onClose} className="p-2 rounded-lg hover:bg-gray-100">
             <X />
           </button>
         </div>
 
         <div className="mt-4 space-y-3">
-          <Row label="Karyawan" value={req.employee.name} />
-          <Row label="Departemen" value={req.employee.department} />
-          <Row label="Jenis" value={jenis} />
+          <Row label="Employee" value={req.employee.name} />
+          <Row label="Department" value={req.employee.department} />
+          <Row label="Type" value={jenis} />
           <Row label="Status" value={<StatusBadge status={req.status} />} />
-          <Row label="Waktu" value={when} />
-          {req.type === 'leave' && <Row label="Durasi" value={`${(req as LeaveRequest).days} hari`} />}
-          {req.type === 'overtime' && <Row label="Durasi" value={`${(req as OvertimeRequest).hours} jam`} />}
-          {req.reason && <Row label="Alasan" value={req.reason} />}
-          <Row label="Lampiran" value={req.attachmentUrl} />
+          <Row label="Time" value={when} />
+          {req.type === 'leave' && <Row label="Duration" value={`${(req as LeaveRequest).days} days`} />}
+          {req.type === 'overtime' && <Row label="Duration" value={`${(req as OvertimeRequest).hours} hours`} />}
+          {req.reason && <Row label="Reason" value={req.reason} />}
+          <Row label="Attachment" value={req.attachmentUrl} />
           {req.id && <Row label="ID" value={<code className="text-xs">{req.id}</code>} />}
         </div>
 
@@ -294,7 +402,7 @@ function DetailModal({
             className="px-4 py-2 rounded-xl font-semibold text-white"
             style={{ background: BRAND }}
           >
-            Tutup
+            Close
           </button>
         </div>
       </div>
