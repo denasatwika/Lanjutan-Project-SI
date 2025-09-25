@@ -2,7 +2,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Users, Briefcase, Clock3, CheckCircle2, ArrowRight, FileText, Timer, TrendingUp } from 'lucide-react'
+import { Users, Briefcase, Clock3, CheckCircle2, ArrowRight, FileText, Timer, TrendingUp, XCircle } from 'lucide-react'
 import Link from 'next/link'
 import clsx from 'clsx'
 import { useRequests } from '@/lib/state/requests'
@@ -89,30 +89,30 @@ export default function ChiefDashboard() {
       >
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="mt-1 text-2xl font-bold">Halo, Chief 👋</h1>
+            <h1 className="mt-1 text-2xl font-bold">Welcome, Chief 👋</h1>
             <p className="mt-1 text-sm/5 opacity-90">
-              Ada <span className="font-semibold">{pending}</span> permintaan menunggu persetujuan.
+              There are <span className="font-semibold">{pending}</span> request that needs your approval.
             </p>
           </div>
           <Link
             href="/chief/approval"
             className="inline-flex items-center gap-1 rounded-xl bg-white/90 px-3 py-2 text-xs font-semibold text-slate-900 shadow hover:bg-white"
           >
-            Lihat Approval <ArrowRight className="size-3.5" />
+            See Approvals<ArrowRight className="size-3.5" />
           </Link>
         </div>
 
         {/* Mini stats */}
         <div className="mt-4 mb-2 grid grid-cols-3 gap-2">
-          <MiniStat icon={<Users className="size-4" />} label="Karyawan" value={totalKaryawan} />
-          <MiniStat icon={<CheckCircle2 className="size-4" />} label="Hadir" value={totalHadir} />
-          <MiniStat icon={<Clock3 className="size-4" />} label="Menunggu" value={pending} />
+          <MiniStat icon={<CheckCircle2 className="size-4" />} label="Present" value={totalHadir} />
+          <MiniStat icon={<XCircle className="size-4" />} label="Absent" value={totalKaryawan} />
+          <MiniStat icon={<Clock3 className="size-4" />} label="Pending" value={pending} />
         </div>
 
         {/* Mode switch */}
         <div className="mt-2 inline-flex rounded-full bg-white/10 p-1">
-          <ModeChip active={mode === 'today'} onClick={() => setMode('today')}>Hari ini</ModeChip>
-          <ModeChip active={mode === 'week'} onClick={() => setMode('week')}>Minggu ini</ModeChip>
+          <ModeChip active={mode === 'today'} onClick={() => setMode('today')}>Today</ModeChip>
+          <ModeChip active={mode === 'week'} onClick={() => setMode('week')}>This Week</ModeChip>
         </div>
       </section>
 
@@ -135,9 +135,9 @@ export default function ChiefDashboard() {
       {/* Approvals preview */}
       <section className="mt-5">
         <div className="mb-2 flex items-center justify-between px-1">
-          <h2 className="text-sm font-semibold text-slate-600">Butuh Aksi</h2>
+          <h2 className="text-sm font-semibold text-slate-600">Quick Action</h2>
           <Link href="/chief/approval" className="text-xs font-semibold text-[--B-800] underline underline-offset-2">
-            Lihat semua
+            Approval page <ArrowRight className="inline size-4" />
           </Link>
         </div>
         <div className="rounded-2xl border border-slate-100 bg-white p-2 shadow-sm">
@@ -152,22 +152,22 @@ export default function ChiefDashboard() {
             />
           ))}
           {pendingRequests.length === 0 && (
-            <p className="py-6 text-center text-xs text-slate-500">Belum ada permintaan menunggu persetujuan.</p>
+            <p className="py-6 text-center text-xs text-slate-500">There are no request that needs your approval yet.</p>
           )}
         </div>
       </section>
 
       {/* Quality signals */}
       <section className="mt-5">
-        <h2 className="mb-2 px-1 text-sm font-semibold text-slate-600">Kualitas Hari Ini</h2>
+        <h2 className="mb-2 px-1 text-sm font-semibold text-slate-600">Today's Attendance Rate</h2>
         <div className="grid grid-cols-1 gap-3">
           <Card>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <TrendingUp className="size-5 text-green-600" />
                 <div>
-                  <p className="text-xs/5 text-slate-500">On-time rate</p>
-                  <p className="text-sm font-semibold">{Math.round(MOCK.quality.onTimeRate * 100)}%</p>
+                  <p className="text-xs/5 text-slate-500">On-time</p>
+                  <p className="text-sm font-semibold">{Math.round(MOCK.quality.onTimeRate * 100)}% ( {MOCK.today.hadir} / {MOCK.top.totalKaryawan} )</p>
                 </div>
               </div>
               <Progress value={Math.round(MOCK.quality.onTimeRate * 100)} />
@@ -179,18 +179,18 @@ export default function ChiefDashboard() {
               <div className="flex items-center gap-2">
                 <Timer className="size-5 text-amber-600" />
                 <div>
-                  <p className="text-xs/5 text-slate-500">Rata-rata lembur minggu ini</p>
-                  <p className="text-sm font-semibold">{MOCK.quality.avgOvertimeHoursThisWeek} jam / orang</p>
+                  <p className="text-xs/5 text-slate-500">Overtime rate this week:</p>
+                  <p className="text-sm font-semibold">{MOCK.week.lemburJam} Hours</p>
                 </div>
               </div>
             </div>
             <div className="mt-3">
-              <p className="mb-1 text-xs/5 text-slate-500">Top lembur minggu ini</p>
+              <p className="mb-1 text-xs/5 text-slate-500">This Week's Night Owl</p>
               <ul className="space-y-1">
                 {MOCK.quality.topOvertimeThisWeek.map((t, i) => (
                   <li key={i} className="flex items-center justify-between text-sm">
                     <span className="truncate">{t.name}</span>
-                    <span className="font-semibold">{t.hours} jam</span>
+                    <span className="font-semibold">{t.hours} Hours</span>
                   </li>
                 ))}
               </ul>
@@ -211,13 +211,13 @@ export default function ChiefDashboard() {
           <div className="pointer-events-auto rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-xl backdrop-blur">
             <div className="flex items-center justify-between gap-3">
               <p className="text-sm">
-                <span className="font-semibold">{pending}</span> menunggu persetujuan
+                <span className="font-semibold">{pending}</span> Request are waiting for your approval
               </p>
               <Link
                 href="/chief/approval"
                 className="rounded-xl bg-[#00156B] px-3 py-2 text-xs font-semibold text-white hover:brightness-110"
               >
-                Tinjau sekarang
+                Review Now
               </Link>
             </div>
           </div>

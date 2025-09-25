@@ -27,7 +27,7 @@ function Pill({ bg, fg, children }: { bg: string; fg: string; children: ReactNod
 export function BadgePending() {
   return (
     <Pill bg="#FEF3C7" fg="#B45309">
-      <Dot color="#F59E0B" /> Menunggu
+      <Dot color="#F59E0B" /> Pending
     </Pill>
   )
 }
@@ -43,7 +43,7 @@ export function BadgeSigned() {
 export function BadgeRejected() {
   return (
     <Pill bg="#FEE2E2" fg="#B91C1C">
-      <Dot color="#EF4444" /> Ditolak
+      <Dot color="#EF4444" /> Rejected
     </Pill>
   )
 }

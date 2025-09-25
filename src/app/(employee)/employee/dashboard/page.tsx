@@ -10,10 +10,7 @@ import Link from 'next/link'
 import { CalendarDays, Clock, TrendingUp, Zap, Info, FileText, Inbox, User } from 'lucide-react'
 import { toast } from 'sonner'
 import { BottomSheet } from '@/components/ui/bottomSheet'
-// di atas: tambahkan import ini
 import { useRouter } from 'next/navigation'
-
-// ... (kode lain)
 
 // ---------- Role Switcher ----------
 type RoleKey = 'employee' | 'supervisor' | 'hr'
@@ -47,20 +44,19 @@ function RoleSwitcher({
     setRole(next)
     try { localStorage.setItem(storageKey, next) } catch {}
     onChange?.(next)
-    // langsung pindah page: /<segment>/dashboard
     router.push(`/${roleToSeg[next]}/dashboard`)
   }
 
   return (
     <label className="inline-flex items-center gap-2 text-sm">
-      <span className="text-gray-600 hidden sm:inline">Peran</span>
+      <span className="text-gray-600 hidden sm:inline">Role</span>
       <div className="relative">
         <select
           value={role}
           onChange={(e) => handleChange(e.target.value as RoleKey)}
           className="appearance-none rounded-xl border border-gray-300 bg-white/80 px-3 py-2 pr-8 text-sm font-medium shadow-sm
                      hover:bg-white focus:outline-none focus:ring-2 focus:ring-[--S-800]/30"
-          aria-label="Ganti peran"
+          aria-label="Change role"
         >
           {roles.map((r) => <option key={r} value={r}>{r}</option>)}
         </select>
@@ -120,7 +116,7 @@ export default function Page() {
   const now = useLiveClock()
   const [showCheckIn, setShowCheckIn] = useState(false)
 
-  const firstName = user?.name?.split(' ')[0] ?? 'Karyawan'
+  const firstName = user?.name?.split(' ')[0] ?? 'Employee'
   const initial = firstName.charAt(0).toUpperCase()
 
   function dayISO(d: Date) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x.toISOString() }
@@ -189,7 +185,7 @@ export default function Page() {
     return { checkIn, checkOut, working }
   }, [att])
 
-  // Total hadir this month (count days with at least one record)
+  // Total attendance this month (count days with at least one record)
   const totalMonth = useMemo(() => {
     const now = new Date()
     const m = now.getMonth(), y = now.getFullYear()
@@ -212,7 +208,7 @@ export default function Page() {
     return (
       <div className="space-y-5">
         <section className="card p-6 text-center text-sm text-gray-500">
-          Memuat data karyawan…
+          Loading employee data…
         </section>
       </div>
     )
@@ -230,7 +226,7 @@ export default function Page() {
         </div>
 
         <h1 className="text-xl md:text-2xl font-extrabold leading-tight tracking-tight">
-          Selamat datang, {firstName}!
+          Welcome, {firstName}!
         </h1>
         <div className="flex items-center gap-3">
   </div>
@@ -238,8 +234,8 @@ export default function Page() {
   <RoleSwitcher
     storageKey={`role:${user.id}`}
     onChange={(next) => {
-      // opsional: toast atau analytics di sini
-      toast.success(`Peran diganti ke ${next}`)
+      // optional: toast or analytics here
+      toast.success(`Role changed to ${next}`)
     }}
   />
       </section>
@@ -263,7 +259,7 @@ export default function Page() {
         }}>
         <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-xs uppercase tracking-wide">Departemen</p>
+              <p className="text-xs uppercase tracking-wide">Department</p>
               <p className="font-semibold">Production</p>
             </div>
             <div className="text-right">
@@ -279,10 +275,10 @@ export default function Page() {
           {ctaLabel}
         </button>
         <div className="mt-4 flex flex-wrap justify-center gap-2">
-          <MiniStat icon={<Clock size={14} />} label="Riwayat" href="/employee/riwayat" />
-          <MiniStat icon={<FileText size={14} />} label="Izin" href="/employee/izin" />
+          <MiniStat icon={<Clock size={14} />} label="History" href="/employee/riwayat" />
+          <MiniStat icon={<FileText size={14} />} label="Leave" href="/employee/izin" />
           <MiniStat icon={<Inbox size={14} />} label="Inbox" href="/employee/inbox" />
-          <MiniStat icon={<User size={14} />} label="Profil" href="/employee/profile" />
+          <MiniStat icon={<User size={14} />} label="Profile" href="/employee/profile" />
         </div>
       </section>
 
@@ -290,17 +286,17 @@ export default function Page() {
       <section className="grid grid-cols-2 gap-3">
         <div className="card p-4">
           <div className="flex items-start justify-between">
-            <div className="flex items-center gap-2 text-gray-500"><TrendingUp className="size-5" /> <span>Total Kehadiran</span></div>
+            <div className="flex items-center gap-2 text-gray-500"><TrendingUp className="size-5" /> <span>Total Attendance</span></div>
             <div className="text-2xl font-bold" style={{ color: 'var(--S-800)' }}>{totalMonth}</div>
           </div>
-          <div className="text-xs text-gray-500 mt-1">Bulan ini</div>
+          <div className="text-xs text-gray-500 mt-1">This month</div>
         </div>
         <div className="card p-4">
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-2 text-gray-500"><Zap className="size-5" /> <span>Status</span></div>
             <span className={`px-2 py-1 rounded-full text-xs font-medium ${today.working ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}>{today.working ? 'Online' : 'Offline'}</span>
           </div>
-          <div className="text-xs text-gray-500 mt-1">Bekerja</div>
+          <div className="text-xs text-gray-500 mt-1">Working</div>
         </div>
       </section>
 
@@ -330,23 +326,20 @@ export default function Page() {
               // Fallback if your store exposes a checkIn method only; call it twice for out.
               api.checkIn(user.id) // same effect: add another timestamp entry
             }
-            toast.success(`${ctaLabel} berhasil`)
+            toast.success(`${ctaLabel} successful`)
           }}
         />
       </section>
 
       <div className="mt-6 mb-4 ml-3">
-        <h2 className="text-lg font-semibold">Kehadiran minggu ini</h2>
+        <h2 className="text-lg font-semibold">Attendance this week</h2>
       </div>
-
-      {/* Recent days — scrollable up to 7 days */}
-      <h2 className="text-lg font-semibold mb-3 ml-2">Kehadiran 7 Hari Terakhir</h2>
       <section className="max-h-[420px] overflow-auto">
 
         <div className="rounded-2xl bg-white shadow-md border">
           {days.map(({ date, checkIn, checkOut }, idx) => {
             const present = !!checkIn;
-            const statusText = present ? 'Hadir' : 'Absen';
+            const statusText = present ? 'Present' : 'Absent';
             const preview = getDescPreview(date);
             
             return (
@@ -370,10 +363,10 @@ export default function Page() {
                     {/* Time range */}
                     <div className="ml-6 flex items-center gap-4">
                       <div className="text-sm text-gray-500">
-                        <span className="font-medium">Masuk:</span> {timeHHmm(checkIn)}
+                        <span className="font-medium">In:</span> {timeHHmm(checkIn)}
                       </div>
                       <div className="text-sm text-gray-500">
-                        <span className="font-medium">Keluar:</span> {timeHHmm(checkOut)}
+                        <span className="font-medium">Out:</span> {timeHHmm(checkOut)}
                       </div>
                     </div>
                     
@@ -403,7 +396,7 @@ export default function Page() {
                       type="button"
                       onClick={() => openDaySheet(date)}
                       className="opacity-60 group-hover:opacity-100 transition-opacity duration-200 p-2 rounded-lg hover:bg-gray-50 text-gray-500 hover:text-gray-700"
-                      title="Tambah / Edit keterangan"
+                      title="Add / Edit description"
                     >
                       <Info className="size-5" />
                     </button>
@@ -428,12 +421,12 @@ export default function Page() {
             </div>
 
             <div className="rounded-2xl border p-3">
-              <h3 className="font-semibold mb-2 text-[15px]">Keterangan Hari Ini</h3>
+              <h3 className="font-semibold mb-2 text-[15px]">Today's Description</h3>
               <textarea
                 value={desc}
                 onChange={(e) => setDesc(e.target.value)}
                 rows={4}
-                placeholder="Contoh: Weekly meeting, review dokumen, implementasi fitur X."
+                placeholder="Example: Weekly meeting, document review, feature X implementation."
                 className="w-full rounded-xl border px-3 py-2 text-[14px]"
               />
               <div className="mt-2 flex items-center justify-end gap-2">
@@ -441,14 +434,14 @@ export default function Page() {
                   onClick={() => setDesc('')}
                   className="rounded-xl border px-3 py-1.5 text-[13px]"
                 >
-                  Kosongkan
+                  Clear
                 </button>
                 <button
                   onClick={saveDesc}
                   className="rounded-xl px-3 py-1.5 text-white text-[13px] font-semibold shadow-md"
                   style={{ background: '#16A34A' }}
                 >
-                  Simpan
+                  Save
                 </button>
               </div>
             </div>
