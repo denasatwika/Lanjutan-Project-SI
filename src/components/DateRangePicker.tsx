@@ -24,7 +24,7 @@ interface LocalRange {
 }
 
 const DateRangePicker: React.FC<DateRangePickerProps> = ({ 
-  label = "Rentang tanggal",
+  label = "Date range",
   range,
   onChange,
   className = ''
@@ -49,7 +49,7 @@ const DateRangePicker: React.FC<DateRangePickerProps> = ({
     'July', 'August', 'September', 'October', 'November', 'December'
   ] as const;
 
-  const daysOfWeek: readonly string[] = ['M', 'S', 'S', 'R', 'K', 'J', 'S'] as const;
+  const daysOfWeek: readonly string[] = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
 
   const getDaysInMonth = (date: Date): DayInfo[] => {
     const year: number = date.getFullYear();
@@ -169,12 +169,12 @@ const DateRangePicker: React.FC<DateRangePickerProps> = ({
   };
 
   const formatRangeDisplay = (): string => {
-    if (!range.from) return 'Pilih rentang tanggal';
-    if (!range.to) return range.from.toLocaleDateString('id-ID');
+    if (!range.from) return 'Select a date range';
+    if (!range.to) return range.from.toLocaleDateString('en-US');
     if (range.from.getTime() === range.to.getTime()) {
-      return range.from.toLocaleDateString('id-ID');
+      return range.from.toLocaleDateString('en-US');
     }
-    return `${range.from.toLocaleDateString('id-ID')} - ${range.to.toLocaleDateString('id-ID')}`;
+    return `${range.from.toLocaleDateString('en-US')} - ${range.to.toLocaleDateString('en-US')}`;
   };
 
   const days: DayInfo[] = getDaysInMonth(currentDate);
@@ -198,7 +198,7 @@ const DateRangePicker: React.FC<DateRangePickerProps> = ({
       {isOpen && (
         <>
           <div 
-            className="fixed inset-0 z-40"
+            className="fixed inset-0 bg-black bg-opacity-50 z-40"
             onClick={() => setIsOpen(false)}
           />
           
@@ -231,12 +231,12 @@ const DateRangePicker: React.FC<DateRangePickerProps> = ({
                   <div className="text-center text-sm text-slate-600">
                     {localRange.end ? (
                       <>
-                        <span className="font-medium">{localRange.start.toLocaleDateString('id-ID')}</span>
+                        <span className="font-medium">{localRange.start.toLocaleDateString('en-US')}</span>
                         <span className="mx-2">→</span>
-                        <span className="font-medium">{localRange.end.toLocaleDateString('id-ID')}</span>
+                        <span className="font-medium">{localRange.end.toLocaleDateString('en-US')}</span>
                       </>
                     ) : (
-                      <span className="text-[#00156B]">Pilih tanggal akhir</span>
+                      <span className="text-[#00156B]">Select end date</span>
                     )}
                   </div>
                 )}
@@ -276,7 +276,7 @@ const DateRangePicker: React.FC<DateRangePickerProps> = ({
                   disabled={!localRange.start}
                   type="button"
                 >
-                  Hapus
+                  Clear
                 </button>
                 <button
                   onClick={handleApply}
@@ -284,7 +284,7 @@ const DateRangePicker: React.FC<DateRangePickerProps> = ({
                   className="flex-1 bg-[#00156B] hover:bg-[#00156B]/90 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-medium py-3 px-4 rounded-xl transition-colors duration-200 flex items-center justify-center gap-2"
                   type="button"
                 >
-                  Terapkan
+                  Apply
                   <div className="w-4 h-4 bg-white bg-opacity-20 rounded-sm flex items-center justify-center">
                     <div className="w-2 h-2 border-r border-b border-white transform rotate-45 -translate-x-0.5 -translate-y-0.5"></div>
                   </div>

@@ -79,7 +79,6 @@ export function PageHeader({
 
   const useBleed = fullBleed || bleedMobileOnly
 
-  // Full-bleed without 0.5px seams; overscan by 2px. Cancel at md+ if mobileOnly.
   const bleedCls = useBleed
     ? cn(
         'relative overflow-x-clip left-1/2 -translate-x-1/2 w-[calc(100dvw+2px)]',

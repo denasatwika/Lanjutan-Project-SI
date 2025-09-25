@@ -100,15 +100,15 @@ export default function InboxPage() {
 
       {!user ? (
         <section className="card p-5 text-sm text-gray-600">
-          Silakan login untuk melihat notifikasi pengajuan Anda.
+          Please Login
         </section>
       ) : (
         <>
       {/* Filters */}
       <div className="flex items-center gap-2">
         {[
-          { key: 'all', label: 'Semua' },
-          { key: 'pending', label: 'Menunggu' },
+          { key: 'all', label: 'All' },
+          { key: 'pending', label: 'Pending' },
           { key: 'approved', label: 'Approved' },
           { key: 'rejected', label: 'Rejected' },
         ].map((f) => (
@@ -223,7 +223,7 @@ export default function InboxPage() {
             <div className="mx-auto mb-2 h-10 w-10 rounded-full bg-gray-100 grid place-items-center">
               <Bell className="text-gray-400" size={18} />
             </div>
-            Belum ada pembaruan untuk filter ini.
+            No notifications found
           </div>
         )}
       </div>

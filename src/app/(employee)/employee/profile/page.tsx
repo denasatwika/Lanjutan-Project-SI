@@ -16,7 +16,7 @@ type PartialUser = {
   avatarUrl?: string | null
 }
 
-export default function ProfilPage() {
+export default function ProfilePage() {
   const auth = useAuth()
   const user = auth.user
   const firstName = useMemo(() => user?.name?.split(' ')[0] ?? 'User', [user?.name])
@@ -95,7 +95,7 @@ export default function ProfilPage() {
   return (
     <div className="space-y-4">
       <PageHeader
-        title="Profil"
+        title="Profile"
         backHref="/employee/dashboard"
         fullBleed
         bleedMobileOnly    // <-- key line
@@ -157,7 +157,7 @@ export default function ProfilPage() {
       {/* Contact & Org */}
       <section className="grid md:grid-cols-2 gap-4">
         <div className="card p-4">
-          <h3 className="font-bold mb-3">Akun</h3>
+          <h3 className="font-bold mb-3">Credential</h3>
           <InfoRow icon={<Mail size={16} />} label="Email">
             <input
               className="w-full bg-transparent outline-none"
@@ -165,14 +165,14 @@ export default function ProfilPage() {
               onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
             />
           </InfoRow>
-          <InfoRow icon={<Phone size={16} />} label="Telepon">
+          <InfoRow icon={<Phone size={16} />} label="Phone Number">
           <input
               className="w-full bg-transparent outline-none"
               value={form.phone ?? ''}
               onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
             />
           </InfoRow>
-          <InfoRow icon={<Building2 size={16} />} label="Departemen">
+          <InfoRow icon={<Building2 size={16} />} label="Department">
             <input
               className="w-full bg-transparent outline-none"
               value={form.department ?? ''}
@@ -202,13 +202,13 @@ export default function ProfilPage() {
 
       {/* Security */}
       <section className="card p-4">
-        <h3 className="font-bold mb-3">Keamanan</h3>
+        <h3 className="font-bold mb-3">Security</h3>
         <InfoRow icon={<Shield size={16} />} label="Password">
           <button
             className="px-3 py-2 rounded-lg border text-sm hover:bg-gray-50"
             onClick={() => toast('Ganti Password (front-end)')}
           >
-            Ganti Password
+            Change Password
           </button>
         </InfoRow>
       </section>
