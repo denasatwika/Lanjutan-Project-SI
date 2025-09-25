@@ -26,56 +26,70 @@ export function RequestDetailDrawer({
   return (
     <div className="fixed inset-0 z-50">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="absolute right-0 top-0 h-full w-full sm:w-[460px] bg-white shadow-xl p-5 overflow-auto">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-xl font-extrabold">Detail Permintaan</h2>
-            <p className="text-xs text-slate-500">Untuk {request.employee.name}</p>
+      <div className="absolute right-0 top-0 h-full w-full sm:w-[480px] bg-white shadow-xl p-6 overflow-auto">
+        <div className="flex items-start justify-between gap-3">
+          <div className="space-y-1">
+            <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Request detail</p>
+            <h2 className="text-2xl font-extrabold text-slate-900">{request.employee.name}</h2>
+            <p className="text-xs text-slate-500">{request.employee.department}</p>
           </div>
-          <button onClick={onClose} className="p-2 rounded-lg hover:bg-gray-100">
+          <button onClick={onClose} className="rounded-full p-2 hover:bg-slate-100 transition">
             <X />
           </button>
         </div>
 
-        <div className="mt-4 grid gap-3 text-sm">
-          <DetailRow label="Karyawan" value={request.employee.name} />
-          <DetailRow label="Departemen" value={request.employee.department} />
-          <DetailRow label="Jenis" value={isLeave ? request.leaveTypeLabel ?? 'Izin' : 'Lembur'} />
+        <div className="mt-6 space-y-4">
+          <DetailRow label="Name" value={request.employee.name} />
+          <DetailRow label="Department" value={request.employee.department} />
+          <DetailRow label="Type" value={isLeave ? request.leaveTypeLabel ?? 'Leave' : 'Overtime'} />
           <DetailRow
-            label="Periode"
+            label="Period"
             value={isLeave ? formatLeavePeriod(leave!) : formatOvertimePeriod(overtime!)}
             icon={isLeave ? <CalendarDays className="size-4" /> : <Clock className="size-4" />}
           />
           <DetailRow
-            label={isLeave ? 'Durasi (hari)' : 'Durasi (jam)'}
+            label={isLeave ? 'Duration (days)' : 'Duration (hours)'}
             value={isLeave ? String(leave?.days ?? '-') : String(overtime?.hours ?? '-')}
           />
           <DetailRow label="Status" value={formatStatus(request.status)} />
-          <DetailRow label="Dibuat" value={new Date(request.createdAt).toLocaleString()} />
+          <DetailRow label="Created" value={new Date(request.createdAt).toLocaleString()} />
           {request.updatedAt && request.updatedAt !== request.createdAt && (
-            <DetailRow label="Diperbarui" value={new Date(request.updatedAt).toLocaleString()} />
+            <DetailRow label="Updated" value={new Date(request.updatedAt).toLocaleString()} />
           )}
-          <DetailRow label="Lampiran" value={request.attachmentUrl} icon={<FileText className="size-4" />} />
-          {request.reason && <DetailRow label="Alasan" value={request.reason} multiline />}
-          <DetailRow label="ID" value={request.id} code />
+          <DetailRow label="Attachment" value={request.attachmentUrl ? request.attachmentUrl : '—'} icon={<FileText className="size-4" />} />
+          {request.reason && <DetailRow label="Reason" value={request.reason} multiline />}
+          <DetailRow label="Request ID" value={request.id} code />
         </div>
 
         {role && (
-          <div className="mt-6 space-y-2">
-            <p className="text-xs text-slate-500">Aksi cepat</p>
-            <div className="flex gap-2">
+          <div className="mt-8 space-y-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-slate-700">Actions</h3>
+            </div>
+            <textarea
+              rows={3}
+              placeholder="Add a note for the employee (optional)"
+              className="w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-[color:var(--brand,_#00156B)] focus:ring-2 focus:ring-[color:var(--brand,_#00156B)]/20"
+            />
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:gap-3">
               <button
-                className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                className="flex-1 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm transition hover:bg-white"
                 onClick={onClose}
               >
-                Batalkan
+                Dismiss
               </button>
               <button
-                className="flex-1 rounded-xl bg-[color:var(--brand,_#00156B)] px-3 py-2 text-sm font-semibold text-white hover:brightness-110"
+                className="flex-1 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm transition hover:bg-white"
+                onClick={onClose}
+              >
+                Request Changes
+              </button>
+              <button
+                className="flex-1 rounded-xl bg-[color:var(--brand,_#00156B)] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-110"
                 style={{ ['--brand' as any]: BRAND }}
                 onClick={onClose}
               >
-                Tandai Selesai
+                Approve Request
               </button>
             </div>
           </div>
@@ -110,8 +124,8 @@ function DetailRow({
 }
 
 function formatStatus(status: string) {
-  if (status === 'approved') return 'Disetujui'
-  if (status === 'rejected') return 'Ditolak'
-  if (status === 'pending') return 'Menunggu'
+  if (status === 'approved') return 'Approved'
+  if (status === 'rejected') return 'Rejected'
+  if (status === 'pending') return 'Pending'
   return 'Draft'
 }
