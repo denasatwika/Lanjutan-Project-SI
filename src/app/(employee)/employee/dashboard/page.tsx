@@ -7,7 +7,7 @@ import CheckInSheet from '@/components/CheckInSheet'
 import { format } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale/id'
 import Link from 'next/link'
-import { CalendarDays, Clock, TrendingUp, Zap, Info, FileText, Inbox, User } from 'lucide-react'
+import { CalendarDays, Clock, TrendingUp, Zap, Info, Check, Files } from 'lucide-react'
 import { toast } from 'sonner'
 import { BottomSheet } from '@/components/ui/bottomSheet'
 import { useRouter } from 'next/navigation'
@@ -37,12 +37,12 @@ function RoleSwitcher({
     try {
       const saved = localStorage.getItem(storageKey) as RoleKey | null
       if (saved && roles.includes(saved)) setRole(saved)
-    } catch {}
+    } catch { }
   }, [storageKey])
 
   function handleChange(next: RoleKey) {
     setRole(next)
-    try { localStorage.setItem(storageKey, next) } catch {}
+    try { localStorage.setItem(storageKey, next) } catch { }
     onChange?.(next)
     router.push(`/${roleToSeg[next]}/dashboard`)
   }
@@ -125,6 +125,8 @@ export default function Page() {
   const [sheetOpen, setSheetOpen] = useState(false)
   const [selectedDay, setSelectedDay] = useState<Date | null>(null)
   const [desc, setDesc] = useState('')
+  const [copied, setCopied] = useState(false);
+
 
   // Open sheet for a given day
   function openDaySheet(day: Date) {
@@ -229,15 +231,15 @@ export default function Page() {
           Welcome, {firstName}!
         </h1>
         <div className="flex items-center gap-3">
-  </div>
+        </div>
 
-  <RoleSwitcher
-    storageKey={`role:${user.id}`}
-    onChange={(next) => {
-      // optional: toast or analytics here
-      toast.success(`Role changed to ${next}`)
-    }}
-  />
+        <RoleSwitcher
+          storageKey={`role:${user.id}`}
+          onChange={(next) => {
+            // optional: toast or analytics here
+            toast.success(`Role changed to ${next}`)
+          }}
+        />
       </section>
 
       {/* Date + Clock card */}
@@ -258,15 +260,34 @@ export default function Page() {
           background: `linear-gradient(135deg, ${NAVY[700]} 0%, ${NAVY[600]} 60%, ${NAVY[800]} 100%)`,
         }}>
         <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-xs uppercase tracking-wide">Department</p>
-              <p className="font-semibold">Production</p>
-            </div>
-            <div className="text-right">
-              <p className="text-xs uppercase tracking-wide">Wallet</p>
+          <div>
+            <p className="text-xs uppercase tracking-wide">Department</p>
+            <p className="font-semibold">Production</p>
+          </div>
+          <div className="text-right">
+            <p className="text-xs uppercase tracking-wide">Wallet</p>
+            <div
+              className="flex items-center gap-2 cursor-pointer"
+              onClick={() => {
+                navigator.clipboard.writeText("0x97F5E6F123456789ABCDEF2sdke1");
+                setCopied(true);
+                setTimeout(() => setCopied(false), 1500);
+              }}
+            >
+              {copied ? (
+                <Check className="w-4 h-4 text-green-500" />
+              ) : (
+                <Files className="w-4 h-4 hover:text-gray-700" />
+              )}
               <p className="font-medium">0x97F5E6...2sdke1</p>
             </div>
           </div>
+        </div>
+        <div className="grid grid-cols-3 gap-3 mt-4">
+          <TokenTile label="Cuti" value={12} color="var(--B-500)" />
+          <TokenTile label="Izin" value={6} color="#F59E0B" />
+          <TokenTile label="Lembur" value={2} color="#22C55E" />
+        </div>
         <button
           onClick={() => setShowCheckIn(true)}
           className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm hover:bg-white/95"
@@ -274,12 +295,6 @@ export default function Page() {
           <Clock className="size-4" />
           {ctaLabel}
         </button>
-        <div className="mt-4 flex flex-wrap justify-center gap-2">
-          <MiniStat icon={<Clock size={14} />} label="History" href="/employee/riwayat" />
-          <MiniStat icon={<FileText size={14} />} label="Leave" href="/employee/izin" />
-          <MiniStat icon={<Inbox size={14} />} label="Inbox" href="/employee/inbox" />
-          <MiniStat icon={<User size={14} />} label="Profile" href="/employee/profile" />
-        </div>
       </section>
 
       {/* KPI cards */}
@@ -341,10 +356,10 @@ export default function Page() {
             const present = !!checkIn;
             const statusText = present ? 'Present' : 'Absent';
             const preview = getDescPreview(date);
-            
+
             return (
-              <div 
-                key={date.toISOString()} 
+              <div
+                key={date.toISOString()}
                 className="group bg-white rounded-xl border border-gray-100 hover:border-gray-200 hover:shadow-sm transition-all duration-200 p-5"
               >
                 <div className="flex items-center justify-between">
@@ -353,13 +368,13 @@ export default function Page() {
                     <div className="flex items-center gap-3 mb-3">
                       {/* Status indicator */}
                       <div className={`w-3 h-3 rounded-full ${present ? 'bg-emerald-500' : 'bg-red-400'}`} />
-                      
+
                       {/* Date */}
                       <h3 className="text-gray-900 font-medium text-base">
                         {formatDateLongID(date)}
                       </h3>
                     </div>
-                    
+
                     {/* Time range */}
                     <div className="ml-6 flex items-center gap-4">
                       <div className="text-sm text-gray-500">
@@ -369,7 +384,7 @@ export default function Page() {
                         <span className="font-medium">Out:</span> {timeHHmm(checkOut)}
                       </div>
                     </div>
-                    
+
                     {/* Description preview if exists */}
                     {preview && (
                       <div className="ml-6 mt-2">
@@ -379,18 +394,17 @@ export default function Page() {
                       </div>
                     )}
                   </div>
-                  
+
                   {/* Right side - Status and action */}
                   <div className="flex items-center gap-4">
                     {/* Status badge */}
-                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
-                      present 
-                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
-                        : 'bg-red-50 text-red-700 border border-red-200'
-                    }`}>
+                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${present
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                      : 'bg-red-50 text-red-700 border border-red-200'
+                      }`}>
                       {statusText}
                     </span>
-                    
+
                     {/* Edit button */}
                     <button
                       type="button"
@@ -448,8 +462,15 @@ export default function Page() {
           </div>
         )}
       </BottomSheet>
+    </div>
+  )
+}
 
-
+function TokenTile({ label, value, color }: { label: string; value: number; color: string }) {
+  return (
+    <div className="rounded-xl bg-white/10 p-4 border border-white/20 backdrop-blur">
+      <div className="w-8 h-8 grid place-items-center rounded-full text-sm font-bold" style={{ color, background: 'white' }}>{value}</div>
+      <div className="mt-3 font-semibold">{label}</div>
     </div>
   )
 }
