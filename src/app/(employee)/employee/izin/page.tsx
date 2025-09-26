@@ -1,210 +1,63 @@
-// Place this file at: app/(employee)/employee/izin/page.tsx
-// If your repo uses /src, path is: src/app/(employee)/employee/izin/page.tsx
-
 'use client'
-import Link from 'next/link'
-import { useMemo } from 'react'
-import { useAuth } from '@/lib/state/auth'
-import { useRequests } from '@/lib/state/requests'
-import { format } from 'date-fns'
-import { id as idLocale } from 'date-fns/locale/id'
-import { ChevronLeft, FileText, Clock3, Check, CircleAlert, ChevronRight } from 'lucide-react'
-import type { Request } from '@/lib/types'
+
+import { useState } from 'react'
+import clsx from 'clsx'
 import { PageHeader } from '@/components/PageHeader'
-import { mockLeaveTypes } from '@/lib/mock/requests'
+import { LeaveRequestForm } from './forms/LeaveRequestForm'
+import { OvertimeRequestForm } from './forms/OvertimeRequestForm'
 
-const NAVY = {
-  50: '#eef2ff',
-  100: '#e0e7ff',
-  200: '#c7d2fe',
-  600: '#1e3a8a',
-  700: '#172554',
-  800: '#0b1535',
-}
+type RequestView = 'leave' | 'overtime'
 
-const TOKENS = { cuti: 12, izin: 3, lembur: 6 }
+const TABS: { key: RequestView; label: string; description: string }[] = [
+  { key: 'leave', label: 'Leave', description: 'Time off, sick leave, or other absence' },
+  { key: 'overtime', label: 'Overtime', description: 'Extra working hours outside schedule' },
+]
 
-function StatusPill({ s }: { s: Request['status'] }) {
-  const map: Record<Request['status'], string> = {
-    draft: 'bg-gray-100 text-gray-700',
-    pending: 'bg-amber-100 text-amber-800',
-    approved: 'bg-green-100 text-green-700',
-    rejected: 'bg-red-100 text-red-700',
-  }
-  return <span className={`px-3 py-1 rounded-full text-xs font-medium ${map[s]}`}>{s[0].toUpperCase() + s.slice(1)}</span>
-}
-
-function prettyDate(iso?: string) {
-  if (!iso) return '-'
-  return format(new Date(iso), 'd MMMM yyyy', { locale: idLocale })
-}
-
-function formatRange(start: string, end: string) {
-  if (!start) return prettyDate(end)
-  if (!end || start === end) return prettyDate(start)
-  return `${prettyDate(start)} – ${prettyDate(end)}`
-}
-
-export default function IzinPage() {
-  const user = useAuth(s => s.user)
-  const all = useRequests(s => user ? s.forEmployee(user.id) : [])
-
-  const { cutiLeft, izinLeft, lemburLeft } = useMemo(() => {
-    const relevant = all.filter(r => ['approved', 'pending'].includes(r.status))
-    const leave = relevant.filter((r): r is Request & { type: 'leave' } => r.type === 'leave')
-    const overtime = relevant.filter((r): r is Request & { type: 'overtime' } => r.type === 'overtime')
-
-    const usedCuti = leave.filter((r) => mockLeaveTypes[r.leaveTypeId]?.code === 'cuti').length
-    const usedIzin = leave.filter((r) => {
-      const code = mockLeaveTypes[r.leaveTypeId]?.code
-      return code && code !== 'cuti'
-    }).length
-    const usedLembur = overtime.length
-
-    return {
-      cutiLeft: Math.max(0, TOKENS.cuti - usedCuti),
-      izinLeft: Math.max(0, TOKENS.izin - usedIzin),
-      lemburLeft: Math.max(0, TOKENS.lembur - usedLembur)
-    }
-  }, [all])
-
-  const history = useMemo(() => [...all].sort((a, b) => b.createdAt.localeCompare(a.createdAt)), [all])
+export default function Page() {
+  const [view, setView] = useState<RequestView>('leave')
 
   return (
-    <div className="space-y-6">
-      {/* Top curved header */}
-      <PageHeader
-        title="Requests"
-        backHref="/employee/dashboard"
-        fullBleed
-        bleedMobileOnly    // <-- key line
-        pullUpPx={16}      // cancels AppShell pt-6
-      />
+    <div className="min-h-screen">
+      <PageHeader title="Request" backHref="/employee/dashboard" fullBleed bleedMobileOnly pullUpPx={24} />
 
-      {!user ? (
-        <div className="card max-w-6xl mx-auto px-5 py-6 text-sm text-gray-600">
-          Silakan login untuk melihat kuota dan riwayat pengajuan izin.
-        </div>
-      ) : (
-        <div className="max-w-6xl mx-auto px-5">
-          {/* Dompet Token */}
-          <div className="mt-6 mb-4 ml-3">
-            <h2 className="text-lg font-semibold">Token Wallet</h2>
-          </div>
-          <div className="rounded-2xl p-4 text-white shadow-md"
-            style={{
-              background: `linear-gradient(135deg, ${NAVY[700]} 0%, ${NAVY[600]} 60%, ${NAVY[800]} 100%)`,
-            }}>
-            <div className="grid grid-cols-3 gap-3">
-              <TokenTile label="Cuti" value={cutiLeft} color="var(--B-500)" />
-              <TokenTile label="Izin" value={izinLeft} color="#F59E0B" />
-              <TokenTile label="Lembur" value={lemburLeft} color="#22C55E" />
+      <div className="mx-auto mt-3 max-w-screen-sm px-4 md:max-w-2xl">
+        <div className="rounded-2xl border bg-white shadow-md">
+          <div className="border-b border-slate-200 bg-slate-50/80 px-4 py-3 sm:px-6">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex gap-2 rounded-xl bg-white p-1 shadow-sm">
+                {TABS.map((tab) => (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => setView(tab.key)}
+                    className={clsx(
+                      'flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition',
+                      view === tab.key
+                        ? 'bg-[#00156B] text-white shadow'
+                        : 'bg-transparent text-slate-600 hover:bg-slate-100'
+                    )}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-slate-500 sm:text-right">
+                {TABS.find((tab) => tab.key === view)?.description}
+              </p>
             </div>
           </div>
 
-          {/* Pengajuan */}
-          <div className="mt-6 mb-4 ml-3">
-            <h2 className="text-lg font-semibold">Make Request</h2>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <ActionCard
-              icon={<FileText className="size-5 text-amber-600" />}
-              title="Leave"
-              desc="Make leave request using Token."
-              href="/employee/izin/new/leave"
-              bgColor="bg-[#F7DDB7]"   // izin → soft yellow
-            />
-            <ActionCard
-              icon={<Clock3 className="size-5 text-green-600" />}
-              title="Overtime"
-              desc="Claim OVT Token."
-              href="/employee/izin/new/overtime"
-              bgColor="bg-[#DCFCE7]"   // lembur → soft green
-            />
-          </div>
-
-          {/* Riwayat */}
-          <div className="mt-6 mb-4 ml-3">
-            <h2 className="text-lg font-semibold">History</h2>
-          </div>
-          <div className="space-y-3">
-            {history.map(r => (
-              <div key={r.id} className="card p-4 flex gap-3 items-start">
-                <div className="shrink-0 size-10 rounded-full grid place-items-center" style={{ background: r.type === 'leave' ? 'rgba(245, 158, 11, .15)' : 'rgba(34,197,94,.15)' }}>
-                  {r.type === 'leave' ? <CircleAlert className="size-5 text-amber-500" /> : <Check className="size-5 text-green-600" />}
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-lg font-bold">Pengajuan {r.type === 'leave' ? 'Izin' : 'Lembur'}</h4>
-                    <StatusPill s={r.status} />
-                  </div>
-                  <div className="text-sm text-gray-500">{prettyDate(r.createdAt)}</div>
-                  <div className="mt-2 text-sm text-gray-700 space-y-1">
-                    {r.type === 'leave' ? (
-                      <>
-                        <div>Jenis : {mockLeaveTypes[r.leaveTypeId]?.label ?? '—'}</div>
-                        <div>Periode : {formatRange(r.startDate, r.endDate)}</div>
-                        <div>Durasi : {r.days} hari</div>
-                        {r.reason && <div>Alasan : {r.reason}</div>}
-                      </>
-                    ) : (
-                      <>
-                        <div>Tanggal Lembur : {prettyDate(r.workDate)}</div>
-                        <div>Jam Lembur : {r.startTime} - {r.endTime}</div>
-                        <div>Total : {r.hours} jam</div>
-                        {r.reason && <div>Alasan : {r.reason}</div>}
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
+          <div className="space-y-4 px-4 py-6 sm:px-6">
+            {view === 'leave' ? (
+              <LeaveRequestForm onSubmitted={() => setView('leave')} />
+            ) : (
+              <OvertimeRequestForm onSubmitted={() => setView('overtime')} />
+            )}
           </div>
         </div>
-      )}
-    </div>
-  )
-}
-
-function TokenTile({ label, value, color }: { label: string; value: number; color: string }) {
-  return (
-    <div className="rounded-xl bg-white/10 p-4 border border-white/20 backdrop-blur">
-      <div className="w-8 h-8 grid place-items-center rounded-full text-sm font-bold" style={{ color, background: 'white' }}>{value}</div>
-      <div className="mt-3 font-semibold">{label}</div>
-    </div>
-  )
-}
-
-type ActionCardProps = {
-  icon: React.ReactNode
-  title: string
-  desc: string
-  href: string
-  className?: string
-  bgColor?: string
-}
-
-function ActionCard({ icon, title, desc, href, bgColor = 'bg-gray-50', className }: ActionCardProps) {
-  return (
-    <Link
-      href={href}
-      aria-label={title}
-      className="group relative block rounded-2xl p-4 bg-white border border-[#00156B] shadow-md transition-all"
-    >
-      <div className="flex items-start gap-3">
-        <div className={`size-10 rounded-full grid place-items-center shrink-0 ${bgColor}`}>
-          {icon}
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="text-base font-extrabold leading-tight">{title}</div>
-          <div className="text-xs text-gray-500 leading-snug">{desc}</div>
-        </div>
-
-        <ChevronRight
-          aria-hidden
-          className="ml-auto mt-1 size-4 text-[#00156B] opacity-90 transition-transform duration-150 group-hover:translate-x-0.5"
-        />
       </div>
-    </Link>
+
+      <div className="h-24 md:hidden" />
+    </div>
   )
 }
