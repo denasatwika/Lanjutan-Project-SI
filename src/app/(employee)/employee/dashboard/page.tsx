@@ -118,6 +118,8 @@ export default function Page() {
 
   const firstName = user?.name?.split(' ')[0] ?? 'Employee'
   const initial = firstName.charAt(0).toUpperCase()
+  const walletAddress = user?.address
+  const walletDisplay = walletAddress ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}` : '—'
 
   function dayISO(d: Date) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x.toISOString() }
   const descKey = (userId: string, iso: string) => `desc:${userId}:${iso}`
@@ -125,7 +127,24 @@ export default function Page() {
   const [sheetOpen, setSheetOpen] = useState(false)
   const [selectedDay, setSelectedDay] = useState<Date | null>(null)
   const [desc, setDesc] = useState('')
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState(false)
+  const department = user?.department ?? '—'
+
+  async function handleCopyWallet() {
+    if (!walletAddress) return
+    if (!navigator.clipboard || typeof navigator.clipboard.writeText !== 'function') {
+      toast.error('Clipboard tidak tersedia')
+      return
+    }
+    try {
+      await navigator.clipboard.writeText(walletAddress)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+      toast.success('Alamat wallet disalin')
+    } catch {
+      toast.error('Gagal menyalin wallet')
+    }
+  }
 
 
   // Open sheet for a given day
@@ -262,24 +281,20 @@ export default function Page() {
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-xs uppercase tracking-wide">Department</p>
-            <p className="font-semibold">Production</p>
+            <p className="font-semibold">{department}</p>
           </div>
           <div className="text-right">
             <p className="text-xs uppercase tracking-wide">Wallet</p>
             <div
-              className="flex items-center gap-2 cursor-pointer"
-              onClick={() => {
-                navigator.clipboard.writeText("0x97F5E6F123456789ABCDEF2sdke1");
-                setCopied(true);
-                setTimeout(() => setCopied(false), 1500);
-              }}
+              className={`flex items-center gap-2 ${walletAddress ? 'cursor-pointer' : 'cursor-default opacity-70'}`}
+              onClick={handleCopyWallet}
             >
               {copied ? (
                 <Check className="w-4 h-4 text-green-500" />
               ) : (
                 <Files className="w-4 h-4 hover:text-gray-700" />
               )}
-              <p className="font-medium">0x97F5E6...2sdke1</p>
+              <p className="font-medium">{walletDisplay}</p>
             </div>
           </div>
         </div>

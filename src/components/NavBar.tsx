@@ -2,11 +2,11 @@
 'use client'
 
 import Link from 'next/link'
-import Image from 'next/image'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
-import Cookies from 'js-cookie'
+import { useAuth } from '@/lib/state/auth'
 import { cn } from '@/lib/utils/cn'
+import { useDisconnect } from 'wagmi'
 import {
   LayoutGrid,
   CalendarCheck2,
@@ -39,21 +39,21 @@ const mobileItemsByRole: Record<
   { href: string; label: string; icon: any }[]
 > = {
   employee: [
-    { href: '/employee/dashboard', label: 'Beranda', icon: Home },
-    { href: '/employee/riwayat', label: 'Riwayat', icon: HistoryIcon },
-    { href: '/employee/izin', label: 'Izin', icon: ClipboardList },
+    { href: '/employee/dashboard', label: 'Home', icon: Home },
+    { href: '/employee/riwayat', label: 'History', icon: HistoryIcon },
+    { href: '/employee/izin', label: 'Request', icon: ClipboardList },
     { href: '/employee/inbox', label: 'Inbox', icon: Inbox },
-    { href: '/employee/profile', label: 'Profil', icon: User },
+    { href: '/employee/profile', label: 'Profile', icon: User },
   ],
   supervisor: [
     { href: '/supervisor/dashboard', label: 'Dashboard', icon: Home },
     { href: '/supervisor/approval', label: 'Approval', icon: ClipboardCheck },
-    { href: '/supervisor/history', label: 'History', icon: HistoryIcon },
+    { href: '/supervisor/history', label: 'Logs', icon: HistoryIcon },
   ],
   chief: [
     { href: '/chief/dashboard', label: 'Dashboard', icon: Home },
     { href: '/chief/approval', label: 'Approval', icon: ClipboardCheck },
-    { href: '/chief/history', label: 'History', icon: HistoryIcon },
+    { href: '/chief/history', label: 'Logs', icon: HistoryIcon },
   ],
   hr: [
     { href: '/hr/dashboard', label: 'Dashboard', icon: LayoutGrid },
@@ -72,6 +72,9 @@ const mobileItemsByRole: Record<
 function HRSidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
   const pathname = usePathname()
   const [openMenu, setOpenMenu] = useState('Dashboard')
+  const logout = useAuth((state) => state.logout)
+  const { disconnect } = useDisconnect()
+  const router = useRouter()
 
   const NAV_ITEMS = [
     {
@@ -88,9 +91,9 @@ function HRSidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
   ]
 
   const handleLogout = () => {
-    Cookies.remove('auth_token')
-    localStorage.removeItem('user')
-    window.location.href = '/'
+    disconnect()
+    logout()
+    router.push('/login')
   }
 
   useEffect(() => {

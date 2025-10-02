@@ -6,6 +6,7 @@ export type User = {
   name: string
   role: Role
   department?: string
+  address?: `0x${string}`
 }
 
 export type Attendance = {
