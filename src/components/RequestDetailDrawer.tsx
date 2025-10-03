@@ -15,7 +15,7 @@ export function RequestDetailDrawer({
 }: {
   request: DecoratedRequest | null
   onClose: () => void
-  role?: 'supervisor' | 'chief'
+  role?: 'approver'
 }) {
   if (!request) return null
 

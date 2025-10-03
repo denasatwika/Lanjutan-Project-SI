@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/state/auth'
 import { PageHeader } from '@/components/PageHeader'
 import { Camera, Mail, Phone, Wallet, Building2, Shield, Moon, Sun } from 'lucide-react'
 import { toast } from 'sonner'
+import { useDisconnect } from 'wagmi'
 
 type PartialUser = {
   name?: string
@@ -19,6 +20,7 @@ type PartialUser = {
 export default function ProfilePage() {
   const auth = useAuth()
   const user = auth.user
+  const { disconnect } = useDisconnect()
   const firstName = useMemo(() => user?.name?.split(' ')[0] ?? 'User', [user?.name])
   const initial = firstName.charAt(0).toUpperCase()
 
@@ -29,7 +31,7 @@ export default function ProfilePage() {
       email: u?.email ?? '',
       phone: u?.phone ?? '',
       department: u?.department ?? '—',
-      wallet: u?.wallet ?? '—',
+      wallet: user?.address ?? u?.wallet ?? '—',
       avatarUrl: u?.avatarUrl ?? null,
     }
   }, [user])
@@ -87,6 +89,7 @@ export default function ProfilePage() {
   }
 
   function logout() {
+    disconnect()
     const api: any = (useAuth as any).getState?.()
     if (api?.logout) api.logout()
     else toast('Simulasi logout (front-end)')

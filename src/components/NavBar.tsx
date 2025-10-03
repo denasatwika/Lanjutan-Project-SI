@@ -2,11 +2,11 @@
 'use client'
 
 import Link from 'next/link'
-import Image from 'next/image'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
-import Cookies from 'js-cookie'
+import { useAuth } from '@/lib/state/auth'
 import { cn } from '@/lib/utils/cn'
+import { useDisconnect } from 'wagmi'
 import {
   LayoutGrid,
   CalendarCheck2,
@@ -28,34 +28,21 @@ import {
   X,
 } from 'lucide-react'
 
-type Role = 'employee' | 'supervisor' | 'chief' | 'hr'
+type Role = 'requester' | 'approver'
 
 const NAVY = '#00156B'
 const RED = '#BD0016'
 
 /** ----------------------- MOBILE items (unchanged) ----------------------- */
-const mobileItemsByRole: Record<
-  Exclude<Role, 'hr'> | 'hr',
-  { href: string; label: string; icon: any }[]
-> = {
-  employee: [
-    { href: '/employee/dashboard', label: 'Beranda', icon: Home },
-    { href: '/employee/riwayat', label: 'Riwayat', icon: HistoryIcon },
-    { href: '/employee/izin', label: 'Izin', icon: ClipboardList },
+const mobileItemsByRole: Record<Role, { href: string; label: string; icon: any }[]> = {
+  requester: [
+    { href: '/employee/dashboard', label: 'Home', icon: Home },
+    { href: '/employee/riwayat', label: 'History', icon: HistoryIcon },
+    { href: '/employee/izin', label: 'Request', icon: ClipboardList },
     { href: '/employee/inbox', label: 'Inbox', icon: Inbox },
-    { href: '/employee/profile', label: 'Profil', icon: User },
+    { href: '/employee/profile', label: 'Profile', icon: User },
   ],
-  supervisor: [
-    { href: '/supervisor/dashboard', label: 'Dashboard', icon: Home },
-    { href: '/supervisor/approval', label: 'Approval', icon: ClipboardCheck },
-    { href: '/supervisor/history', label: 'History', icon: HistoryIcon },
-  ],
-  chief: [
-    { href: '/chief/dashboard', label: 'Dashboard', icon: Home },
-    { href: '/chief/approval', label: 'Approval', icon: ClipboardCheck },
-    { href: '/chief/history', label: 'History', icon: HistoryIcon },
-  ],
-  hr: [
+  approver: [
     { href: '/hr/dashboard', label: 'Dashboard', icon: LayoutGrid },
     { href: '/hr/approval', label: 'Approval', icon: ClipboardCheck },
     { href: '/hr/dokumen', label: 'Dokumen', icon: FileText },
@@ -72,6 +59,9 @@ const mobileItemsByRole: Record<
 function HRSidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
   const pathname = usePathname()
   const [openMenu, setOpenMenu] = useState('Dashboard')
+  const logout = useAuth((state) => state.logout)
+  const { disconnect } = useDisconnect()
+  const router = useRouter()
 
   const NAV_ITEMS = [
     {
@@ -87,10 +77,13 @@ function HRSidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
     { name: 'History', icon: FileClock, href: '/hr/history' },
   ]
 
-  const handleLogout = () => {
-    Cookies.remove('auth_token')
-    localStorage.removeItem('user')
-    window.location.href = '/'
+  const handleLogout = async () => {
+    disconnect()
+    try {
+      await logout()
+    } finally {
+      router.push('/login')
+    }
   }
 
   useEffect(() => {
@@ -222,7 +215,7 @@ export function NavBar({ role }: { role: Role }) {
   const [hrSidebarOpen, setHrSidebarOpen] = useState(false)
 
   // HR: sidebar UI (drawer on mobile; static on md+)
-  if (role === 'hr') {
+  if (role === 'approver') {
     return (
       <nav className="z-50">
         {/* Top bar (mobile) with hamburger */}
