@@ -7,7 +7,7 @@ export default function AppShell({
   role,
   children,
 }: {
-  role: 'employee' | 'supervisor' | 'chief' | 'hr'
+  role: 'requester' | 'approver'
   children: React.ReactNode
 }) {
   return (

@@ -1,23 +1,50 @@
 'use client'
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
-import { Role, User } from '../types'
-import { seedUsers } from '../seed'
+import { User } from '../types'
+import { getSession, postLogout } from '../api/auth'
 
 interface AuthState {
   user?: User
-  login: (u: User)=>void
-  logout: ()=>void
-  resetDemo: ()=>void
+  hydrated: boolean
+  setUser: (user?: User) => void
+  fetchSession: () => Promise<User | undefined>
+  logout: () => Promise<void>
 }
 
-export const useAuth = create<AuthState>()(persist((set)=>({
+export const useAuth = create<AuthState>()((set) => ({
   user: undefined,
-  login: (u)=> set({ user: u }),
-  logout: ()=> set({ user: undefined }),
-  resetDemo: ()=>{ localStorage.clear(); location.reload() }
-}),{ name:'hrapp_v1_auth' }))
+  hydrated: false,
+  setUser: (user) => set({ user, hydrated: true }),
+  fetchSession: async () => {
+    try {
+      const session = await getSession()
+      if (!session) {
+        set({ user: undefined, hydrated: true })
+        return undefined
+      }
 
-export function getDemoUserByRole(role: Role){
-  return seedUsers.find(u=>u.role===role)!
-}
+      const address = session.user.address as `0x${string}`
+      const fallbackName = `${address.slice(0, 6)}...${address.slice(-4)}`
+
+      const user: User = {
+        id: session.user.id,
+        role: session.user.role,
+        address,
+        name: fallbackName,
+      }
+
+      set({ user, hydrated: true })
+      return user
+    } catch (error) {
+      set({ user: undefined, hydrated: true })
+      throw error
+    }
+  },
+  logout: async () => {
+    try {
+      await postLogout()
+    } finally {
+      set({ user: undefined, hydrated: true })
+    }
+  },
+}))

@@ -164,7 +164,7 @@ export default function SupervisorApprovalsPage() {
       <RequestDetailDrawer
         request={selected}
         onClose={() => selectRequest(null)}
-        role="supervisor"
+        role="approver"
       />
     </main>
   )

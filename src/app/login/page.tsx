@@ -5,10 +5,8 @@ import { useRouter } from 'next/navigation'
 import { ConnectButton } from '@rainbow-me/rainbowkit'
 import { useAccount, useSignMessage } from 'wagmi'
 import { toast } from 'sonner'
-import { useAuth, getDemoUserByRole } from '@/lib/state/auth'
-import { roles, Role } from '@/lib/types'
-import { RoleBadge } from '@/components/RoleBadge'
-import { DemoBanner } from '@/components/DemoBanner'
+import { requestNonce, postLogin } from '@/lib/api/auth'
+import { useAuth } from '@/lib/state/auth'
 
 function shortenAddress(address: string) {
   return `${address.slice(0, 6)}...${address.slice(-4)}`
@@ -16,40 +14,43 @@ function shortenAddress(address: string) {
 
 export default function LoginPage() {
   const router = useRouter()
-  const login = useAuth((state) => state.login)
+  const fetchSession = useAuth((state) => state.fetchSession)
   const { address, isConnected } = useAccount()
   const { signMessageAsync } = useSignMessage()
-  const [authorisingRole, setAuthorisingRole] = useState<Role | null>(null)
+  const [authorising, setAuthorising] = useState(false)
 
-  const handleLogin = async (role: Role) => {
+  const handleLogin = async () => {
     if (!address) {
       toast.error('Connect your wallet first.')
       return
     }
 
+    const normalisedAddress = address.trim().toLowerCase()
+
     try {
-      setAuthorisingRole(role)
-      const signatureMessage = `Sign-in request for MyBaliola\nRole: ${role}\nAddress: ${address}\nTimestamp: ${Date.now()}`
+      setAuthorising(true)
+      const { nonce } = await requestNonce(normalisedAddress)
+      const signature = await signMessageAsync({ message: nonce })
 
-      await signMessageAsync({ message: signatureMessage })
+      await postLogin(normalisedAddress, signature)
 
-      const baseProfile = getDemoUserByRole(role)
-      login({
-        id: address,
-        name: baseProfile?.name ?? shortenAddress(address),
-        role,
-        department: baseProfile?.department,
-        address,
-      })
+      const session = await fetchSession()
+      if (!session) {
+        throw new Error('Session belum tersedia. Silakan coba lagi.')
+      }
 
-      router.push(`/${role}/dashboard`)
+      const destination = session.role === 'requester' ? '/employee/dashboard' : '/hr/dashboard'
+      toast.success('Login berhasil')
+      router.replace(destination)
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unable to complete signature.'
-      if (!message.toLowerCase().includes('user rejected')) {
+      const message = error instanceof Error ? error.message : 'Unable to complete login.'
+      if (message.toLowerCase().includes('user rejected')) {
+        toast.info('Signature dibatalkan.')
+      } else {
         toast.error(message)
       }
     } finally {
-      setAuthorisingRole(null)
+      setAuthorising(false)
     }
   }
 
@@ -58,8 +59,8 @@ export default function LoginPage() {
       <div className="card max-w-md w-full p-6 space-y-6">
         <h1 className="text-2xl font-bold">Sign in with Wallet</h1>
         <p className="text-sm text-gray-600">
-          Connect your Web3 wallet, then choose the role you want to explore in this demo. Data remains in
-          your browser.
+          Connect your Web3 wallet, then sign the secure message to continue. The backend verifies your wallet
+          and assigns the correct workspace automatically.
         </p>
 
         <div className="flex flex-col gap-2 rounded-lg border border-gray-200 bg-gray-50 p-4">
@@ -74,30 +75,14 @@ export default function LoginPage() {
           )}
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          {roles.map((role) => {
-            const isDisabled = !isConnected || authorisingRole !== null
-            const isLoading = authorisingRole === role
-
-            return (
-              <button
-                key={role}
-                type="button"
-                onClick={() => handleLogin(role)}
-                disabled={isDisabled}
-                className={`btn btn-primary flex items-center justify-center gap-2 ${
-                  isDisabled ? 'opacity-60 cursor-not-allowed' : ''
-                }`}
-              >
-                <RoleBadge role={role} />
-                <span className="ml-1 capitalize">{role}</span>
-                {isLoading ? <span className="text-xs">Signing...</span> : null}
-              </button>
-            )
-          })}
-        </div>
-
-        <DemoBanner compact />
+        <button
+          type="button"
+          onClick={handleLogin}
+          disabled={!isConnected || authorising}
+          className={`btn btn-primary w-full ${!isConnected || authorising ? 'opacity-60 cursor-not-allowed' : ''}`}
+        >
+          {authorising ? 'Signing...' : 'Sign message & login'}
+        </button>
       </div>
     </main>
   )

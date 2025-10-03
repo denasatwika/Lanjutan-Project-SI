@@ -2,8 +2,8 @@
 import { useParams } from 'next/navigation'
 import { useRequests } from '@/lib/state/requests'
 import { formatWhen } from '@/lib/utils/date'
-import { mockLeaveTypes } from '@/lib/mock/requests'
 import { LeaveRequest, OvertimeRequest } from '@/lib/types'
+import { resolveLeaveTypeLabel } from '@/lib/utils/requestDisplay'
 
 export default function Page(){
   const { id } = useParams<{id:string}>()
@@ -12,7 +12,7 @@ export default function Page(){
   const isLeave = r.type === 'leave'
   const leave = isLeave ? (r as LeaveRequest) : undefined
   const overtime = !isLeave ? (r as OvertimeRequest) : undefined
-  const leaveMeta = leave ? mockLeaveTypes[leave.leaveTypeId] : undefined
+  const leaveLabel = leave ? resolveLeaveTypeLabel(leave.leaveTypeId) : undefined
   return (
     <div className="space-y-3">
       <h1 className="text-xl font-bold">Request Detail</h1>
@@ -25,7 +25,7 @@ export default function Page(){
 
         {isLeave && leave ? (
           <div className="mt-2 grid gap-1 text-sm">
-            <div><span className="text-gray-500">Leave Type:</span> {leaveMeta?.label ?? leave.leaveTypeId}</div>
+            <div><span className="text-gray-500">Leave Type:</span> {leaveLabel ?? leave.leaveTypeId}</div>
             <div><span className="text-gray-500">Start:</span> {leave.startDate}</div>
             <div><span className="text-gray-500">End:</span> {leave.endDate}</div>
             <div><span className="text-gray-500">Days:</span> {leave.days}</div>

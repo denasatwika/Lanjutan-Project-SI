@@ -28,34 +28,21 @@ import {
   X,
 } from 'lucide-react'
 
-type Role = 'employee' | 'supervisor' | 'chief' | 'hr'
+type Role = 'requester' | 'approver'
 
 const NAVY = '#00156B'
 const RED = '#BD0016'
 
 /** ----------------------- MOBILE items (unchanged) ----------------------- */
-const mobileItemsByRole: Record<
-  Exclude<Role, 'hr'> | 'hr',
-  { href: string; label: string; icon: any }[]
-> = {
-  employee: [
+const mobileItemsByRole: Record<Role, { href: string; label: string; icon: any }[]> = {
+  requester: [
     { href: '/employee/dashboard', label: 'Home', icon: Home },
     { href: '/employee/riwayat', label: 'History', icon: HistoryIcon },
     { href: '/employee/izin', label: 'Request', icon: ClipboardList },
     { href: '/employee/inbox', label: 'Inbox', icon: Inbox },
     { href: '/employee/profile', label: 'Profile', icon: User },
   ],
-  supervisor: [
-    { href: '/supervisor/dashboard', label: 'Dashboard', icon: Home },
-    { href: '/supervisor/approval', label: 'Approval', icon: ClipboardCheck },
-    { href: '/supervisor/history', label: 'Logs', icon: HistoryIcon },
-  ],
-  chief: [
-    { href: '/chief/dashboard', label: 'Dashboard', icon: Home },
-    { href: '/chief/approval', label: 'Approval', icon: ClipboardCheck },
-    { href: '/chief/history', label: 'Logs', icon: HistoryIcon },
-  ],
-  hr: [
+  approver: [
     { href: '/hr/dashboard', label: 'Dashboard', icon: LayoutGrid },
     { href: '/hr/approval', label: 'Approval', icon: ClipboardCheck },
     { href: '/hr/dokumen', label: 'Dokumen', icon: FileText },
@@ -90,10 +77,13 @@ function HRSidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
     { name: 'History', icon: FileClock, href: '/hr/history' },
   ]
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     disconnect()
-    logout()
-    router.push('/login')
+    try {
+      await logout()
+    } finally {
+      router.push('/login')
+    }
   }
 
   useEffect(() => {
@@ -225,7 +215,7 @@ export function NavBar({ role }: { role: Role }) {
   const [hrSidebarOpen, setHrSidebarOpen] = useState(false)
 
   // HR: sidebar UI (drawer on mobile; static on md+)
-  if (role === 'hr') {
+  if (role === 'approver') {
     return (
       <nav className="z-50">
         {/* Top bar (mobile) with hamburger */}

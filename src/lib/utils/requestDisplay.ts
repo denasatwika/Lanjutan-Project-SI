@@ -1,18 +1,56 @@
 import { format } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale/id'
 import { LeaveRequest, OvertimeRequest, Request } from '@/lib/types'
-import { getEmployeeMeta, getLeaveTypeMeta } from '@/lib/mock/requests'
+
+type EmployeeMeta = {
+  id: string
+  name: string
+  department?: string
+}
+
+const LEAVE_TYPE_LABELS: Record<string, string> = {
+  ANNUAL: 'Annual Leave',
+  SICK: 'Sick Leave',
+  UNPAID: 'Unpaid Leave',
+  EMERGENCY: 'Emergency Leave',
+  MATERNITY: 'Maternity Leave',
+  PATERNITY: 'Paternity Leave',
+}
+
+function toTitle(value: string) {
+  return value
+    .toLowerCase()
+    .split(/[_\s]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
+}
+
+export function resolveLeaveTypeLabel(value?: string | null) {
+  if (!value) return undefined
+  const key = value.trim().toUpperCase()
+  return LEAVE_TYPE_LABELS[key] ?? toTitle(key)
+}
 
 export type DecoratedRequest = (Request & { approverId?: string }) & {
-  employee: ReturnType<typeof getEmployeeMeta>
+  employee: EmployeeMeta
   leaveTypeLabel?: string
 }
 
 export function decorateRequest(request: Request & { approverId?: string }): DecoratedRequest {
+  const employee: EmployeeMeta = {
+    id: request.employeeId,
+    name: request.employeeName ?? request.employeeId,
+    department: request.employeeDepartment,
+  }
+
   return {
     ...request,
-    employee: getEmployeeMeta(request.employeeId),
-    leaveTypeLabel: request.type === 'leave' ? getLeaveTypeMeta(request.leaveTypeId)?.label : undefined,
+    employee,
+    leaveTypeLabel:
+      request.type === 'leave'
+        ? request.leaveTypeName ?? resolveLeaveTypeLabel((request as LeaveRequest).leaveTypeId)
+        : undefined,
   }
 }
 

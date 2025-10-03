@@ -3,7 +3,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { LeaveRequest, OvertimeRequest, Request, RequestStatus } from '../types'
-import { seedRequests } from '../seed'
 import { uid } from '../utils/id'
 
 interface RequestState {
@@ -43,7 +42,7 @@ function normalizeRequest(input: NewRequestInput): Request {
 export const useRequests = create<RequestState>()(
   persist(
     (set, get) => ({
-      items: seedRequests,
+      items: [],
 
       // create a new pending request
       create: (input) => {

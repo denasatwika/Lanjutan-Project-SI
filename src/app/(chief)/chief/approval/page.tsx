@@ -162,7 +162,7 @@ export default function ChiefApprovalsPage() {
       <RequestDetailDrawer
         request={selected}
         onClose={() => selectRequest(null)}
-        role="chief"
+        role="approver"
       />
     </main>
   )

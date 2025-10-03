@@ -13,7 +13,7 @@ import { BottomSheet } from '@/components/ui/bottomSheet'
 import { useRouter } from 'next/navigation'
 
 // ---------- Role Switcher ----------
-type RoleKey = 'employee' | 'supervisor' | 'hr'
+type RoleKey = 'requester' | 'approver'
 function RoleSwitcher({
   storageKey,
   onChange,
@@ -22,14 +22,13 @@ function RoleSwitcher({
   onChange?: (role: RoleKey) => void
 }) {
   const router = useRouter()
-  const roles: RoleKey[] = ['employee', 'supervisor', 'hr']
-  const [role, setRole] = useState<RoleKey>('employee')
+  const roles: RoleKey[] = ['requester', 'approver']
+  const [role, setRole] = useState<RoleKey>('requester')
 
   // map label -> segment url
   const roleToSeg: Record<RoleKey, string> = {
-    employee: 'employee',
-    supervisor: 'supervisor',
-    hr: 'hr',
+    requester: 'employee',
+    approver: 'hr',
   }
 
   // hydrate
