@@ -2,7 +2,7 @@
 'use client'
 import { useAuth } from '@/lib/state/auth'
 import { useAttendance } from '@/lib/state/attendance'
-import { useMemo, useEffect, useState } from 'react'
+import { useMemo, useEffect, useState, useRef } from 'react'
 import CheckInSheet from '@/components/CheckInSheet'
 import { format } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale/id'
@@ -11,6 +11,9 @@ import { CalendarDays, Clock, TrendingUp, Zap, Info, Check, Files } from 'lucide
 import { toast } from 'sonner'
 import { BottomSheet } from '@/components/ui/bottomSheet'
 import { useRouter } from 'next/navigation'
+import { mandalaTestnet } from '@/lib/web3/wagmiConfig'
+
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE
 
 // ---------- Role Switcher ----------
 type RoleKey = 'requester' | 'approver'
@@ -119,6 +122,70 @@ export default function Page() {
   const initial = firstName.charAt(0).toUpperCase()
   const walletAddress = user?.address
   const walletDisplay = walletAddress ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}` : '—'
+  const [formattedKpgBalance, setFormattedKpgBalance] = useState<string>('—')
+  const [tokenSymbol, setTokenSymbol] = useState<string>('KPGT')
+  const lastBalanceErrorMessage = useRef<string | null>(null)
+
+  useEffect(() => {
+    if (!walletAddress) {
+      setFormattedKpgBalance('—')
+      setTokenSymbol(mandalaTestnet.nativeCurrency.symbol)
+      return
+    }
+    const controller = new AbortController()
+    setFormattedKpgBalance('…')
+
+    const url = new URL('/wallet/balance', API_BASE)
+    url.searchParams.set('address', walletAddress)
+
+    fetch(url.toString(), {
+      method: 'GET',
+      cache: 'no-store',
+      credentials: 'include',
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          const errorPayload = await res.json().catch(() => undefined)
+          const message = errorPayload?.error ?? res.statusText ?? 'Failed to fetch balance'
+          throw new Error(message)
+        }
+        return res.json() as Promise<{
+          formatted: string
+          decimals: number
+          symbol: string
+        }>
+      })
+      .then((data) => {
+        const numeric = Number.parseFloat(data.formatted)
+        const display = Number.isNaN(numeric)
+          ? data.formatted
+          : new Intl.NumberFormat('en-US', {
+            maximumFractionDigits: numeric < 1 ? 6 : 2,
+          }).format(numeric)
+        setFormattedKpgBalance(display)
+        setTokenSymbol(data.symbol)
+        lastBalanceErrorMessage.current = null
+      })
+      .catch((error) => {
+        if (controller.signal.aborted) return
+        const message = error instanceof Error ? error.message : 'Gagal memuat saldo wallet'
+        console.error('[wallet balance]', message)
+        if (lastBalanceErrorMessage.current !== message) {
+          lastBalanceErrorMessage.current = message
+          toast.error('Gagal memuat saldo wallet')
+        }
+        setFormattedKpgBalance('—')
+      })
+
+    return () => controller.abort()
+  }, [walletAddress])
+
+  const tokenTiles = useMemo(() => [{
+    label: tokenSymbol || 'KPGT',
+    value: formattedKpgBalance,
+    color: 'var(--B-500)',
+  }], [tokenSymbol, formattedKpgBalance])
 
   function dayISO(d: Date) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x.toISOString() }
   const descKey = (userId: string, iso: string) => `desc:${userId}:${iso}`
@@ -297,10 +364,15 @@ export default function Page() {
             </div>
           </div>
         </div>
-        <div className="grid grid-cols-3 gap-3 mt-4">
-          <TokenTile label="Cuti" value={12} color="var(--B-500)" />
-          <TokenTile label="Izin" value={6} color="#F59E0B" />
-          <TokenTile label="Lembur" value={2} color="#22C55E" />
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+          {tokenTiles.map((tile) => (
+            <TokenTile
+              key={tile.label}
+              label={tile.label}
+              value={tile.value}
+              color={tile.color}
+            />
+          ))}
         </div>
         <button
           onClick={() => setShowCheckIn(true)}
@@ -364,13 +436,11 @@ export default function Page() {
         <h2 className="text-lg font-semibold">Attendance this week</h2>
       </div>
       <section className="max-h-[420px] overflow-auto">
-
         <div className="rounded-2xl bg-white shadow-md border">
           {days.map(({ date, checkIn, checkOut }, idx) => {
             const present = !!checkIn;
             const statusText = present ? 'Present' : 'Absent';
             const preview = getDescPreview(date);
-
             return (
               <div
                 key={date.toISOString()}
@@ -423,7 +493,6 @@ export default function Page() {
                     <button
                       type="button"
                       onClick={() => openDaySheet(date)}
-                      className="opacity-60 group-hover:opacity-100 transition-opacity duration-200 p-2 rounded-lg hover:bg-gray-50 text-gray-500 hover:text-gray-700"
                       title="Add / Edit description"
                     >
                       <Info className="size-5" />
@@ -480,10 +549,17 @@ export default function Page() {
   )
 }
 
-function TokenTile({ label, value, color }: { label: string; value: number; color: string }) {
+function TokenTile({ label, value, color }: { label: string; value: string | number; color: string }) {
+  const displayValue = typeof value === 'number' ? value.toString() : value
   return (
     <div className="rounded-xl bg-white/10 p-4 border border-white/20 backdrop-blur">
-      <div className="w-8 h-8 grid place-items-center rounded-full text-sm font-bold" style={{ color, background: 'white' }}>{value}</div>
+      <div
+        className="w-12 h-12 grid place-items-center rounded-full text-xs font-semibold sm:text-xl"
+        style={{ color, background: 'white' }}
+        title={displayValue}
+      >
+        {displayValue}
+      </div>
       <div className="mt-3 font-semibold">{label}</div>
     </div>
   )

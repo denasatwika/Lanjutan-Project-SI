@@ -1,7 +1,9 @@
 import { getDefaultConfig } from '@rainbow-me/rainbowkit'
 import { cookieStorage, createStorage } from 'wagmi'
-import { defineChain, http } from 'viem'
+import { http } from 'viem'
 import { mainnet, polygon, sepolia } from 'wagmi/chains'
+import { mandalaTestnet } from './mandalaChain'
+export { mandalaTestnet } from './mandalaChain'
 
 const projectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID
 
@@ -13,21 +15,6 @@ if (!projectId) {
   }
   console.warn(message)
 }
-
-const mandalaTestnet = defineChain({
-  id: 4_818,
-  name: 'Mandala Testnet',
-  nativeCurrency: {
-    name: 'Kepeng Token',
-    symbol: 'KPGT',
-    decimals: 18,
-  },
-  rpcUrls: {
-    default: { http: ['https://rpc1.paseo.mandalachain.io'] },
-    public: { http: ['https://rpc1.paseo.mandalachain.io'] },
-  },
-  testnet: true,
-})
 
 export const wagmiConfig = getDefaultConfig({
   appName: 'MyBaliola',
