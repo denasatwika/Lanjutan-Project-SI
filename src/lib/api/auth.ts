@@ -58,6 +58,8 @@ type SessionResponse = {
     id: string
     address: string
     role: 'requester' | 'approver'
+    name?: string
+    department?: string
   }
 }
 

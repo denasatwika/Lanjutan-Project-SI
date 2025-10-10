@@ -25,12 +25,14 @@ export const useAuth = create<AuthState>()((set) => ({
 
       const address = session.user.address as `0x${string}`
       const fallbackName = `${address.slice(0, 6)}...${address.slice(-4)}`
+      const resolvedName = session.user.name?.trim()
 
       const user: User = {
         id: session.user.id,
         role: session.user.role,
         address,
-        name: fallbackName,
+        name: resolvedName && resolvedName.length > 0 ? resolvedName : fallbackName,
+        department: session.user.department ?? undefined,
       }
 
       set({ user, hydrated: true })
