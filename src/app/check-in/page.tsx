@@ -1,7 +1,6 @@
 "use client";
 import { useState } from "react";
-import BottomNav from "@/components/BottomNav";
-import {CameraCapture} from "@/components/CameraCapture";
+import { CameraCapture } from "@/components/CameraCapture";
 
 export default function Page() {
   const [preview, setPreview] = useState<string | null>(null);
@@ -43,7 +42,6 @@ export default function Page() {
         {status && <div className="mt-3 text-sm">{status}</div>}
       </div>
 
-      <BottomNav />
     </div>
   );
 }

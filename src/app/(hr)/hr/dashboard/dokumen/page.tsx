@@ -1,150 +1,214 @@
-'use client'
+"use client";
 
-import { useMemo } from 'react'
-import { useDocuments } from '../../../../../lib/state/documents'
-import { format } from 'date-fns'
-import { id as idLocale } from 'date-fns/locale/id'
-import { FileText, Plus, TrendingUp } from 'lucide-react'
-import Link from 'next/link'
+import { useEffect, useMemo, useState } from "react";
+import { FileText, Plus, Search } from "lucide-react";
+import Link from "next/link";
+import StatCards from "@/components/sign-baliola/StatCards";
+import DokumenCard, { Document } from "@/components/sign-baliola/DokumenCard";
+import Pagination from "@/components/sign-baliola/Pagination";
 
-function fDate(iso: string){ return format(new Date(iso), 'yyyy-MM-dd', { locale: idLocale }) }
+/**
+ * Dummy data generator
+ * You can tweak the count, titles, and fields freely.
+ */
+const STATUSES = ["draft", "pending", "signed", "rejected"] as const;
 
-export default function DashboardDokumen(){
-  const docs = useDocuments(s => s.docs)
-
-  // KPI
-  const totalAll = docs.length
-  const totalRejected = docs.filter(d=> d.status==='rejected').length
-  const totalSigned   = docs.filter(d=> d.status==='signed').length
-  const totalDocsDup  = totalAll // per instruksi kamu: kartu ke-4 gunakan total dokumen juga
-
-  const latest = useMemo(() => [...docs].sort((a,b)=> b.updatedAt.localeCompare(a.updatedAt)).slice(0,3), [docs])
-
-  return (
-    <div className="space-y-4">
-      {/* HERO */}
-      <section className="rounded-2xl overflow-hidden">
-        <div className="relative p-5 md:p-6 text-white" style={{ backgroundColor: '#00156B' }}>
-          {/* ilustrasi placeholder kiri */}
-          <div className="absolute left-0 top-0 h-full w-48 md:w-64 opacity-20 pointer-events-none bg-gradient-to-br from-white/30 to-white/0" />
-          <div className="relative flex items-center gap-4">
-            <div className="hidden md:block size-14 rounded-xl bg-white/10 grid place-items-center">
-              <FileText />
-            </div>
-            <div className="flex-1">
-              <h1 className="text-xl md:text-2xl font-extrabold">Manajemen Dokumen</h1>
-              <p className="text-white/80 text-sm">Kelola dokumen internal Anda dan tinjau alur kerja</p>
-            </div>
-            <Link
-              href="/hr/documents/upload"
-              className="inline-flex items-center gap-2 rounded-xl px-4 py-2 font-semibold shadow-md"
-              style={{ backgroundColor: '#FE0000' }}
-            >
-              <Plus size={18} /> Unggah Dokumen
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* STATS */}
-      <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-        <StatCard title="Total Dokumen" value={totalAll} delta="+10 sejak bulan lalu" deltaColor="green" />
-        <StatCard title="Ditolak"        value={totalRejected} delta="+14 sejak minggu lalu" deltaColor="red"  mini="red" />
-        <StatCard title="Ditandatangani" value={totalSigned}   delta="+30 sejak minggu lalu" deltaColor="green" mini="green" />
-        <StatCard title="Total Dokumen"  value={totalDocsDup}  delta="+10 sejak bulan lalu" deltaColor="green" />
-      </section>
-
-      {/* LIST TERBARU */}
-      <section className="rounded-2xl bg-white shadow-md border">
-        <div className="px-5 py-4 text-lg font-bold">Dokumen Terbaru</div>
-        <div className="px-3 pb-3 space-y-3">
-          {latest.map((d)=> (
-            <DocRow key={d.id} doc={d} />
-          ))}
-        </div>
-      </section>
-    </div>
-  )
+function daysAgo(n: number) {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d.toISOString();
 }
 
-/* ===== UI Bits ===== */
+function makeDoc(
+  id: number,
+  title: string,
+  status: (typeof STATUSES)[number],
+  daysOld: number,
+  extra?: Partial<Document>
+): Document {
+  // Provide common fields often used by a DokumenCard component.
+  // If your DokumenCard expects additional fields, you can add them here.
+  const base = {
+    id: String(id),
+    title,
+    status,
+    createdAt: daysAgo(daysOld),
+    // Common optional fields (adjust freely)
+    description:
+      "Dokumen internal untuk keperluan administrasi. Silakan ditinjau sesuai alur kerja.",
+    ownerName: ["Ayu", "Budi", "Citra", "Dewi", "Eka"][id % 5],
+    fileUrl: "#",
+    // Add anything else your DokumenCard uses:
+    updatedAt: daysAgo(Math.max(0, daysOld - 1)),
+    tags: ["Internal", "HR", status.toUpperCase()],
+  };
 
-function StatCard({
-  title, value, delta, deltaColor, mini,
-}: {
-  title: string
-  value: number
-  delta: string
-  deltaColor: 'green'|'red'
-  mini?: 'green'|'red'
-}){
-  const deltaCls = deltaColor === 'green' ? 'text-green-600' : 'text-rose-600'
-  return (
-    <div className="card p-4">
-      <div className="flex items-start justify-between">
-        <div className="font-semibold text-gray-700">{title}</div>
-        {/* icon placeholder */}
-        <div className="size-8 rounded-lg bg-gray-50 grid place-items-center text-gray-400">≡</div>
-      </div>
-      <div className="mt-1 text-3xl font-extrabold">{value}</div>
-
-      {/* mini bars */}
-      {mini && (
-        <div className="mt-2 h-16 flex items-end gap-2">
-          {[30, 50, 40, 70, 45].map((h,i)=>(
-            <div key={i}
-              className={mini==='green' ? 'bg-green-200' : 'bg-rose-200'}
-              style={{ width: 10, height: h }}
-            />
-          ))}
-        </div>
-      )}
-
-      <div className={`mt-2 text-sm ${deltaCls}`}>↑ {delta}</div>
-    </div>
-  )
+  // Cast to Document to satisfy TypeScript even if your exported type is stricter.
+  return { ...base, ...(extra ?? {}) } as unknown as Document;
 }
 
-import type { Doc } from '../../../../../lib/state/documents'
-import { BadgePending, BadgeSigned, BadgeRejected } from '../../../../../components/ui/StatusBadges'
-import { ArrowRight } from 'lucide-react'
+const DUMMY_DOCUMENTS: Document[] = [
+  makeDoc(1, "Surat Keterangan Kerja", "signed", 1),
+  makeDoc(2, "Kontrak Kerja – Perpanjangan", "pending", 3),
+  makeDoc(3, "Form Cuti Tahunan – Budi", "draft", 5),
+  makeDoc(4, "Laporan Kehadiran Q3", "rejected", 8),
+  makeDoc(5, "Perjanjian Kerahasiaan (NDA)", "signed", 10),
+  makeDoc(6, "Form Lembur – Tim Operasional", "pending", 12),
+  makeDoc(7, "SOP Onboarding Karyawan", "draft", 13),
+  makeDoc(8, "Revisi Struktur Gaji 2025", "pending", 14),
+  makeDoc(9, "SK Pengangkatan Sementara", "signed", 15),
+  makeDoc(10, "Notulen Rapat HR Bulanan", "draft", 16),
+  makeDoc(11, "Form Perubahan Data Karyawan", "rejected", 18),
+  makeDoc(12, "Daftar Hadir Pelatihan", "signed", 20),
+  makeDoc(13, "Template Evaluasi Kinerja", "draft", 22),
+  makeDoc(14, "Form Cuti Melahirkan – Citra", "pending", 24),
+  makeDoc(15, "Surat Peringatan Tahap I", "rejected", 25),
+  makeDoc(16, "Pakta Integritas", "signed", 27),
+  makeDoc(17, "Daftar Pengajuan Izin", "pending", 28),
+  makeDoc(18, "Form Reimbursement Kesehatan", "draft", 29),
+  makeDoc(19, "Serah Terima Aset", "signed", 30),
+  makeDoc(20, "Form Mutasi Internal", "pending", 32),
+  makeDoc(21, "Memo Kebijakan WFH", "draft", 35),
+  makeDoc(22, "Checklist Exit Interview", "signed", 36),
+  makeDoc(23, "Kontrak Vendor Rekrutmen", "rejected", 40),
+];
 
-function DocRow({ doc }: { doc: Doc }){
-  const Status = doc.status === 'pending' ? <BadgePending/> : doc.status === 'signed' ? <BadgeSigned/> : <BadgeRejected/>
+export default function StaffDashboard() {
+  const [allDocuments, setAllDocuments] = useState<Document[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeFilter, setActiveFilter] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const docsPerPage = 5;
+
+  // On mount: simulate fetching with dummy data
+  useEffect(() => {
+    setIsLoading(true);
+
+    // Simulate latency (optional). You can remove setTimeout for instant load.
+    const t = setTimeout(() => {
+      // Sort newest first (based on createdAt) — same behavior you had
+      const sorted = [...DUMMY_DOCUMENTS].sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+      setAllDocuments(sorted);
+      setIsLoading(false);
+    }, 300);
+
+    return () => clearTimeout(t);
+  }, []);
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(e.target.value);
+    setCurrentPage(1);
+  };
+
+  const handleFilterChange = (status: string | null) => {
+    setActiveFilter(activeFilter === status ? null : status);
+    setCurrentPage(1);
+  };
+
+  const filteredDocuments = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return allDocuments
+      .filter((doc) => (q ? doc.title.toLowerCase().includes(q) : true))
+      .filter((doc) =>
+        activeFilter ? doc.status.toLowerCase() === activeFilter : true
+      );
+  }, [allDocuments, searchQuery, activeFilter]);
+
+  // Pagination
+  const indexOfLastDoc = currentPage * docsPerPage;
+  const indexOfFirstDoc = indexOfLastDoc - docsPerPage;
+  const currentDocs = filteredDocuments.slice(indexOfFirstDoc, indexOfLastDoc);
+
+  const FilterButton = ({
+    status,
+    label,
+  }: {
+    status: string;
+    label: string;
+  }) => (
+    <button
+      onClick={() => handleFilterChange(status)}
+      className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+        activeFilter === status
+          ? "bg-blue-950 text-white"
+          : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+      }`}
+    >
+      {label}
+    </button>
+  );
 
   return (
-    <div className="rounded-xl border px-4 py-3">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-start gap-3">
-          <div className="size-10 rounded-lg bg-[var(--B-50)] text-[var(--B-800)] grid place-items-center">
-            <FileText size={18}/>
-          </div>
+    <div className="space-y-6">
+      <div className="bg-blue-950 text-white rounded-2xl p-8 flex items-center justify-between">
+        <div className="flex items-center gap-6">
+          <FileText className="w-16 h-16 opacity-20" />
           <div>
-            <div className="font-semibold">Surat Kontrak Karyawan</div>
-            <div className="text-sm text-gray-500">{doc.owner}</div>
+            <h1 className="text-3xl font-bold">Manajemen Dokumen</h1>
+            <p className="text-blue-200 mt-1">
+              Kelola dokumen internal Anda dan tinjau alur kerja.
+            </p>
           </div>
         </div>
+        <Link href="/staff/upload">
+          <button className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white font-semibold py-3 px-5 rounded-lg transition-colors">
+            <Plus className="h-5 w-5" />
+            <span>Unggah Dokumen</span>
+          </button>
+        </Link>
+      </div>
 
-        <div className="flex items-center gap-2">
-          {Status}
-          <div className="hidden sm:flex items-center gap-2">
-            {doc.status === 'pending' && (
-              <>
-                <button className="px-3 py-1.5 rounded-lg border text-sm hover:bg-gray-50">Ubah</button>
-                <button className="px-3 py-1.5 rounded-lg border text-sm hover:bg-gray-50">Terkirim</button>
-              </>
-            )}
-            {doc.status === 'signed' && (
-              <>
-                <button className="px-3 py-1.5 rounded-lg border text-sm hover:bg-gray-50">Lihat</button>
-                <button className="px-3 py-1.5 rounded-lg border text-sm hover:bg-gray-50">Cetak</button>
-              </>
-            )}
+      {/* StatCards still receives the whole list */}
+      <StatCards documents={allDocuments} />
+
+      <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
+        <div className="flex flex-col md:flex-row gap-4">
+          <div className="relative flex-grow">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Cari berdasarkan judul dokumen..."
+              value={searchQuery}
+              onChange={handleSearchChange}
+              className="w-full p-3 pl-10 bg-gray-50 rounded-lg border border-gray-300"
+            />
           </div>
-          <button className="sm:hidden rounded-lg border p-2 text-gray-600"><ArrowRight size={16}/></button>
+          <div className="flex items-center gap-2">
+            <FilterButton status="draft" label="Draft" />
+            <FilterButton status="pending" label="Pending" />
+            <FilterButton status="signed" label="Signed" />
+            <FilterButton status="rejected" label="Reject" />
+          </div>
         </div>
       </div>
-      <div className="mt-2 text-xs text-gray-500">Diperbarui: {fDate(doc.updatedAt)}</div>
+
+      <div className="space-y-4 min-h-[500px]">
+        {isLoading && <p className="text-center py-10">Memuat dokumen...</p>}
+        {error && <p className="text-center text-red-500 py-10">{error}</p>}
+        {!isLoading && !error && (
+          <>
+            {currentDocs.length > 0 ? (
+              currentDocs.map((doc) => <DokumenCard key={doc.id} doc={doc} />)
+            ) : (
+              <p className="text-center text-gray-500 py-10">
+                Tidak ada dokumen yang cocok dengan kriteria Anda.
+              </p>
+            )}
+          </>
+        )}
+      </div>
+
+      <Pagination
+        docsPerPage={docsPerPage}
+        totalDocs={filteredDocuments.length}
+        currentPage={currentPage}
+        setCurrentPage={setCurrentPage}
+      />
     </div>
-  )
+  );
 }

@@ -1,8 +1,13 @@
-// src/app/layout.tsx
-import './globals.css';
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+import type { ReactNode } from 'react'
+import './globals.css'
+import { Providers } from './providers'
+
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    // app/layout.tsx
-    <html lang="id"><body className="font-sans">{children}</body></html>
-  );
+    <html lang="id">
+      <body className="font-sans">
+        <Providers>{children}</Providers>
+      </body>
+    </html>
+  )
 }

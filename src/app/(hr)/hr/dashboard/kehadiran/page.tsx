@@ -1,14 +1,19 @@
 'use client'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { id as idLocale } from 'date-fns/locale/id'
 import { format } from 'date-fns'
 import { FileClock, Clock3, CalendarDays, PlusCircle, TrendingUp } from 'lucide-react'
 import Link from 'next/link'
 import { ReactNode } from 'react'
+import { useAccount, useSendTransaction } from 'wagmi'
+import { parseEther } from 'viem'
+import { toast } from 'sonner'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { EmployeeWallet, getWallets } from '@/lib/api/wallets'
 
-function useNow(){
+function useNow() {
   const [now, setNow] = useState(new Date())
-  useEffect(()=>{ const t = setInterval(()=> setNow(new Date()), 1000); return ()=> clearInterval(t) },[])
+  useEffect(() => { const t = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(t) }, [])
   return now
 }
 
@@ -38,123 +43,293 @@ const MOCK_WEEK = [
 
 const APPROVAL_PATH = '/hr/approval'
 
-export default function HRDashboard(){
+function formatWalletLabel(wallet: EmployeeWallet) {
+  const alias = wallet.nickname?.trim()
+  const shortAddress = `${wallet.address.slice(0, 6)}...${wallet.address.slice(-4)}`
+  return alias ? `${alias} • ${shortAddress}` : shortAddress
+}
+
+export default function HRDashboard() {
   const now = useNow()
   const present = 26; const absent = 4; const total = present + absent
-  const percent = Math.round((present/total)*100)
+  const percent = Math.round((present / total) * 100)
+  const { isConnected } = useAccount()
+  const { sendTransactionAsync, isPending } = useSendTransaction()
+  const [showTransferForm, setShowTransferForm] = useState(false)
+  const [amount, setAmount] = useState('')
+  const [wallets, setWallets] = useState<EmployeeWallet[]>([])
+  const [walletsLoading, setWalletsLoading] = useState(true)
+  const [walletError, setWalletError] = useState<string | null>(null)
+  const [selectedWalletId, setSelectedWalletId] = useState<string>('')
+
+  useEffect(() => {
+    const controller = new AbortController()
+    setWalletsLoading(true)
+
+    getWallets({ signal: controller.signal })
+      .then((data) => {
+        if (controller.signal.aborted) return
+        setWallets(data)
+        setWalletError(null)
+        setSelectedWalletId((prev) => {
+          if (prev && data.some((wallet) => wallet.id === prev)) {
+            return prev
+          }
+          return data[0]?.id ?? ''
+        })
+      })
+      .catch((error) => {
+        if (controller.signal.aborted) return
+        console.error('[wallets] load error', error)
+        const message = error instanceof Error ? error.message : 'Tidak dapat memuat daftar wallet'
+        setWalletError(message)
+        toast.error('Gagal memuat daftar wallet')
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setWalletsLoading(false)
+        }
+      })
+
+    return () => controller.abort()
+  }, [])
+
+  async function handleSubmit() {
+    if (!isConnected) {
+      toast.error('Hubungkan wallet HR terlebih dahulu')
+      return
+    }
+
+    const targetWallet = wallets.find((wallet) => wallet.id === selectedWalletId)
+    if (!targetWallet) {
+      toast.error('Pilih wallet tujuan terlebih dahulu')
+      return
+    }
+
+    const trimmedRecipient = targetWallet.address.trim()
+    if (!/^0x[a-fA-F0-9]{40}$/.test(trimmedRecipient)) {
+      toast.error('Alamat wallet tidak valid')
+      return
+    }
+
+    const normalizedAmount = amount.trim()
+    if (!normalizedAmount) {
+      toast.error('Isi jumlah token yang ingin dikirim')
+      return
+    }
+
+    let value: bigint
+    try {
+      value = parseEther(normalizedAmount)
+    } catch {
+      toast.error('Jumlah token tidak valid')
+      return
+    }
+
+    try {
+      const tx = await sendTransactionAsync({
+        to: trimmedRecipient as `0x${string}`,
+        value,
+      })
+      toast.success(`Transaksi dikirim (${tx})`)
+      setAmount('')
+      setShowTransferForm(false)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Transaksi gagal'
+      toast.error(message)
+    }
+  }
 
   return (
-  <div className="space-y-4">
-    {/* 12-col canvas */}
-    <div className="grid grid-cols-12 gap-4">
-      {/* LEFT HALF (xl: 8/12) — stats + chart */}
-      <div className="col-span-12 xl:col-span-8 space-y-4">
-        {/* Top stat cards (2x2) — only half screen on xl */}
-        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
-          <StatCard
-            title="Permintaan Izin"
-            icon={<FileClock className="text-amber-500" />}
-            value={9}
-            subtitle="Menunggu Persetujuan anda"
-            href={`${APPROVAL_PATH}?type=leave&tab=mine`}  // <-- Izin/Cuti
-          />
-
-          <StatCard
-            title="Permintaan Lembur"
-            icon={<Clock3 className="text-green-600" />}
-            value={12}
-            subtitle="Menunggu Persetujuan anda"
-            href={`${APPROVAL_PATH}?type=overtime&tab=mine`} // <-- Lembur
-          />
-
-          <StatCard
-            title="Permintaan Cuti"
-            icon={<CalendarDays className="text-[var(--B-600)]" />}
-            value={3}
-            subtitle="Menunggu Persetujuan anda"
-            href={`${APPROVAL_PATH}?type=leave&tab=mine`}
-          />
-
-          <StatCard
-            title="Sakit"
-            icon={<PlusCircle className="text-rose-500" />}
-            value={1}
-            subtitle="Menunggu Persetujuan anda"
-            href={`${APPROVAL_PATH}?type=leave&tab=mine`}
-          />
-        </div>
-
-        {/* Big chart below the stats */}
-        <div className="card p-4">
-          <div className="flex items-center justify-between">
-            <h3 className="font-bold text-lg">Kehadiran Minggu Ini</h3>
-            <TrendingUp className="text-green-600" />
-          </div>
-          <BarChart data={MOCK_WEEK} />
-        </div>
-      </div>
-
-      {/* RIGHT RAIL (xl: 4/12) — date card on TOP, then other widgets */}
-      <div className="col-span-12 xl:col-span-4 space-y-4">
-        {/* Date (Blue) — pinned to top-right */}
-        <div className="rounded-2xl p-4 text-white" style={{ background: 'var(--B-900)' }}>
-          <div className="text-sm opacity-90">
-            {format(now, 'EEEE, d MMMM yyyy', { locale: idLocale })}
-          </div>
-          <div className="text-2xl font-extrabold mt-1">{format(now, 'HH:mm:ss')}</div>
-        </div>
-
-        {/* Hari Ini donut */}
-        <div className="card p-4">
-          <div className="flex items-center justify-between">
-            <h4 className="font-bold">Hari Ini</h4>
-            <div className="size-9 rounded-full bg-gray-100 grid place-items-center">
-              <div className="size-6 rounded-full bg-gray-300" />
-            </div>
-          </div>
-
-          <div className="mt-4 grid grid-cols-2 gap-3">
-            <Donut
-              percent={percent}                 // e.g., 87
-              size={128}
-              thickness={18}
-              presentColor="#00156B"            // Navy
-              absentColor="#C1121F"             // Red
-              labelTop={`${percent}%`}
-              labelBottom="Hadir"
+    <div className="space-y-4">
+      {/* 12-col canvas */}
+      <div className="grid grid-cols-12 gap-4">
+        {/* LEFT HALF (xl: 8/12) — stats + chart */}
+        <div className="col-span-12 xl:col-span-8 space-y-4">
+          {/* Top stat cards (2x2) — only half screen on xl */}
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
+            <StatCard
+              title="Permintaan Izin"
+              icon={<FileClock className="text-amber-500" />}
+              value={9}
+              subtitle="Menunggu Persetujuan anda"
+              href={`${APPROVAL_PATH}?type=leave&tab=mine`}  // <-- Izin/Cuti
             />
-            <div className="space-y-2 self-center">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#00156B] text-white text-sm font-semibold shadow-sm">
-                Hadir: {present}
+
+            <StatCard
+              title="Permintaan Lembur"
+              icon={<Clock3 className="text-green-600" />}
+              value={12}
+              subtitle="Menunggu Persetujuan anda"
+              href={`${APPROVAL_PATH}?type=overtime&tab=mine`} // <-- Lembur
+            />
+
+            <StatCard
+              title="Permintaan Cuti"
+              icon={<CalendarDays className="text-[var(--B-600)]" />}
+              value={3}
+              subtitle="Menunggu Persetujuan anda"
+              href={`${APPROVAL_PATH}?type=leave&tab=mine`}
+            />
+
+            <StatCard
+              title="Sakit"
+              icon={<PlusCircle className="text-rose-500" />}
+              value={1}
+              subtitle="Menunggu Persetujuan anda"
+              href={`${APPROVAL_PATH}?type=leave&tab=mine`}
+            />
+          </div>
+
+          {/* Big chart below the stats */}
+          <div className="card p-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-lg">Kehadiran Minggu Ini</h3>
+              <TrendingUp className="text-green-600" />
+            </div>
+            <BarChart data={MOCK_WEEK} />
+          </div>
+        </div>
+
+        {/* RIGHT RAIL (xl: 4/12) — date card on TOP, then other widgets */}
+        <div className="col-span-12 xl:col-span-4 space-y-4">
+          {/* Date (Blue) — pinned to top-right */}
+          <div className="rounded-2xl p-4 text-white" style={{ background: 'var(--B-900)' }}>
+            <div className="text-sm opacity-90">
+              {format(now, 'EEEE, d MMMM yyyy', { locale: idLocale })}
+            </div>
+            <div className="text-2xl font-extrabold mt-1">{format(now, 'HH:mm:ss')}</div>
+          </div>
+
+          {/* Hari Ini donut */}
+          <div className="card p-4">
+            <div className="flex items-center justify-between">
+              <h4 className="font-bold">Hari Ini</h4>
+              <div className="size-9 rounded-full bg-gray-100 grid place-items-center">
+                <div className="size-6 rounded-full bg-gray-300" />
               </div>
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#C1121F] text-white text-sm font-semibold shadow-sm">
-                Absen: {absent}
+            </div>
+
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <Donut
+                percent={percent}                 // e.g., 87
+                size={128}
+                thickness={18}
+                presentColor="#00156B"            // Navy
+                absentColor="#C1121F"             // Red
+                labelTop={`${percent}%`}
+                labelBottom="Hadir"
+              />
+              <div className="space-y-2 self-center">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#00156B] text-white text-sm font-semibold shadow-sm">
+                  Hadir: {present}
+                </div>
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#C1121F] text-white text-sm font-semibold shadow-sm">
+                  Absen: {absent}
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Kehadiran Hari ini table */}
-        <div className="card p-0 overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-3">
-            <h4 className="font-bold">Kehadiran Hari ini</h4>
-            <div className="size-7 rounded-md bg-[var(--B-50)] grid place-items-center text-[var(--B-700)]">≡</div>
-          </div>
-          <Table head={['Nama', 'Jam', 'Kegiatan']} rows={MOCK_TODAY.map(r => [r.name, r.time, r.activity])} />
-        </div>
+          {/* Transfer KPGT form */}
+          <div className="space-y-3">
+            <button
+              type="button"
+              onClick={() => setShowTransferForm((prev) => !prev)}
+              disabled={!isConnected}
+              className="w-full rounded-xl bg-[var(--B-900)] px-4 py-3 text-sm font-semibold text-white shadow-sm transition-transform duration-300 ease-in-out hover:scale-105 disabled:cursor-not-allowed disabled:bg-gray-300"
+            >
+              Transfer KPGT
+            </button>
+            {!isConnected && (
+              <p className="text-center text-sm text-gray-500">
+                Hubungkan wallet untuk mengirim token
+              </p>
+            )}
 
-        {/* Absen table */}
-        <div className="card p-0 overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-3">
-            <h4 className="font-bold">Absen</h4>
-            <div className="size-7 rounded-full bg-rose-100 grid place-items-center text-rose-600">×</div>
+            {showTransferForm && (
+              <div className="card space-y-4 p-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-700">
+                    Alamat Wallet Karyawan
+                  </label>
+                  <Select
+                    value={selectedWalletId}
+                    onValueChange={setSelectedWalletId}
+                    disabled={walletsLoading || wallets.length === 0}
+                  >
+                    <SelectTrigger className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[var(--B-600)] focus:outline-none focus:ring-2 focus:ring-[var(--B-200)]">
+                      <SelectValue placeholder={walletsLoading ? 'Memuat daftar wallet...' : 'Pilih wallet karyawan'} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {wallets.map((wallet) => (
+                        <SelectItem key={wallet.id} value={wallet.id}>
+                          {formatWalletLabel(wallet)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {!walletsLoading && wallets.length === 0 && !walletError && (
+                    <p className="mt-2 text-sm text-gray-500">Belum ada wallet karyawan yang tersedia.</p>
+                  )}
+                  {walletError && (
+                    <p className="mt-2 text-sm text-red-500">{walletError}</p>
+                  )}
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700">
+                    Jumlah Token (KPGT)
+                  </label>
+                  <input
+                    type="text"
+                    value={amount}
+                    onChange={(event) => setAmount(event.target.value)}
+                    placeholder="Contoh: 1.5"
+                    className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[var(--B-600)] focus:outline-none focus:ring-2 focus:ring-[var(--B-200)]"
+                  />
+                </div>
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowTransferForm(false)}
+                    className="rounded-xl border border-gray-300 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSubmit}
+                    disabled={isPending || walletsLoading || !selectedWalletId}
+                    className="rounded-xl bg-[var(--B-900)] px-4 py-2 text-sm font-semibold text-white shadow-sm transition-transform duration-300 ease-in-out hover:scale-105 disabled:cursor-progress disabled:opacity-80"
+                  >
+                    {isPending ? 'Mengirim...' : 'Kirim Token'}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
-          <Table head={['Nama', 'Alasan']} rows={MOCK_ABSENT.map(r => [r.name, r.reason])} />
+
+          {/* Kehadiran Hari ini table */}
+          <div className="card p-0 overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3">
+              <h4 className="font-bold">Kehadiran Hari ini</h4>
+              <div className="size-7 rounded-md bg-[var(--B-50)] grid place-items-center text-[var(--B-700)]">≡</div>
+            </div>
+            <Table head={['Nama', 'Jam', 'Kegiatan']} rows={MOCK_TODAY.map(r => [r.name, r.time, r.activity])} />
+          </div>
+
+          {/* Absen table */}
+          <div className="card p-0 overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3">
+              <h4 className="font-bold">Absen</h4>
+              <div className="size-7 rounded-full bg-rose-100 grid place-items-center text-rose-600">×</div>
+            </div>
+            <Table head={['Nama', 'Alasan']} rows={MOCK_ABSENT.map(r => [r.name, r.reason])} />
+          </div>
         </div>
       </div>
     </div>
-  </div>
-)
+  )
 }
 
 type Props = {
@@ -323,11 +498,11 @@ function BarChart({
           // choose stacking order
           const parts = absentAtBottom
             ? [
-                { h: hAbsent, fill: absentColor },
-              ]
+              { h: hAbsent, fill: absentColor },
+            ]
             : [
-                { h: hPresent, fill: presentColor },
-              ]
+              { h: hPresent, fill: presentColor },
+            ]
 
           let yCursor = baseY
           return (
@@ -370,26 +545,27 @@ function BarChart({
   )
 }
 
-function Table({ head, rows }:{ head:string[]; rows:(string|number)[][] }){
+function Table({ head, rows }: { head: string[]; rows: (string | number)[][] }) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead className="bg-[var(--B-50)] text-[var(--B-900)]">
           <tr>
-            {head.map((h,i)=> (
-              <th key={i} className={"px-4 py-2 text-left "+(i===head.length-1?'text-right':'')}>{h}</th>
+            {head.map((h, i) => (
+              <th key={i} className={"px-4 py-2 text-left " + (i === head.length - 1 ? 'text-right' : '')}>{h}</th>
             ))}
           </tr>
         </thead>
         <tbody>
-          {rows.map((r,idx)=> (
+          {rows.map((r, idx) => (
             <tr key={idx} className="border-t">
-              {r.map((c,i)=> (
-                <td key={i} className={"px-4 py-2 "+(i===head.length-1?'text-right':'')}>{c}</td>
+              {r.map((c, i) => (
+                <td key={i} className={"px-4 py-2 " + (i === head.length - 1 ? 'text-right' : '')}>{c}</td>
               ))}
             </tr>
           ))}
         </tbody>
       </table>
     </div>
-  )}
+  )
+}

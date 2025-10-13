@@ -4,7 +4,7 @@
 import { useMemo, useState } from 'react'
 import { useAuth } from '@/lib/state/auth'
 import { useRequests } from '@/lib/state/requests'
-import type { Request } from '@/lib/types'
+import type { LeaveRequest, Request } from '@/lib/types'
 import { format } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale/id'
 import { Bell, CheckCircle2, Clock3, XCircle } from 'lucide-react'
@@ -12,7 +12,7 @@ import { PageHeader } from '@/components/PageHeader'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import clsx from 'clsx'
-import { mockLeaveTypes } from '@/lib/mock/requests'
+import { resolveLeaveTypeLabel } from '@/lib/utils/requestDisplay'
 
 // ------------------------------
 // Small local "read" store (persisted in localStorage)
@@ -151,7 +151,7 @@ export default function InboxPage() {
 
           const title =
             isLeave
-              ? `Permintaan ${mockLeaveTypes[r.leaveTypeId]?.label ?? 'Izin'}`
+              ? `Permintaan ${resolveLeaveTypeLabel((r as LeaveRequest).leaveTypeId) ?? 'Izin'}`
               : 'Permintaan Lembur'
 
           const desc =
