@@ -85,31 +85,31 @@ const NAVY = {
   800: '#0b1535',
 }
 
-function MiniStat({
-  icon,
-  label,
-  href
-}: {
-  icon: React.ReactNode
-  label: string
-  href: string
-}) {
-  return (
-    <Link
-      href={href}
-      className="rounded-xl bg-white/10 p-3 backdrop-blur text-white min-w-[80px] flex flex-col items-center"
-    >
-      <div className="flex items-center gap-2 text-xs opacity-90">
-        {icon}
-        <span>{label}</span>
-      </div>
+// function MiniStat({
+//   icon,
+//   label,
+//   href
+// }: {
+//   icon: React.ReactNode
+//   label: string
+//   href: string
+// }) {
+//   return (
+//     <Link
+//       href={href}
+//       className="rounded-xl bg-white/10 p-3 backdrop-blur text-white min-w-[80px] flex flex-col items-center"
+//     >
+//       <div className="flex items-center gap-2 text-xs opacity-90">
+//         {icon}
+//         <span>{label}</span>
+//       </div>
 
-    </Link>
-  )
-}
+//     </Link>
+//   )
+// }
 
 function formatDateLongID(d: Date) { return format(d, 'EEEE, d MMMM yyyy', { locale: idLocale }) }
-function formatDateShortID(d: Date) { return format(d, 'EEE, dd/MM/yyyy', { locale: idLocale }) }
+// function formatDateShortID(d: Date) { return format(d, 'EEE, dd/MM/yyyy', { locale: idLocale }) }
 function timeHHmm(d?: Date) { return d ? format(d, 'HH:mm', { locale: idLocale }) : '--:--' }
 
 export default function Page() {
