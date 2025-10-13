@@ -24,7 +24,29 @@ function safeParseJSON(input: string) {
   }
 }
 
-export type walletsResponse = {
-    address: string
-    
+export type EmployeeWallet = {
+  id: string
+  employeeId: string
+  address: `0x${string}`
+  isPrimary: boolean
+  isVerified: boolean
+  nickname?: string | null
+  walletType: string
+  lastUsedAt?: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+type GetWalletsOptions = {
+  signal?: AbortSignal
+}
+
+export async function getWallets(options?: GetWalletsOptions): Promise<EmployeeWallet[]> {
+  const response = await fetch(`${API_BASE}/wallets`, {
+    method: 'GET',
+    credentials: 'include',
+    signal: options?.signal,
+  })
+
+  return parseJson<EmployeeWallet[]>(response)
 }

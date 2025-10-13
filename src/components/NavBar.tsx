@@ -47,6 +47,7 @@ const mobileItemsByRole: Record<Role, { href: string; label: string; icon: any }
     { href: '/hr/approval', label: 'Approval', icon: ClipboardCheck },
     { href: '/hr/dokumen', label: 'Dokumen', icon: FileText },
     { href: '/hr/history', label: 'History', icon: HistoryIcon },
+    { href: '/hr/karyawan', label: 'User', icon: User },
   ],
 }
 
@@ -75,6 +76,7 @@ function HRSidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
     { name: 'Approval', icon: FileCheck, href: '/hr/approval' },
     { name: 'Dokumen', icon: FileText, href: '/hr/dokumen' },
     { name: 'History', icon: FileClock, href: '/hr/history' },
+    { name: 'Karyawan', icon: User, href: '/hr/karyawan' },
   ]
 
   const handleLogout = async () => {
