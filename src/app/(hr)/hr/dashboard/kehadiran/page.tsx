@@ -1,10 +1,13 @@
 'use client'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { id as idLocale } from 'date-fns/locale/id'
 import { format } from 'date-fns'
 import { FileClock, Clock3, CalendarDays, PlusCircle, TrendingUp } from 'lucide-react'
 import Link from 'next/link'
 import { ReactNode } from 'react'
+import { useAccount, useSendTransaction } from 'wagmi'
+import { parseEther } from 'viem'
+import { toast } from 'sonner'
 
 function useNow(){
   const [now, setNow] = useState(new Date())
@@ -42,9 +45,120 @@ export default function HRDashboard(){
   const now = useNow()
   const present = 26; const absent = 4; const total = present + absent
   const percent = Math.round((present/total)*100)
+  const { isConnected } = useAccount()
+  const { sendTransactionAsync, isPending } = useSendTransaction()
+  const [showTransferForm, setShowTransferForm] = useState(false)
+  const [recipient, setRecipient] = useState('')
+  const [amount, setAmount] = useState('')
+
+  async function handleSubmit() {
+    if (!isConnected) {
+      toast.error('Hubungkan wallet HR terlebih dahulu')
+      return
+    }
+
+    const trimmedRecipient = recipient.trim()
+    if (!/^0x[a-fA-F0-9]{40}$/.test(trimmedRecipient)) {
+      toast.error('Alamat wallet tidak valid')
+      return
+    }
+
+    const normalizedAmount = amount.trim()
+    if (!normalizedAmount) {
+      toast.error('Isi jumlah token yang ingin dikirim')
+      return
+    }
+
+    let value: bigint
+    try {
+      value = parseEther(normalizedAmount)
+    } catch {
+      toast.error('Jumlah token tidak valid')
+      return
+    }
+
+    try {
+      const tx = await sendTransactionAsync({
+        to: trimmedRecipient as `0x${string}`,
+        value,
+      })
+      toast.success(`Transaksi dikirim (${tx})`)
+      setRecipient('')
+      setAmount('')
+      setShowTransferForm(false)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Transaksi gagal'
+      toast.error(message)
+    }
+  }
 
   return (
   <div className="space-y-4">
+    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+      <h1 className="text-lg font-semibold text-gray-900">Dashboard HR</h1>
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => setShowTransferForm((prev) => !prev)}
+          disabled={!isConnected}
+          className="rounded-xl bg-[var(--B-900)] px-4 py-2 text-sm font-semibold text-white shadow-sm transition-transform duration-300 ease-in-out  hover:scale-110 disabled:cursor-not-allowed disabled:bg-gray-300"
+        >
+          Transfer KPGT
+        </button>
+        {!isConnected && (
+          <span className="text-sm text-gray-500">
+            Hubungkan wallet untuk mengirim token
+          </span>
+        )}
+      </div>
+    </div>
+
+    {showTransferForm && (
+      <div className="card space-y-4 p-4">
+        <div>
+          <label className="text-sm font-medium text-gray-700">
+            Alamat Wallet Karyawan
+          </label>
+          <input
+            type="text"
+            value={recipient}
+            onChange={(event) => setRecipient(event.target.value)}
+            placeholder="0x..."
+            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[var(--B-600)] focus:outline-none focus:ring-2 focus:ring-[var(--B-200)]"
+          />
+        </div>
+        <div>
+          <label className="text-sm font-medium text-gray-700">
+            Jumlah Token (KPGT)
+          </label>
+          <input
+            type="text"
+            value={amount}
+            onChange={(event) => setAmount(event.target.value)}
+            placeholder="Contoh: 1.5"
+            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[var(--B-600)] focus:outline-none focus:ring-2 focus:ring-[var(--B-200)]"
+          />
+        </div>
+        <div className="flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => setShowTransferForm(false)}
+            className="rounded-xl border border-gray-300 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50"
+          >
+            Batal
+          </button>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={isPending}
+            className="rounded-xl bg-[var(--B-900)] px-4 py-2 text-sm font-semibold text-white shadow-sm transition-transform duration-300 ease-in-out hover:scale-105 disabled:cursor-progress disabled:opacity-80"
+          >
+            {isPending ? 'Mengirim...' : 'Kirim Token'}
+          </button>
+        </div>
+      </div>
+    )}
+
     {/* 12-col canvas */}
     <div className="grid grid-cols-12 gap-4">
       {/* LEFT HALF (xl: 8/12) — stats + chart */}

@@ -105,7 +105,7 @@ function HRSidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
       <aside
         role="navigation"
         aria-label="HR Sidebar"
-        className={`fixed inset-y-0 left-0 z-40 w-72 bg-white p-4 transition-transform duration-200 ease-out
+        className={`fixed inset-y-0 left-0 z-40 w-30 bg-white p-4 transition-transform duration-200 ease-out
         ${open ? 'translate-x-0' : '-translate-x-full'}
         md:static md:translate-x-0 md:inset-auto md:min-h-screen flex flex-col`}
       >
