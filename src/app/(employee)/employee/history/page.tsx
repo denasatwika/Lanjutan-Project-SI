@@ -1,4 +1,4 @@
-// app/(employee)/employee/riwayat/page.tsx
+// app/(employee)/employee/history/page.tsx
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
