@@ -60,6 +60,10 @@ type SessionResponse = {
     role: 'requester' | 'approver'
     name?: string
     department?: string
+    departmentId?: string
+    email?: string
+    phone?: string
+    avatarUrl?: string | null
   }
 }
 

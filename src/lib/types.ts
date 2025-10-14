@@ -6,7 +6,11 @@ export type User = {
   role: Role
   address: `0x${string}`
   name?: string
+  email?: string
+  phone?: string
   department?: string
+  departmentId?: string
+  avatarUrl?: string | null
 }
 
 export type Attendance = {

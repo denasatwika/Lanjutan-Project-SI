@@ -1,20 +1,23 @@
-// app/(employee)/employee/profil/page.tsx
+// app/(employee)/employee/profile/page.tsx
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/lib/state/auth'
 import { PageHeader } from '@/components/PageHeader'
-import { Camera, Mail, Phone, Wallet, Building2, Shield, Moon, Sun } from 'lucide-react'
+import { Camera, Mail, Phone, Wallet, Building2, Moon, Sun } from 'lucide-react'
 import { toast } from 'sonner'
 import { useDisconnect } from 'wagmi'
+import { getEmployee, updateEmployee } from '@/lib/api/employees'
+import type { EmployeeResponse, EmployeeUpdatePayload } from '@/lib/api/employees'
 
-type PartialUser = {
-  name?: string
-  email?: string
-  phone?: string
-  department?: string
-  wallet?: string
-  avatarUrl?: string | null
+type ProfileFormState = {
+  name: string
+  email: string
+  phone: string
+  departmentName: string
+  departmentId?: string
+  wallet: string
+  avatarUrl: string | null
 }
 
 export default function ProfilePage() {
@@ -24,25 +27,135 @@ export default function ProfilePage() {
   const firstName = useMemo(() => user?.name?.split(' ')[0] ?? 'User', [user?.name])
   const initial = firstName.charAt(0).toUpperCase()
 
-  const initialForm = useMemo<PartialUser>(() => {
-    const u = user as any
-    return {
-      name: user?.name ?? '',
-      email: u?.email ?? '',
-      phone: u?.phone ?? '',
-      department: u?.department ?? '—',
-      wallet: user?.address ?? u?.wallet ?? '—',
-      avatarUrl: u?.avatarUrl ?? null,
+  const [profile, setProfile] = useState<EmployeeResponse | null>(null)
+  const [loadingProfile, setLoadingProfile] = useState(false)
+
+  const initialForm = useMemo<ProfileFormState>(() => {
+    const profileName =
+      typeof profile?.name === 'string' && profile.name.trim().length > 0
+        ? profile.name
+        : undefined
+    const userName =
+      typeof user?.name === 'string' && user.name.trim().length > 0 ? user.name : undefined
+    const resolvedName = profileName ?? userName ?? ''
+
+    const profileEmail =
+      typeof profile?.email === 'string' && profile.email.trim().length > 0
+        ? profile.email
+        : undefined
+    const userEmail =
+      typeof user?.email === 'string' && user.email.trim().length > 0 ? user.email : undefined
+    const resolvedEmail = profileEmail ?? userEmail ?? ''
+
+    const profilePhone =
+      typeof profile?.phone === 'string' && profile.phone.trim().length > 0
+        ? profile.phone
+        : undefined
+    const userPhone =
+      typeof user?.phone === 'string' && user.phone.trim().length > 0 ? user.phone : undefined
+    const resolvedPhone = profilePhone ?? userPhone ?? ''
+
+    const rawProfileDepartment = profile?.departmentName ?? profile?.department
+    let profileDepartmentName: string | undefined
+    if (typeof rawProfileDepartment === 'string' && rawProfileDepartment.trim().length > 0) {
+      profileDepartmentName = rawProfileDepartment
+    } else if (
+      rawProfileDepartment &&
+      typeof rawProfileDepartment === 'object' &&
+      'name' in rawProfileDepartment &&
+      typeof (rawProfileDepartment as any).name === 'string'
+    ) {
+      const value = (rawProfileDepartment as any).name.trim()
+      profileDepartmentName = value.length > 0 ? value : undefined
     }
-  }, [user])
+    const userDepartment =
+      typeof user?.department === 'string' && user.department.trim().length > 0
+        ? user.department
+        : undefined
+    const resolvedDepartmentName = profileDepartmentName ?? userDepartment ?? ''
+
+    const profileDepartmentId =
+      typeof profile?.departmentId === 'string' && profile.departmentId.length > 0
+        ? profile.departmentId
+        : undefined
+    const profileDepartmentObjId =
+      rawProfileDepartment &&
+      typeof rawProfileDepartment === 'object' &&
+      'id' in rawProfileDepartment &&
+      typeof (rawProfileDepartment as any).id === 'string'
+        ? (rawProfileDepartment as any).id
+        : undefined
+    const userDepartmentId =
+      typeof user?.departmentId === 'string' && user.departmentId.length > 0
+        ? user.departmentId
+        : undefined
+    const resolvedDepartmentId =
+      profileDepartmentId ?? profileDepartmentObjId ?? userDepartmentId ?? undefined
+
+    const profileAddress =
+      typeof profile?.address === 'string' && profile.address.trim().length > 0
+        ? profile.address
+        : undefined
+    const userAddress =
+      typeof user?.address === 'string' && user.address.trim().length > 0
+        ? user.address
+        : undefined
+    const resolvedWallet = profileAddress ?? userAddress ?? ''
+
+    const profileAvatar =
+      typeof profile?.avatarUrl === 'string' || profile?.avatarUrl === null
+        ? profile.avatarUrl
+        : undefined
+    const userAvatar =
+      typeof user?.avatarUrl === 'string' || user?.avatarUrl === null ? user.avatarUrl : undefined
+    const resolvedAvatar = profileAvatar ?? userAvatar ?? null
+
+    return {
+      name: resolvedName,
+      email: resolvedEmail,
+      phone: resolvedPhone,
+      departmentName: resolvedDepartmentName,
+      departmentId: resolvedDepartmentId,
+      wallet: resolvedWallet,
+      avatarUrl: resolvedAvatar,
+    }
+  }, [profile, user])
 
   // local editable state (front-end only)
-  const [form, setForm] = useState<PartialUser>(initialForm)
+  const [form, setForm] = useState<ProfileFormState>(initialForm)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     setForm(initialForm)
   }, [initialForm])
+
+  useEffect(() => {
+    if (!user?.id) {
+      setProfile(null)
+      return
+    }
+
+    let cancelled = false
+    setLoadingProfile(true)
+
+    getEmployee(user.id)
+      .then((data) => {
+        if (cancelled) return
+        setProfile(data)
+      })
+      .catch((error) => {
+        if (cancelled) return
+        const message = error instanceof Error ? error.message : 'Failed to load profile'
+        toast.error(message)
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingProfile(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [user?.id])
 
   // theme toggle (darkMode: 'class')
   const [dark, setDark] = useState<boolean>(() =>
@@ -56,18 +169,76 @@ export default function ProfilePage() {
 
   async function saveProfile() {
     if (!user) {
-      toast.error('Silakan login terlebih dahulu')
+      toast.error('Please sign in first')
       return
     }
+
+    const payload: EmployeeUpdatePayload = {}
+
+    const nextName = form.name.trim()
+    const previousName = initialForm.name.trim()
+    if (nextName !== previousName) {
+      payload.name = nextName
+    }
+
+    const nextEmail = form.email.trim()
+    const previousEmail = initialForm.email.trim()
+    if (nextEmail !== previousEmail) {
+      payload.email = nextEmail
+    }
+
+    const nextPhone = form.phone.trim()
+    const previousPhone = initialForm.phone.trim()
+    if (nextPhone !== previousPhone) {
+      payload.phone = nextPhone
+    }
+
+    if (form.departmentId && form.departmentId !== initialForm.departmentId) {
+      payload.departmentId = form.departmentId
+    }
+
+    const nextAvatar = form.avatarUrl ?? null
+    const previousAvatar = initialForm.avatarUrl ?? null
+    if (nextAvatar !== previousAvatar) {
+      payload.avatarUrl = nextAvatar
+    }
+
+    if (Object.keys(payload).length === 0) {
+      toast.info('Nothing to update')
+      return
+    }
+
     setSaving(true)
     try {
-      // Try to update the auth store if it exposes a method; otherwise just toast (early validation).
-      const api: any = (useAuth as any).getState?.()
-      if (api?.update) api.update(form)
-      else if (api?.setUser) api.setUser({ ...user, ...form })
-      toast.success('Profil disimpan (front-end)')
-    } catch {
-      toast.error('Gagal menyimpan')
+      const updated = await updateEmployee(user.id, payload)
+      const departmentName =
+        (typeof updated.departmentName === 'string' && updated.departmentName.length > 0
+          ? updated.departmentName
+          : undefined) ??
+        (typeof updated.department === 'string' && updated.department.length > 0
+          ? updated.department
+          : undefined)
+
+      setProfile(updated)
+
+      auth.setUser({
+        ...user,
+        name: typeof updated.name === 'string' ? updated.name : user.name,
+        email: typeof updated.email === 'string' ? updated.email : user.email,
+        phone: typeof updated.phone === 'string' ? updated.phone : user.phone,
+        department: departmentName ?? user.department,
+        departmentId:
+          typeof updated.departmentId === 'string' && updated.departmentId.length > 0
+            ? updated.departmentId
+            : user.departmentId,
+        avatarUrl:
+          updated.avatarUrl !== undefined ? (updated.avatarUrl as string | null) : user.avatarUrl,
+      })
+
+      toast.success('Profile updated')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to update profile'
+      toast.error(message)
     } finally {
       setSaving(false)
     }
@@ -80,19 +251,18 @@ export default function ProfilePage() {
     reader.onload = () => {
       const dataUrl = reader.result as string
       setForm((f) => ({ ...f, avatarUrl: dataUrl }))
-      // Try to persist to store if supported
-      const api: any = (useAuth as any).getState?.()
-      if (api?.update) api.update({ avatarUrl: dataUrl })
-      else if (api?.setUser && user) api.setUser({ ...user, avatarUrl: dataUrl })
     }
     reader.readAsDataURL(file)
   }
 
-  function logout() {
+  async function logout() {
     disconnect()
-    const api: any = (useAuth as any).getState?.()
-    if (api?.logout) api.logout()
-    else toast('Simulasi logout (front-end)')
+    try {
+      await auth.logout()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to logout'
+      toast.error(message)
+    }
   }
 
   return (
@@ -101,8 +271,8 @@ export default function ProfilePage() {
         title="Profile"
         backHref="/employee/dashboard"
         fullBleed
-        bleedMobileOnly    // <-- key line
-        pullUpPx={24}      // cancels AppShell pt-6
+        bleedMobileOnly
+        pullUpPx={24}
       />
 
       {!user ? (
@@ -164,57 +334,44 @@ export default function ProfilePage() {
           <InfoRow icon={<Mail size={16} />} label="Email">
             <input
               className="w-full bg-transparent outline-none"
-              value={form.email ?? ''}
+              value={form.email}
               onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
             />
           </InfoRow>
           <InfoRow icon={<Phone size={16} />} label="Phone Number">
           <input
               className="w-full bg-transparent outline-none"
-              value={form.phone ?? ''}
+              value={form.phone}
               onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
             />
           </InfoRow>
           <InfoRow icon={<Building2 size={16} />} label="Department">
             <input
-              className="w-full bg-transparent outline-none"
-              value={form.department ?? ''}
-              onChange={(e) => setForm((f) => ({ ...f, department: e.target.value }))}
+              className="w-full bg-transparent outline-none text-gray-500"
+              value={form.departmentName}
+              readOnly
             />
           </InfoRow>
           <InfoRow icon={<Wallet size={16} />} label="Wallet">
             <input
-              className="w-full bg-transparent outline-none"
-              value={form.wallet ?? ''}
-              onChange={(e) => setForm((f) => ({ ...f, wallet: e.target.value }))}
+              className="w-full bg-transparent outline-none text-gray-500"
+              value={form.wallet}
+              readOnly
             />
           </InfoRow>
 
           <div className="mt-4 flex items-center gap-3">
             <button
               onClick={saveProfile}
-              disabled={saving}
+              disabled={saving || loadingProfile}
               className="btn btn-primary"
             >
-              {saving ? 'Menyimpan…' : 'Simpan'}
+              {saving ? 'Saving' : loadingProfile ? 'Loading...' : 'Save'}
             </button>
             <button onClick={logout} className="btn">Logout</button>
           </div>
         </div>
      </section>
-
-      {/* Security */}
-      <section className="card p-4">
-        <h3 className="font-bold mb-3">Security</h3>
-        <InfoRow icon={<Shield size={16} />} label="Password">
-          <button
-            className="px-3 py-2 rounded-lg border text-sm hover:bg-gray-50"
-            onClick={() => toast('Ganti Password (front-end)')}
-          >
-            Change Password
-          </button>
-        </InfoRow>
-      </section>
       </>
       )}
     </div>
