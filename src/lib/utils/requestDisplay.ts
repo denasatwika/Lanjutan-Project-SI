@@ -15,6 +15,9 @@ const LEAVE_TYPE_LABELS: Record<string, string> = {
   EMERGENCY: 'Emergency Leave',
   MATERNITY: 'Maternity Leave',
   PATERNITY: 'Paternity Leave',
+  CUTI: 'Cuti',
+  SAKIT: 'Sakit',
+  IZIN: 'Izin',
 }
 
 function toTitle(value: string) {

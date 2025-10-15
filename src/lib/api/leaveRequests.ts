@@ -3,7 +3,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:8787'
 type ErrorPayload = { error: string }
 
 export type RequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED' | (string & {})
-export type LeaveType = 'ANNUAL' | 'SICK' | 'PERSONAL' | (string & {})
+export type LeaveType = 'Cuti' | 'Sakit' | 'Izin' | (string & {})
 export type EmployeeLevel = string & {}
 
 export type ApprovalSeed = {

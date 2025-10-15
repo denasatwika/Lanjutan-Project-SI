@@ -37,9 +37,9 @@ function useOutsideClose(onClose: () => void) {
 }
 
 const LEAVE_TYPE_OPTIONS = [
-  { value: 'ANNUAL' as LeaveType, label: 'Cuti' },
-  { value: 'SICK' as LeaveType, label: 'Sakit' },
-  { value: 'PERSONAL' as LeaveType, label: 'Izin' },
+  { value: 'Cuti' as LeaveType, label: 'Cuti' },
+  { value: 'Sakit' as LeaveType, label: 'Sakit' },
+  { value: 'Izin' as LeaveType, label: 'Izin' },
 ] as const
 
 function Popover({

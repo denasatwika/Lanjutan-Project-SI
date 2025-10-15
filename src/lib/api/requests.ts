@@ -1,10 +1,11 @@
-import type { ApprovalSeed, LeaveType, RequestStatus } from './leaveRequests'
+import type { ApprovalSeed, LeaveType, RequestStatus as LeaveRequestStatus } from './leaveRequests'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:8787'
 
 type ErrorPayload = { error: string }
 
 export type RequestType = 'LEAVE' | 'OVERTIME' | (string & {})
+export type RequestStatus = LeaveRequestStatus
 
 export type RequestResponse = {
   id: string
