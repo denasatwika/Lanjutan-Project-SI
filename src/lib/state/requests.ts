@@ -4,9 +4,20 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { LeaveRequest, OvertimeRequest, Request, RequestStatus } from '../types'
 import { uid } from '../utils/id'
+import {
+  listRequests,
+  type RequestListQuery,
+  type RequestResponse,
+  type RequestStatus as RequestStatusApi,
+  type RequestType as RequestTypeApi,
+} from '../api/requests'
 
 interface RequestState {
   items: Request[]
+
+  // server sync
+  load: (filter?: RequestFilter) => Promise<Request[]>
+  upsertFromApi: (input: RequestResponse) => Request
 
   // mutations
   create: (input: NewRequestInput) => Request
@@ -23,6 +34,88 @@ interface RequestState {
 }
 
 type NewRequestInput = LeaveRequest | OvertimeRequest
+type RequestFilter = {
+  type?: Request['type']
+  status?: RequestStatus
+  requesterId?: string
+}
+
+const statusToClient: Record<RequestStatusApi, RequestStatus> = {
+  PENDING: 'pending',
+  APPROVED: 'approved',
+  REJECTED: 'rejected',
+  CANCELLED: 'rejected',
+  DRAFT: 'draft',
+}
+
+const typeToClient: Record<RequestTypeApi, Request['type']> = {
+  LEAVE: 'leave',
+  OVERTIME: 'overtime',
+}
+
+const statusToApi: Partial<Record<RequestStatus, RequestStatusApi>> = {
+  pending: 'PENDING',
+  approved: 'APPROVED',
+  rejected: 'REJECTED',
+  draft: 'DRAFT',
+}
+
+const typeToApi: Record<Request['type'], RequestTypeApi> = {
+  leave: 'LEAVE',
+  overtime: 'OVERTIME',
+}
+
+function normalizeFromApi(input: RequestResponse): Request {
+  const type = typeToClient[input.type] ?? 'leave'
+  const base = {
+    id: input.id,
+    employeeId: input.requesterId,
+    status: statusToClient[input.status] ?? 'pending',
+    attachmentUrl: input.attachmentUrl ?? undefined,
+    reason: input.leaveReason ?? input.overtimeReason ?? undefined,
+    createdAt: input.createdAt ?? new Date().toISOString(),
+    updatedAt: input.updatedAt ?? input.createdAt ?? new Date().toISOString(),
+    employeeName: undefined,
+    employeeDepartment: undefined,
+    leaveTypeName: undefined,
+  }
+
+  if (type === 'leave') {
+    const leave: LeaveRequest = {
+      ...base,
+      type: 'leave',
+      leaveTypeId: input.leaveType ?? '',
+      startDate: input.leaveStartDate ?? '',
+      endDate: input.leaveEndDate ?? '',
+      days: input.leaveDays ?? 0,
+    }
+    return leave
+  }
+
+  const overtime: OvertimeRequest = {
+    ...base,
+    type: 'overtime',
+    workDate: input.overtimeDate ?? '',
+    startTime: input.overtimeStartTime ?? '',
+    endTime: input.overtimeEndTime ?? '',
+    hours: input.overtimeHours ?? 0,
+  }
+  return overtime
+}
+
+async function fetchRequests(filter?: RequestFilter): Promise<Request[]> {
+  const query: RequestListQuery = {}
+  if (filter?.type) query.type = typeToApi[filter.type]
+  if (filter?.status) {
+    const mapped = statusToApi[filter.status]
+    if (mapped) query.status = mapped
+  }
+  const responses = await listRequests(Object.keys(query).length ? query : undefined)
+  const filtered = filter?.requesterId
+    ? responses.filter((r) => r.requesterId === filter.requesterId)
+    : responses
+  return filtered.map(normalizeFromApi)
+}
 
 function normalizeRequest(input: NewRequestInput): Request {
   const now = new Date().toISOString()
@@ -43,6 +136,24 @@ export const useRequests = create<RequestState>()(
   persist(
     (set, get) => ({
       items: [],
+
+      load: async (filter) => {
+        const normalized = await fetchRequests(filter)
+        set({ items: normalized })
+        return normalized
+      },
+
+      upsertFromApi: (input) => {
+        const request = normalizeFromApi(input)
+        set((state) => {
+          const idx = state.items.findIndex((item) => item.id === request.id)
+          if (idx === -1) return { items: [request, ...state.items] as Request[] }
+          const items = [...state.items] as Request[]
+          items[idx] = request
+          return { items }
+        })
+        return request
+      },
 
       // create a new pending request
       create: (input) => {
