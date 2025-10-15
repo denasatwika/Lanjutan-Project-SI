@@ -2,5 +2,5 @@
 import AppShell from '@/app/AppShell'
 
 export default function Layout({ children }: { children: React.ReactNode }) {
-  return <AppShell role="chief">{children}</AppShell>
+  return <AppShell role="approver">{children}</AppShell>
 }

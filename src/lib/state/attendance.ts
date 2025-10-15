@@ -2,7 +2,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { Attendance } from '../types'
-import { seedAttendance } from '../seed'
 import { uid } from '../utils/id'
 
 interface AttState{
@@ -12,7 +11,7 @@ interface AttState{
 }
 
 export const useAttendance = create<AttState>()(persist((set,get)=>({
-  items: seedAttendance,
+  items: [],
   checkIn: (userId, photoDataUrl)=>{
     const a: Attendance = { id: uid('att'), userId, checkInAt: new Date().toISOString(), photoDataUrl }
     set({ items: [a, ...get().items] })

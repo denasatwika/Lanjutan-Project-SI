@@ -2,18 +2,21 @@
 'use client'
 import { useAuth } from '@/lib/state/auth'
 import { useAttendance } from '@/lib/state/attendance'
-import { useMemo, useEffect, useState } from 'react'
+import { useMemo, useEffect, useState, useRef } from 'react'
 import CheckInSheet from '@/components/CheckInSheet'
 import { format } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale/id'
 import Link from 'next/link'
-import { CalendarDays, Clock, TrendingUp, Zap, Info, FileText, Inbox, User } from 'lucide-react'
+import { CalendarDays, Clock, TrendingUp, Zap, Info, Check, Files } from 'lucide-react'
 import { toast } from 'sonner'
 import { BottomSheet } from '@/components/ui/bottomSheet'
 import { useRouter } from 'next/navigation'
+import { mandalaTestnet } from '@/lib/web3/wagmiConfig'
+
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE
 
 // ---------- Role Switcher ----------
-type RoleKey = 'employee' | 'supervisor' | 'hr'
+type RoleKey = 'requester' | 'approver'
 function RoleSwitcher({
   storageKey,
   onChange,
@@ -22,14 +25,13 @@ function RoleSwitcher({
   onChange?: (role: RoleKey) => void
 }) {
   const router = useRouter()
-  const roles: RoleKey[] = ['employee', 'supervisor', 'hr']
-  const [role, setRole] = useState<RoleKey>('employee')
+  const roles: RoleKey[] = ['requester', 'approver']
+  const [role, setRole] = useState<RoleKey>('requester')
 
   // map label -> segment url
   const roleToSeg: Record<RoleKey, string> = {
-    employee: 'employee',
-    supervisor: 'supervisor',
-    hr: 'hr',
+    requester: 'employee',
+    approver: 'hr',
   }
 
   // hydrate
@@ -37,12 +39,12 @@ function RoleSwitcher({
     try {
       const saved = localStorage.getItem(storageKey) as RoleKey | null
       if (saved && roles.includes(saved)) setRole(saved)
-    } catch {}
+    } catch { }
   }, [storageKey])
 
   function handleChange(next: RoleKey) {
     setRole(next)
-    try { localStorage.setItem(storageKey, next) } catch {}
+    try { localStorage.setItem(storageKey, next) } catch { }
     onChange?.(next)
     router.push(`/${roleToSeg[next]}/dashboard`)
   }
@@ -83,31 +85,31 @@ const NAVY = {
   800: '#0b1535',
 }
 
-function MiniStat({
-  icon,
-  label,
-  href
-}: {
-  icon: React.ReactNode
-  label: string
-  href: string
-}) {
-  return (
-    <Link
-      href={href}
-      className="rounded-xl bg-white/10 p-3 backdrop-blur text-white min-w-[80px] flex flex-col items-center"
-    >
-      <div className="flex items-center gap-2 text-xs opacity-90">
-        {icon}
-        <span>{label}</span>
-      </div>
+// function MiniStat({
+//   icon,
+//   label,
+//   href
+// }: {
+//   icon: React.ReactNode
+//   label: string
+//   href: string
+// }) {
+//   return (
+//     <Link
+//       href={href}
+//       className="rounded-xl bg-white/10 p-3 backdrop-blur text-white min-w-[80px] flex flex-col items-center"
+//     >
+//       <div className="flex items-center gap-2 text-xs opacity-90">
+//         {icon}
+//         <span>{label}</span>
+//       </div>
 
-    </Link>
-  )
-}
+//     </Link>
+//   )
+// }
 
 function formatDateLongID(d: Date) { return format(d, 'EEEE, d MMMM yyyy', { locale: idLocale }) }
-function formatDateShortID(d: Date) { return format(d, 'EEE, dd/MM/yyyy', { locale: idLocale }) }
+// function formatDateShortID(d: Date) { return format(d, 'EEE, dd/MM/yyyy', { locale: idLocale }) }
 function timeHHmm(d?: Date) { return d ? format(d, 'HH:mm', { locale: idLocale }) : '--:--' }
 
 export default function Page() {
@@ -118,6 +120,72 @@ export default function Page() {
 
   const firstName = user?.name?.split(' ')[0] ?? 'Employee'
   const initial = firstName.charAt(0).toUpperCase()
+  const walletAddress = user?.address
+  const walletDisplay = walletAddress ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}` : '—'
+  const [formattedKpgBalance, setFormattedKpgBalance] = useState<string>('—')
+  const [tokenSymbol, setTokenSymbol] = useState<string>('KPGT')
+  const lastBalanceErrorMessage = useRef<string | null>(null)
+
+  useEffect(() => {
+    if (!walletAddress) {
+      setFormattedKpgBalance('—')
+      setTokenSymbol(mandalaTestnet.nativeCurrency.symbol)
+      return
+    }
+    const controller = new AbortController()
+    setFormattedKpgBalance('…')
+
+    const url = new URL('/wallet/balance', API_BASE)
+    url.searchParams.set('address', walletAddress)
+
+    fetch(url.toString(), {
+      method: 'GET',
+      cache: 'no-store',
+      credentials: 'include',
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          const errorPayload = await res.json().catch(() => undefined)
+          const message = errorPayload?.error ?? res.statusText ?? 'Failed to fetch balance'
+          throw new Error(message)
+        }
+        return res.json() as Promise<{
+          formatted: string
+          decimals: number
+          symbol: string
+        }>
+      })
+      .then((data) => {
+        const numeric = Number.parseFloat(data.formatted)
+        const display = Number.isNaN(numeric)
+          ? data.formatted
+          : new Intl.NumberFormat('en-US', {
+            maximumFractionDigits: numeric < 1 ? 6 : 2,
+          }).format(numeric)
+        setFormattedKpgBalance(display)
+        setTokenSymbol(data.symbol)
+        lastBalanceErrorMessage.current = null
+      })
+      .catch((error) => {
+        if (controller.signal.aborted) return
+        const message = error instanceof Error ? error.message : 'Gagal memuat saldo wallet'
+        console.error('[wallet balance]', message)
+        if (lastBalanceErrorMessage.current !== message) {
+          lastBalanceErrorMessage.current = message
+          toast.error('Gagal memuat saldo wallet')
+        }
+        setFormattedKpgBalance('—')
+      })
+
+    return () => controller.abort()
+  }, [walletAddress])
+
+  const tokenTiles = useMemo(() => [{
+    label: tokenSymbol || 'KPGT',
+    value: formattedKpgBalance,
+    color: 'var(--B-500)',
+  }], [tokenSymbol, formattedKpgBalance])
 
   function dayISO(d: Date) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x.toISOString() }
   const descKey = (userId: string, iso: string) => `desc:${userId}:${iso}`
@@ -125,6 +193,25 @@ export default function Page() {
   const [sheetOpen, setSheetOpen] = useState(false)
   const [selectedDay, setSelectedDay] = useState<Date | null>(null)
   const [desc, setDesc] = useState('')
+  const [copied, setCopied] = useState(false)
+  const department = user?.department ?? '—'
+
+  async function handleCopyWallet() {
+    if (!walletAddress) return
+    if (!navigator.clipboard || typeof navigator.clipboard.writeText !== 'function') {
+      toast.error('Clipboard tidak tersedia')
+      return
+    }
+    try {
+      await navigator.clipboard.writeText(walletAddress)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+      toast.success('Alamat wallet disalin')
+    } catch {
+      toast.error('Gagal menyalin wallet')
+    }
+  }
+
 
   // Open sheet for a given day
   function openDaySheet(day: Date) {
@@ -229,15 +316,15 @@ export default function Page() {
           Welcome, {firstName}!
         </h1>
         <div className="flex items-center gap-3">
-  </div>
+        </div>
 
-  <RoleSwitcher
-    storageKey={`role:${user.id}`}
-    onChange={(next) => {
-      // optional: toast or analytics here
-      toast.success(`Role changed to ${next}`)
-    }}
-  />
+        <RoleSwitcher
+          storageKey={`role:${user.id}`}
+          onChange={(next) => {
+            // optional: toast or analytics here
+            toast.success(`Role changed to ${next}`)
+          }}
+        />
       </section>
 
       {/* Date + Clock card */}
@@ -258,15 +345,35 @@ export default function Page() {
           background: `linear-gradient(135deg, ${NAVY[700]} 0%, ${NAVY[600]} 60%, ${NAVY[800]} 100%)`,
         }}>
         <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-xs uppercase tracking-wide">Department</p>
-              <p className="font-semibold">Production</p>
-            </div>
-            <div className="text-right">
-              <p className="text-xs uppercase tracking-wide">Wallet</p>
-              <p className="font-medium">0x97F5E6...2sdke1</p>
+          <div>
+            <p className="text-xs uppercase tracking-wide">Department</p>
+            <p className="font-semibold">{department}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-xs uppercase tracking-wide">Wallet</p>
+            <div
+              className={`flex items-center gap-2 ${walletAddress ? 'cursor-pointer' : 'cursor-default opacity-70'}`}
+              onClick={handleCopyWallet}
+            >
+              {copied ? (
+                <Check className="w-4 h-4 text-green-500" />
+              ) : (
+                <Files className="w-4 h-4 hover:text-gray-700" />
+              )}
+              <p className="font-medium">{walletDisplay}</p>
             </div>
           </div>
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+          {tokenTiles.map((tile) => (
+            <TokenTile
+              key={tile.label}
+              label={tile.label}
+              value={tile.value}
+              color={tile.color}
+            />
+          ))}
+        </div>
         <button
           onClick={() => setShowCheckIn(true)}
           className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm hover:bg-white/95"
@@ -274,12 +381,6 @@ export default function Page() {
           <Clock className="size-4" />
           {ctaLabel}
         </button>
-        <div className="mt-4 flex flex-wrap justify-center gap-2">
-          <MiniStat icon={<Clock size={14} />} label="History" href="/employee/riwayat" />
-          <MiniStat icon={<FileText size={14} />} label="Leave" href="/employee/izin" />
-          <MiniStat icon={<Inbox size={14} />} label="Inbox" href="/employee/inbox" />
-          <MiniStat icon={<User size={14} />} label="Profile" href="/employee/profile" />
-        </div>
       </section>
 
       {/* KPI cards */}
@@ -335,16 +436,14 @@ export default function Page() {
         <h2 className="text-lg font-semibold">Attendance this week</h2>
       </div>
       <section className="max-h-[420px] overflow-auto">
-
         <div className="rounded-2xl bg-white shadow-md border">
           {days.map(({ date, checkIn, checkOut }, idx) => {
             const present = !!checkIn;
             const statusText = present ? 'Present' : 'Absent';
             const preview = getDescPreview(date);
-            
             return (
-              <div 
-                key={date.toISOString()} 
+              <div
+                key={date.toISOString()}
                 className="group bg-white rounded-xl border border-gray-100 hover:border-gray-200 hover:shadow-sm transition-all duration-200 p-5"
               >
                 <div className="flex items-center justify-between">
@@ -353,13 +452,13 @@ export default function Page() {
                     <div className="flex items-center gap-3 mb-3">
                       {/* Status indicator */}
                       <div className={`w-3 h-3 rounded-full ${present ? 'bg-emerald-500' : 'bg-red-400'}`} />
-                      
+
                       {/* Date */}
                       <h3 className="text-gray-900 font-medium text-base">
                         {formatDateLongID(date)}
                       </h3>
                     </div>
-                    
+
                     {/* Time range */}
                     <div className="ml-6 flex items-center gap-4">
                       <div className="text-sm text-gray-500">
@@ -369,7 +468,7 @@ export default function Page() {
                         <span className="font-medium">Out:</span> {timeHHmm(checkOut)}
                       </div>
                     </div>
-                    
+
                     {/* Description preview if exists */}
                     {preview && (
                       <div className="ml-6 mt-2">
@@ -379,23 +478,21 @@ export default function Page() {
                       </div>
                     )}
                   </div>
-                  
+
                   {/* Right side - Status and action */}
                   <div className="flex items-center gap-4">
                     {/* Status badge */}
-                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
-                      present 
-                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
-                        : 'bg-red-50 text-red-700 border border-red-200'
-                    }`}>
+                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${present
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                      : 'bg-red-50 text-red-700 border border-red-200'
+                      }`}>
                       {statusText}
                     </span>
-                    
+
                     {/* Edit button */}
                     <button
                       type="button"
                       onClick={() => openDaySheet(date)}
-                      className="opacity-60 group-hover:opacity-100 transition-opacity duration-200 p-2 rounded-lg hover:bg-gray-50 text-gray-500 hover:text-gray-700"
                       title="Add / Edit description"
                     >
                       <Info className="size-5" />
@@ -448,8 +545,22 @@ export default function Page() {
           </div>
         )}
       </BottomSheet>
+    </div>
+  )
+}
 
-
+function TokenTile({ label, value, color }: { label: string; value: string | number; color: string }) {
+  const displayValue = typeof value === 'number' ? value.toString() : value
+  return (
+    <div className="rounded-xl bg-white/10 p-4 border border-white/20 backdrop-blur">
+      <div
+        className="w-12 h-12 grid place-items-center rounded-full text-xs font-semibold sm:text-xl"
+        style={{ color, background: 'white' }}
+        title={displayValue}
+      >
+        {displayValue}
+      </div>
+      <div className="mt-3 font-semibold">{label}</div>
     </div>
   )
 }

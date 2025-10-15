@@ -1,10 +1,11 @@
-export type Role = 'employee'|'supervisor'|'hr'|'chief'
-export const roles: Role[] = ['employee','supervisor','hr','chief']
+export type Role = 'requester' | 'approver'
+export const roles: Role[] = ['requester', 'approver']
 
 export type User = {
   id: string
-  name: string
   role: Role
+  address: `0x${string}`
+  name?: string
   department?: string
 }
 
@@ -23,9 +24,12 @@ type RequestBase = {
   employeeId: string
   status: RequestStatus
   reason?: string
-  attachmentUrl: string
+  attachmentUrl?: string
   createdAt: string
   updatedAt: string
+  employeeName?: string
+  employeeDepartment?: string
+  leaveTypeName?: string
 }
 
 export type LeaveRequest = RequestBase & {
