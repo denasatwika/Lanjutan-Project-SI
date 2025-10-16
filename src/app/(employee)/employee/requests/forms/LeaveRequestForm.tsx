@@ -5,6 +5,9 @@ import { toast } from 'sonner'
 import { ChevronDown } from 'lucide-react'
 import DateRangePicker from '@/components/DateRangePicker'
 import type { DateRange } from 'react-day-picker'
+import { createLeaveRequest, type LeaveType } from '@/lib/api/leaveRequests'
+import { useAuth } from '@/lib/state/auth'
+import { useRequests } from '@/lib/state/requests'
 
 /* ---- Helpers ---- */
 function toISODate(d?: Date) {
@@ -32,6 +35,12 @@ function useOutsideClose(onClose: () => void) {
   }, [onClose])
   return ref
 }
+
+const LEAVE_TYPE_OPTIONS = [
+  { value: 'Cuti' as LeaveType, label: 'Cuti' },
+  { value: 'Sakit' as LeaveType, label: 'Sakit' },
+  { value: 'Izin' as LeaveType, label: 'Izin' },
+] as const
 
 function Popover({
   open,
@@ -114,86 +123,118 @@ function SelectBox<T extends string>({
   )
 }
 
-export type LeaveKind = 'Cuti' | 'Sakit' | 'Izin'
+export type LeaveKind = (typeof LEAVE_TYPE_OPTIONS)[number]['value']
 
 export function LeaveRequestForm({ onSubmitted }: { onSubmitted?: () => void }) {
+  const { user } = useAuth()
+  const upsertRequest = useRequests((s) => s.upsertFromApi)
+  const [submitting, setSubmitting] = useState(false)
   const [form, setForm] = useState<{
-    jenis: LeaveKind
-    dari: string
-    sampai: string
-    alasan: string
-    lampiran: File | null
+    leaveType: LeaveKind
+    startDate: string
+    endDate: string
+    reason: string
+    attachment: File | null
   }>({
-    jenis: 'Cuti',
-    dari: '',
-    sampai: '',
-    alasan: '',
-    lampiran: null,
+    leaveType: LEAVE_TYPE_OPTIONS[0].value,
+    startDate: '',
+    endDate: '',
+    reason: '',
+    attachment: null,
   })
 
   const fileRef = useRef<HTMLInputElement | null>(null)
 
   const dateRange = useMemo<DateRange>(() => ({
-    from: fromISODate(form.dari),
-    to: fromISODate(form.sampai),
-  }), [form.dari, form.sampai])
+    from: fromISODate(form.startDate),
+    to: fromISODate(form.endDate),
+  }), [form.startDate, form.endDate])
 
   const days = useMemo(() => {
-    if (!form.dari || !form.sampai) return 0
-    const start = new Date(form.dari)
-    const end = new Date(form.sampai)
+    if (!form.startDate || !form.endDate) return 0
+    const start = new Date(form.startDate)
+    const end = new Date(form.endDate)
     const diff = Math.ceil((end.getTime() - start.getTime()) / 86400000) + 1
     return Number.isNaN(diff) || diff < 0 ? 0 : diff
-  }, [form.dari, form.sampai])
+  }, [form.startDate, form.endDate])
+
+  const hasDateOrderIssue =
+    form.startDate &&
+    form.endDate &&
+    new Date(form.startDate) > new Date(form.endDate)
 
   const valid =
-    !!form.dari &&
-    !!form.sampai &&
-    new Date(form.dari) <= new Date(form.sampai) &&
-    form.alasan.trim().length > 0
+    !!form.startDate &&
+    !!form.endDate &&
+    !hasDateOrderIssue &&
+    days > 0 &&
+    form.reason.trim().length > 0
 
   function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0]
-    if (f) setForm(s => ({ ...s, lampiran: f }))
+    if (f) setForm(s => ({ ...s, attachment: f }))
   }
   function clearFile() {
-    setForm(s => ({ ...s, lampiran: null }))
+    setForm(s => ({ ...s, attachment: null }))
     if (fileRef.current) fileRef.current.value = ''
   }
 
   async function submit() {
     if (!valid) return
+    if (!user?.id) {
+      toast.error('Unable to determine the requester. Please sign in again.')
+      return
+    }
+    if (form.attachment) {
+      toast.error('File uploads are not supported yet. Remove the attachment and try again.')
+      return
+    }
+    setSubmitting(true)
     try {
-      const fd = new FormData()
-      fd.append('jenis', form.jenis)
-      fd.append('tanggalMulai', form.dari)
-      fd.append('tanggalSelesai', form.sampai)
-      fd.append('alasan', form.alasan)
-      if (form.lampiran) fd.append('lampiran', form.lampiran)
-      // await fetch('/api/izin', { method: 'POST', body: fd })
+      const created = await createLeaveRequest({
+        requesterId: user.id,
+        leaveType: form.leaveType,
+        leaveStartDate: form.startDate,
+        leaveEndDate: form.endDate,
+        leaveDays: days,
+        leaveReason: form.reason.trim(),
+      })
+      upsertRequest({
+        ...created,
+        overtimeDate: null,
+        overtimeStartTime: null,
+        overtimeEndTime: null,
+        overtimeHours: null,
+        overtimeReason: null
+      })
       toast.success('Leave request submitted')
-      setForm({ jenis: 'Cuti', dari: '', sampai: '', alasan: '', lampiran: null })
+      setForm({
+        leaveType: LEAVE_TYPE_OPTIONS[0].value,
+        startDate: '',
+        endDate: '',
+        reason: '',
+        attachment: null,
+      })
       if (fileRef.current) fileRef.current.value = ''
       onSubmitted?.()
-    } catch {
-      toast.error('Failed to submit leave request')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to submit leave request'
+      toast.error(message)
+    } finally {
+      setSubmitting(false)
     }
   }
 
-  const isImg = form.lampiran?.type.startsWith('image/')
-  const previewUrl = form.lampiran && isImg ? URL.createObjectURL(form.lampiran) : null
+  const isImg = form.attachment?.type.startsWith('image/')
+  const previewUrl = form.attachment && isImg ? URL.createObjectURL(form.attachment) : null
 
   return (
     <form className="grid gap-4 text-[15px]" onSubmit={(e) => { e.preventDefault(); submit() }}>
       <SelectBox<LeaveKind>
         label="Leave type"
-        value={form.jenis}
-        onChange={(v) => setForm(s => ({ ...s, jenis: v }))}
-        options={[
-          { value: 'Cuti', label: 'Cuti' },
-          { value: 'Sakit', label: 'Sakit' },
-          { value: 'Izin', label: 'Izin' },
-        ]}
+        value={form.leaveType}
+        onChange={(v) => setForm(s => ({ ...s, leaveType: v }))}
+        options={LEAVE_TYPE_OPTIONS.map(opt => ({ value: opt.value, label: opt.label }))}
       />
 
       <DateRangePicker
@@ -202,13 +243,13 @@ export function LeaveRequestForm({ onSubmitted }: { onSubmitted?: () => void }) 
         onChange={(next: DateRange) =>
           setForm((s) => ({
             ...s,
-            dari: next.from ? toISODate(next.from) : '',
-            sampai: next.to ? toISODate(next.to) : '',
+            startDate: next.from ? toISODate(next.from) : '',
+            endDate: next.to ? toISODate(next.to) : '',
           }))
         }
       />
 
-      {form.dari && form.sampai && new Date(form.dari) > new Date(form.sampai) && (
+      {hasDateOrderIssue && (
         <div className="text-sm text-rose-600 -mt-2">
           End date cannot be earlier than the start date.
         </div>
@@ -222,8 +263,8 @@ export function LeaveRequestForm({ onSubmitted }: { onSubmitted?: () => void }) 
         <span className="text-sm text-gray-700">Leave reason</span>
         <textarea
           rows={5}
-          value={form.alasan}
-          onChange={(e) => setForm(s => ({ ...s, alasan: e.target.value }))}
+          value={form.reason}
+          onChange={(e) => setForm(s => ({ ...s, reason: e.target.value }))}
           className="w-full mt-1 rounded-xl border px-3 py-3 shadow-sm focus-visible:ring-2 focus-visible:ring-offset-0"
           style={{ borderColor: '#00156B20', boxShadow: '0 1px 2px rgba(0,0,0,.06)' }}
           placeholder="Example: family event, doctor appointment, etc."
@@ -241,7 +282,7 @@ export function LeaveRequestForm({ onSubmitted }: { onSubmitted?: () => void }) 
             className="w-full rounded-xl border px-3 py-2 shadow-sm text-sm file:mr-3 file:rounded-lg file:border-0 file:px-3 file:py-2 file:bg-[#00156B] file:text-white focus-visible:ring-2 focus-visible:ring-offset-0 sm:w-auto"
             style={{ borderColor: '#00156B20' }}
           />
-          {form.lampiran && (
+          {form.attachment && (
             <button
               type="button"
               onClick={clearFile}
@@ -252,13 +293,13 @@ export function LeaveRequestForm({ onSubmitted }: { onSubmitted?: () => void }) 
             </button>
           )}
         </div>
-        {form.lampiran && (
+        {form.attachment && (
           <div className="mt-3">
             {isImg ? (
               <img src={previewUrl || ''} alt="Attachment preview" className="max-h-40 max-w-full rounded-xl border" />
             ) : (
               <div className="text-sm text-gray-600 break-words">
-                {form.lampiran.name} ({Math.round((form.lampiran.size || 0) / 1024)} KB)
+                {form.attachment.name} ({Math.round((form.attachment.size || 0) / 1024)} KB)
               </div>
             )}
           </div>
@@ -267,11 +308,11 @@ export function LeaveRequestForm({ onSubmitted }: { onSubmitted?: () => void }) 
 
       <button
         type="submit"
-        disabled={!valid}
+        disabled={!valid || submitting || !user}
         className="w-full inline-flex items-center justify-center rounded-xl px-4 py-3 text-white font-semibold shadow-md transition disabled:cursor-not-allowed disabled:bg-slate-400"
         style={{ background: '#00156B' }}
       >
-        Submit Leave Request
+        {submitting ? 'Submitting...' : 'Submit Leave Request'}
       </button>
     </form>
   )

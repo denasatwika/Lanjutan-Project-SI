@@ -1,7 +1,7 @@
 // app/(employee)/employee/inbox/page.tsx
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/lib/state/auth'
 import { useRequests } from '@/lib/state/requests'
 import type { LeaveRequest, Request } from '@/lib/types'
@@ -13,6 +13,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import clsx from 'clsx'
 import { resolveLeaveTypeLabel } from '@/lib/utils/requestDisplay'
+import { toast } from 'sonner'
 
 // ------------------------------
 // Small local "read" store (persisted in localStorage)
@@ -71,7 +72,16 @@ function StatusPill({ status }: { status: Request['status'] }) {
 export default function InboxPage() {
   const user = useAuth((s) => s.user)
   const all = useRequests((s) => (user ? s.forEmployee(user.id) : []))
+  const loadRequests = useRequests((s) => s.load)
   const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all')
+
+  useEffect(() => {
+    if (!user?.id) return
+    loadRequests({ requesterId: user.id }).catch((error) => {
+      const message = error instanceof Error ? error.message : 'Failed to load requests'
+      toast.error(message)
+    })
+  }, [user?.id, loadRequests])
 
   // Only leave + overtime, excluding drafts
   const updates = useMemo(() => {
