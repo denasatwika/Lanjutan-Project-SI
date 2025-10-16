@@ -1,6 +1,7 @@
 'use client'
 import { useEffect } from 'react'
 import { useParams } from 'next/navigation'
+import { buildAttachmentDownloadUrl, formatAttachmentSize } from '@/lib/api/attachments'
 import { useRequests } from '@/lib/state/requests'
 import { formatWhen } from '@/lib/utils/date'
 import { LeaveRequest, OvertimeRequest } from '@/lib/types'
@@ -28,6 +29,13 @@ export default function Page(){
   const leave = isLeave ? (request as LeaveRequest) : undefined
   const overtime = !isLeave ? (request as OvertimeRequest) : undefined
   const leaveLabel = leave ? resolveLeaveTypeLabel(leave.leaveTypeId) : undefined
+  const attachmentSize =
+    typeof request.attachmentSize === 'number' && request.attachmentSize > 0
+      ? formatAttachmentSize(request.attachmentSize)
+      : null
+  const attachmentHref = request.attachmentId
+    ? buildAttachmentDownloadUrl(request.attachmentId, request.attachmentDownloadPath)
+    : null
   return (
     <div className="space-y-3">
       <h1 className="text-xl font-bold">Request Detail</h1>
@@ -35,7 +43,20 @@ export default function Page(){
         <div><span className="text-gray-500">Type:</span> <span className="capitalize font-medium">{request.type}</span></div>
         <div><span className="text-gray-500">Status:</span> <span className="font-medium">{request.status}</span></div>
         <div><span className="text-gray-500">Created:</span> {formatWhen(request.createdAt)}</div>
-        <div><span className="text-gray-500">Attachment:</span> {request.attachmentUrl || '—'}</div>
+        <div>
+          <span className="text-gray-500">Attachment:</span>{' '}
+          {attachmentHref ? (
+            <a
+              href={attachmentHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[#00156B] font-medium hover:underline"
+            >
+              {request.attachmentName ?? 'View attachment'}
+              {attachmentSize ? ` (${attachmentSize})` : ''}
+            </a>
+          ) : '—'}
+        </div>
         <div><span className="text-gray-500">Reason:</span> {request.reason || '—'}</div>
 
         {isLeave && leave ? (

@@ -1,3 +1,5 @@
+import type { AttachmentUploadResponse } from './attachments'
+
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:8787'
 
 type ErrorPayload = { error: string }
@@ -21,7 +23,7 @@ export type LeaveRequestPayload = {
   leaveDays: number
   leaveReason: string
   notes?: string | null
-  attachmentUrl?: string | null
+  attachmentId?: string | null
   approvals?: ApprovalSeed[]
 }
 
@@ -36,7 +38,8 @@ export type LeaveRequestResponse = {
   leaveDays: number
   leaveReason: string
   notes: string | null
-  attachmentUrl: string | null
+  attachmentId: string | null
+  attachment?: AttachmentUploadResponse | null
   createdAt: string | null
   updatedAt: string | null
 }

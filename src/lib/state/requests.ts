@@ -71,8 +71,13 @@ function normalizeFromApi(input: RequestResponse): Request {
     id: input.id,
     employeeId: input.requesterId,
     status: statusToClient[input.status] ?? 'pending',
-    attachmentUrl: input.attachmentUrl ?? undefined,
+    attachmentId: input.attachmentId ?? undefined,
+    attachmentName: input.attachment?.name ?? undefined,
+    attachmentMimeType: input.attachment?.mimeType ?? undefined,
+    attachmentSize: input.attachment?.size ?? undefined,
+    attachmentDownloadPath: input.attachment?.downloadPath ?? undefined,
     reason: input.leaveReason ?? input.overtimeReason ?? undefined,
+    notes: input.notes ?? undefined,
     createdAt: input.createdAt ?? new Date().toISOString(),
     updatedAt: input.updatedAt ?? input.createdAt ?? new Date().toISOString(),
     employeeName: undefined,
@@ -192,7 +197,25 @@ export const useRequests = create<RequestState>()(
     }),
     {
       name: 'hrapp_v1_requests',
-      version: 3, // bump to reflect new schema
+      version: 4, // bump to reflect new schema
+      migrate: (persistedState, version) => {
+        if (version >= 4 || !persistedState) return persistedState as RequestState
+        const items = Array.isArray((persistedState as any).items)
+          ? (persistedState as any).items.map((item: any) => {
+              if (!item || typeof item !== 'object') return item
+              const { attachmentUrl, ...rest } = item
+              return {
+                ...rest,
+                attachmentId: undefined,
+                attachmentName: undefined,
+                attachmentMimeType: undefined,
+                attachmentSize: undefined,
+                attachmentDownloadPath: undefined,
+              }
+            })
+          : []
+        return { ...(persistedState as any), items } as RequestState
+      },
     }
   )
 )

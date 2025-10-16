@@ -1,3 +1,4 @@
+import type { AttachmentUploadResponse } from './attachments'
 import type { ApprovalSeed, LeaveType, RequestStatus as LeaveRequestStatus } from './leaveRequests'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:8787'
@@ -23,7 +24,8 @@ export type RequestResponse = {
   leaveDays: number | null
   leaveReason: string | null
   notes: string | null
-  attachmentUrl: string | null
+  attachmentId: string | null
+  attachment?: AttachmentUploadResponse | null
   createdAt: string | null
   updatedAt: string | null
 }
@@ -36,7 +38,7 @@ export type RequestListQuery = {
 export type RequestUpdatePayload = {
   status?: RequestStatus
   notes?: string | null
-  attachmentUrl?: string | null
+  attachmentId?: string | null
 }
 
 export type ApprovalResponse = {
@@ -64,7 +66,7 @@ export type OvertimeRequestCreatePayload = {
   overtimeHours: number
   overtimeReason: string
   notes?: string | null
-  attachmentUrl?: string | null
+  attachmentId?: string | null
   approvals?: ApprovalSeed[]
 }
 
@@ -77,7 +79,7 @@ export type LeaveRequestCreatePayload = {
   leaveDays: number
   leaveReason: string
   notes?: string | null
-  attachmentUrl?: string | null
+  attachmentId?: string | null
   approvals?: ApprovalSeed[]
 }
 

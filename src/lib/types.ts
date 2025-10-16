@@ -28,7 +28,12 @@ type RequestBase = {
   employeeId: string
   status: RequestStatus
   reason?: string
-  attachmentUrl?: string
+  attachmentId?: string
+  attachmentName?: string
+  attachmentMimeType?: string
+  attachmentSize?: number
+  attachmentDownloadPath?: string
+  notes?: string | null
   createdAt: string
   updatedAt: string
   employeeName?: string

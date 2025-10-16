@@ -6,6 +6,7 @@ import { ChevronDown } from 'lucide-react'
 import DateRangePicker from '@/components/DateRangePicker'
 import type { DateRange } from 'react-day-picker'
 import { createLeaveRequest, type LeaveType } from '@/lib/api/leaveRequests'
+import { formatAttachmentSize, isSupportedAttachmentType, MAX_ATTACHMENT_BYTES, uploadAttachment } from '@/lib/api/attachments'
 import { useAuth } from '@/lib/state/auth'
 import { useRequests } from '@/lib/state/requests'
 
@@ -129,6 +130,7 @@ export function LeaveRequestForm({ onSubmitted }: { onSubmitted?: () => void }) 
   const { user } = useAuth()
   const upsertRequest = useRequests((s) => s.upsertFromApi)
   const [submitting, setSubmitting] = useState(false)
+  const [uploadingAttachment, setUploadingAttachment] = useState(false)
   const [form, setForm] = useState<{
     leaveType: LeaveKind
     startDate: string
@@ -172,7 +174,21 @@ export function LeaveRequestForm({ onSubmitted }: { onSubmitted?: () => void }) 
 
   function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0]
-    if (f) setForm(s => ({ ...s, attachment: f }))
+    if (!f) return
+
+    if (!isSupportedAttachmentType(f.type)) {
+      toast.error('Only PDF or image files (PNG, JPEG, etc.) are allowed.')
+      e.target.value = ''
+      return
+    }
+
+    if (f.size > MAX_ATTACHMENT_BYTES) {
+      toast.error(`File must be smaller than ${formatAttachmentSize(MAX_ATTACHMENT_BYTES)}.`)
+      e.target.value = ''
+      return
+    }
+
+    setForm(s => ({ ...s, attachment: f }))
   }
   function clearFile() {
     setForm(s => ({ ...s, attachment: null }))
@@ -185,12 +201,16 @@ export function LeaveRequestForm({ onSubmitted }: { onSubmitted?: () => void }) 
       toast.error('Unable to determine the requester. Please sign in again.')
       return
     }
-    if (form.attachment) {
-      toast.error('File uploads are not supported yet. Remove the attachment and try again.')
-      return
-    }
     setSubmitting(true)
     try {
+      let attachmentId: string | undefined
+      if (form.attachment) {
+        setUploadingAttachment(true)
+        const uploaded = await uploadAttachment(form.attachment)
+        attachmentId = uploaded.id
+        setUploadingAttachment(false)
+      }
+
       const created = await createLeaveRequest({
         requesterId: user.id,
         leaveType: form.leaveType,
@@ -198,6 +218,7 @@ export function LeaveRequestForm({ onSubmitted }: { onSubmitted?: () => void }) 
         leaveEndDate: form.endDate,
         leaveDays: days,
         leaveReason: form.reason.trim(),
+        attachmentId,
       })
       upsertRequest({
         ...created,
@@ -218,15 +239,34 @@ export function LeaveRequestForm({ onSubmitted }: { onSubmitted?: () => void }) 
       if (fileRef.current) fileRef.current.value = ''
       onSubmitted?.()
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to submit leave request'
+      const status = (error as any)?.status
+      let message = error instanceof Error ? error.message : 'Failed to submit leave request'
+      if (status === 400) {
+        message = 'Attachment is too large or a required field is missing.'
+      } else if (status === 404) {
+        message = 'Requester not found. Please sign in again.'
+      } else if (status === 415) {
+        message = 'File type not supported. Please upload a PDF or image.'
+      }
       toast.error(message)
     } finally {
+      setUploadingAttachment(false)
       setSubmitting(false)
     }
   }
 
-  const isImg = form.attachment?.type.startsWith('image/')
-  const previewUrl = form.attachment && isImg ? URL.createObjectURL(form.attachment) : null
+  const previewUrl = useMemo(() => {
+    if (!form.attachment) return null
+    return form.attachment.type.startsWith('image/') ? URL.createObjectURL(form.attachment) : null
+  }, [form.attachment])
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl)
+    }
+  }, [previewUrl])
+
+  const isImg = !!previewUrl
 
   return (
     <form className="grid gap-4 text-[15px]" onSubmit={(e) => { e.preventDefault(); submit() }}>
@@ -299,7 +339,7 @@ export function LeaveRequestForm({ onSubmitted }: { onSubmitted?: () => void }) 
               <img src={previewUrl || ''} alt="Attachment preview" className="max-h-40 max-w-full rounded-xl border" />
             ) : (
               <div className="text-sm text-gray-600 break-words">
-                {form.attachment.name} ({Math.round((form.attachment.size || 0) / 1024)} KB)
+                {form.attachment.name} ({formatAttachmentSize(form.attachment.size)})
               </div>
             )}
           </div>
@@ -308,11 +348,11 @@ export function LeaveRequestForm({ onSubmitted }: { onSubmitted?: () => void }) 
 
       <button
         type="submit"
-        disabled={!valid || submitting || !user}
+        disabled={!valid || submitting || uploadingAttachment || !user}
         className="w-full inline-flex items-center justify-center rounded-xl px-4 py-3 text-white font-semibold shadow-md transition disabled:cursor-not-allowed disabled:bg-slate-400"
         style={{ background: '#00156B' }}
       >
-        {submitting ? 'Submitting...' : 'Submit Leave Request'}
+        {uploadingAttachment ? 'Uploading attachment...' : submitting ? 'Submitting...' : 'Submit Leave Request'}
       </button>
     </form>
   )

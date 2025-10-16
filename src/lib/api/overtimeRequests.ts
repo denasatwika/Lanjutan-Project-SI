@@ -10,7 +10,7 @@ export type OvertimeRequestPayload = {
     overtimeHours: number,
     overtimeReason: string,
     notes?: string | null,
-    attachmentUrl?: string,
+    attachmentId?: string,
 }
 
 export type OvertimeRequestResponse = {
@@ -24,7 +24,7 @@ export type OvertimeRequestResponse = {
     overtimeHours: number,
     overtimeReason: string,
     notes?: string | null
-    attachmentUrl?: string | null
+    attachmentId?: string | null
 }
 
 async function parseJson<T>(response: Response): Promise<T> {

@@ -2,6 +2,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { buildAttachmentDownloadUrl, formatAttachmentSize } from '@/lib/api/attachments'
 import clsx from 'clsx'
 import { Search, User2, X, ChevronDown } from 'lucide-react'
 import type { DateRange } from 'react-day-picker'
@@ -372,6 +373,24 @@ function DetailsModal({
   const jenis = req.type === 'leave'
     ? labelLeaveRequest(req as LeaveRequest, req.leaveTypeLabel)
     : `Overtime ${formatOvertimePeriod(req as OvertimeRequest)}`
+  const attachmentHref = req.attachmentId
+    ? buildAttachmentDownloadUrl(req.attachmentId, req.attachmentDownloadPath)
+    : null
+  const attachmentSize =
+    typeof req.attachmentSize === 'number' && req.attachmentSize > 0
+      ? formatAttachmentSize(req.attachmentSize)
+      : null
+  const attachmentNode = attachmentHref ? (
+    <a
+      href={attachmentHref}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-[#00156B] hover:underline"
+    >
+      {req.attachmentName ?? 'View attachment'}
+      {attachmentSize ? ` (${attachmentSize})` : ''}
+    </a>
+  ) : '—'
   return (
     <div className="fixed inset-0 z-50">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
@@ -392,7 +411,7 @@ function DetailsModal({
           {req.type === 'leave' && <Row label="Duration" value={`${(req as LeaveRequest).days} days`} />}
           {req.type === 'overtime' && <Row label="Duration" value={`${(req as OvertimeRequest).hours} hours`} />}
           {req.reason && <Row label="Reason" value={req.reason} />}
-          <Row label="Attachment" value={req.attachmentUrl} />
+          <Row label="Attachment" value={attachmentNode} />
           {req.id && <Row label="ID" value={<code className="text-xs">{req.id}</code>} />}
         </div>
 
