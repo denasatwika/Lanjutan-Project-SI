@@ -1,7 +1,11 @@
 'use client'
 
 import { ReactNode } from 'react'
-import { buildAttachmentDownloadUrl, formatAttachmentSize, withImageOptimisation } from '@/lib/api/attachments'
+import {
+  buildAttachmentDownloadUrl,
+  formatAttachmentSize,
+  normalizeAttachmentUrl,
+} from '@/lib/api/attachments'
 import { DecoratedRequest, formatLeavePeriod, formatOvertimePeriod } from '@/lib/utils/requestDisplay'
 import { LeaveRequest, OvertimeRequest } from '@/lib/types'
 import { X, FileText, Clock, CalendarDays } from 'lucide-react'
@@ -23,13 +27,12 @@ export function RequestDetailDrawer({
   const isLeave = request.type === 'leave'
   const leave = isLeave ? (request as LeaveRequest) : undefined
   const overtime = !isLeave ? (request as OvertimeRequest) : undefined
-  const baseAttachmentHref = request.attachmentUrl ?? (request.attachmentId
-    ? buildAttachmentDownloadUrl(request.attachmentId, request.attachmentDownloadPath)
-    : null)
+  const normalizedAttachmentUrl = normalizeAttachmentUrl(request.attachmentUrl, request.attachmentCid)
   const attachmentHref =
-    baseAttachmentHref && request.attachmentMimeType?.startsWith('image/')
-      ? withImageOptimisation(baseAttachmentHref)
-      : baseAttachmentHref
+    normalizedAttachmentUrl ??
+    (request.attachmentId
+      ? buildAttachmentDownloadUrl(request.attachmentId, request.attachmentDownloadPath)
+      : null)
   const attachmentLink = attachmentHref ? (
     <a
       href={attachmentHref}

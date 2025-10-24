@@ -1,7 +1,11 @@
 'use client'
 import { useEffect } from 'react'
 import { useParams } from 'next/navigation'
-import { buildAttachmentDownloadUrl, formatAttachmentSize, withImageOptimisation } from '@/lib/api/attachments'
+import {
+  buildAttachmentDownloadUrl,
+  formatAttachmentSize,
+  normalizeAttachmentUrl,
+} from '@/lib/api/attachments'
 import { useRequests } from '@/lib/state/requests'
 import { formatWhen } from '@/lib/utils/date'
 import { LeaveRequest, OvertimeRequest } from '@/lib/types'
@@ -33,15 +37,12 @@ export default function Page(){
     typeof request.attachmentSize === 'number' && request.attachmentSize > 0
       ? formatAttachmentSize(request.attachmentSize)
       : null
-  const baseAttachmentHref =
-    request.attachmentUrl ??
+  const normalizedAttachmentUrl = normalizeAttachmentUrl(request.attachmentUrl, request.attachmentCid)
+  const attachmentHref =
+    normalizedAttachmentUrl ??
     (request.attachmentId
       ? buildAttachmentDownloadUrl(request.attachmentId, request.attachmentDownloadPath)
       : null)
-  const attachmentHref =
-    baseAttachmentHref && request.attachmentMimeType?.startsWith('image/')
-      ? withImageOptimisation(baseAttachmentHref)
-      : baseAttachmentHref
   return (
     <div className="space-y-3">
       <h1 className="text-xl font-bold">Request Detail</h1>
