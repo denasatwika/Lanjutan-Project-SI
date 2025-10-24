@@ -1,6 +1,7 @@
 'use client'
 
 import { ReactNode } from 'react'
+import { buildAttachmentDownloadUrl, formatAttachmentSize, withImageOptimisation } from '@/lib/api/attachments'
 import { DecoratedRequest, formatLeavePeriod, formatOvertimePeriod } from '@/lib/utils/requestDisplay'
 import { LeaveRequest, OvertimeRequest } from '@/lib/types'
 import { X, FileText, Clock, CalendarDays } from 'lucide-react'
@@ -22,6 +23,28 @@ export function RequestDetailDrawer({
   const isLeave = request.type === 'leave'
   const leave = isLeave ? (request as LeaveRequest) : undefined
   const overtime = !isLeave ? (request as OvertimeRequest) : undefined
+  const baseAttachmentHref = request.attachmentUrl ?? (request.attachmentId
+    ? buildAttachmentDownloadUrl(request.attachmentId, request.attachmentDownloadPath)
+    : null)
+  const attachmentHref =
+    baseAttachmentHref && request.attachmentMimeType?.startsWith('image/')
+      ? withImageOptimisation(baseAttachmentHref)
+      : baseAttachmentHref
+  const attachmentLink = attachmentHref ? (
+    <a
+      href={attachmentHref}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex items-center gap-2 text-sm font-medium text-[#00156B] hover:underline"
+    >
+      <span>{request.attachmentName ?? 'View attachment'}</span>
+      {typeof request.attachmentSize === 'number' && request.attachmentSize > 0 && (
+        <span className="text-xs text-slate-500">
+          ({formatAttachmentSize(request.attachmentSize)})
+        </span>
+      )}
+    </a>
+  ) : '—'
 
   return (
     <div className="fixed inset-0 z-50">
@@ -56,7 +79,7 @@ export function RequestDetailDrawer({
           {request.updatedAt && request.updatedAt !== request.createdAt && (
             <DetailRow label="Updated" value={new Date(request.updatedAt).toLocaleString()} />
           )}
-          <DetailRow label="Attachment" value={request.attachmentUrl ? request.attachmentUrl : '—'} icon={<FileText className="size-4" />} />
+          <DetailRow label="Attachment" value={attachmentLink} icon={<FileText className="size-4" />} />
           {request.reason && <DetailRow label="Reason" value={request.reason} multiline />}
           <DetailRow label="Request ID" value={request.id} code />
         </div>

@@ -2,10 +2,11 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { buildAttachmentDownloadUrl, formatAttachmentSize, withImageOptimisation } from '@/lib/api/attachments'
 import { useAuth } from '@/lib/state/auth'
 import { useRequests } from '@/lib/state/requests'
 import { PageHeader } from '@/components/PageHeader'
-import { StatusBadge } from '@/components/ui/StatusBadges'
+import { StatusBadge } from '@/components/StatusBadges'
 import { Eye, Filter, X } from 'lucide-react'
 import { toast } from 'sonner'
 import clsx from 'clsx'
@@ -277,6 +278,30 @@ function ReviewModal({
     : formatLeavePeriod(req as LeaveRequest)
 
   const badgeStatus = (req.status === 'approved' ? 'signed' : req.status) as 'pending' | 'signed' | 'rejected'
+  const baseAttachmentHref =
+    req.attachmentUrl ??
+    (req.attachmentId
+      ? buildAttachmentDownloadUrl(req.attachmentId, req.attachmentDownloadPath)
+      : null)
+  const attachmentHref =
+    baseAttachmentHref && req.attachmentMimeType?.startsWith('image/')
+      ? withImageOptimisation(baseAttachmentHref)
+      : baseAttachmentHref
+  const attachmentSize =
+    typeof req.attachmentSize === 'number' && req.attachmentSize > 0
+      ? formatAttachmentSize(req.attachmentSize)
+      : null
+  const attachmentNode = attachmentHref ? (
+    <a
+      href={attachmentHref}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-[#00156B] hover:underline"
+    >
+      {req.attachmentName ?? 'Lihat Lampiran'}
+      {attachmentSize ? ` (${attachmentSize})` : ''}
+    </a>
+  ) : '—'
 
   return (
     <div className="fixed inset-0 z-50">
@@ -297,7 +322,7 @@ function ReviewModal({
           {req.type === 'leave' && <Row label="Durasi" value={`${req.days} hari`} />}
           {req.type === 'overtime' && <Row label="Durasi" value={`${req.hours} jam`} />}
           {req.reason && <Row label="Alasan"   value={req.reason} />}
-          <Row label="Lampiran" value={req.attachmentUrl} />
+          <Row label="Lampiran" value={attachmentNode} />
           <Row label="Status saat ini" value={<StatusBadge status={badgeStatus} />} />
         </div>
 

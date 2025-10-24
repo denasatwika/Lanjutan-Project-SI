@@ -6,7 +6,11 @@ export type User = {
   role: Role
   address: `0x${string}`
   name?: string
+  email?: string
+  phone?: string
   department?: string
+  departmentId?: string
+  avatarUrl?: string | null
 }
 
 export type Attendance = {
@@ -24,7 +28,14 @@ type RequestBase = {
   employeeId: string
   status: RequestStatus
   reason?: string
-  attachmentUrl?: string
+  attachmentId?: string
+  attachmentName?: string
+  attachmentMimeType?: string
+  attachmentSize?: number
+  attachmentDownloadPath?: string
+  attachmentCid?: string | null
+  attachmentUrl?: string | null
+  notes?: string | null
   createdAt: string
   updatedAt: string
   employeeName?: string
