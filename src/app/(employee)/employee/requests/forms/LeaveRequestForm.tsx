@@ -6,7 +6,13 @@ import { ChevronDown } from 'lucide-react'
 import DateRangePicker from '@/components/DateRangePicker'
 import type { DateRange } from 'react-day-picker'
 import { createLeaveRequest, type LeaveType } from '@/lib/api/leaveRequests'
-import { formatAttachmentSize, isSupportedAttachmentType, MAX_ATTACHMENT_BYTES, uploadAttachment } from '@/lib/api/attachments'
+import {
+  formatAttachmentSize,
+  isSupportedAttachmentType,
+  MAX_ATTACHMENT_BYTES,
+  uploadAttachment,
+  type AttachmentInfo,
+} from '@/lib/api/attachments'
 import { useAuth } from '@/lib/state/auth'
 import { useRequests } from '@/lib/state/requests'
 
@@ -131,6 +137,8 @@ export function LeaveRequestForm({ onSubmitted }: { onSubmitted?: () => void }) 
   const upsertRequest = useRequests((s) => s.upsertFromApi)
   const [submitting, setSubmitting] = useState(false)
   const [uploadingAttachment, setUploadingAttachment] = useState(false)
+  const [attachmentMeta, setAttachmentMeta] = useState<AttachmentInfo | null>(null)
+  const [attachmentError, setAttachmentError] = useState<string | null>(null)
   const [form, setForm] = useState<{
     leaveType: LeaveKind
     startDate: string
@@ -170,7 +178,8 @@ export function LeaveRequestForm({ onSubmitted }: { onSubmitted?: () => void }) 
     !!form.endDate &&
     !hasDateOrderIssue &&
     days > 0 &&
-    form.reason.trim().length > 0
+    form.reason.trim().length > 0 &&
+    !!form.attachment
 
   function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0]
@@ -189,9 +198,13 @@ export function LeaveRequestForm({ onSubmitted }: { onSubmitted?: () => void }) 
     }
 
     setForm(s => ({ ...s, attachment: f }))
+    setAttachmentMeta(null)
+    setAttachmentError(null)
   }
   function clearFile() {
     setForm(s => ({ ...s, attachment: null }))
+    setAttachmentMeta(null)
+    setAttachmentError(null)
     if (fileRef.current) fileRef.current.value = ''
   }
 
@@ -201,24 +214,33 @@ export function LeaveRequestForm({ onSubmitted }: { onSubmitted?: () => void }) 
       toast.error('Unable to determine the requester. Please sign in again.')
       return
     }
+    if (!form.attachment) {
+      toast.error('Please select an attachment before submitting.')
+      return
+    }
+    if (uploadingAttachment) {
+      toast.error('Please wait until the attachment upload finishes.')
+      return
+    }
     setSubmitting(true)
+    setUploadingAttachment(true)
+    setAttachmentError(null)
     try {
-      let attachmentId: string | undefined
-      if (form.attachment) {
-        setUploadingAttachment(true)
-        const uploaded = await uploadAttachment(form.attachment)
-        attachmentId = uploaded.id
-        setUploadingAttachment(false)
-      }
+      const file = form.attachment
+      const uploaded = await uploadAttachment(file, user.id)
+      setAttachmentMeta(uploaded)
+      setUploadingAttachment(false)
 
       const created = await createLeaveRequest({
+        type: 'LEAVE',
         requesterId: user.id,
         leaveType: form.leaveType,
         leaveStartDate: form.startDate,
         leaveEndDate: form.endDate,
         leaveDays: days,
         leaveReason: form.reason.trim(),
-        attachmentId,
+        attachmentIds: [uploaded.id],
+        approvals: [],
       })
       upsertRequest({
         ...created,
@@ -236,18 +258,24 @@ export function LeaveRequestForm({ onSubmitted }: { onSubmitted?: () => void }) 
         reason: '',
         attachment: null,
       })
+      setAttachmentMeta(null)
+      setAttachmentError(null)
       if (fileRef.current) fileRef.current.value = ''
       onSubmitted?.()
     } catch (error) {
       const status = (error as any)?.status
-      let message = error instanceof Error ? error.message : 'Failed to submit leave request'
+      const detail = (error as any)?.details
+      let message = detail || (error instanceof Error ? error.message : 'Failed to submit leave request')
       if (status === 400) {
         message = 'Attachment is too large or a required field is missing.'
       } else if (status === 404) {
         message = 'Requester not found. Please sign in again.'
+      } else if (status === 403 || status === 409) {
+        message = 'Attachment could not be linked. Please re-upload and try again.'
       } else if (status === 415) {
         message = 'File type not supported. Please upload a PDF or image.'
       }
+      setAttachmentError(message)
       toast.error(message)
     } finally {
       setUploadingAttachment(false)
@@ -312,7 +340,7 @@ export function LeaveRequestForm({ onSubmitted }: { onSubmitted?: () => void }) 
       </label>
 
       <div>
-        <span className="text-sm text-gray-700">Attachment (optional)</span>
+        <span className="text-sm text-gray-700">Attachment (required)</span>
         <div className="mt-1 flex flex-col gap-3 sm:flex-row sm:items-center">
           <input
             ref={fileRef}
@@ -333,15 +361,26 @@ export function LeaveRequestForm({ onSubmitted }: { onSubmitted?: () => void }) 
             </button>
           )}
         </div>
+        {uploadingAttachment && (
+          <div className="mt-2 text-xs text-gray-500">Uploading attachment…</div>
+        )}
+        {attachmentError && (
+          <div className="mt-2 text-sm text-rose-600">{attachmentError}</div>
+        )}
         {form.attachment && (
-          <div className="mt-3">
-            {isImg ? (
-              <img src={previewUrl || ''} alt="Attachment preview" className="max-h-40 max-w-full rounded-xl border" />
-            ) : (
-              <div className="text-sm text-gray-600 break-words">
-                {form.attachment.name} ({formatAttachmentSize(form.attachment.size)})
-              </div>
+          <div className="mt-3 space-y-2">
+            {isImg && (
+              <img
+                src={previewUrl || ''}
+                alt="Attachment preview"
+                className="max-h-40 max-w-full rounded-xl border object-contain"
+              />
             )}
+            <div className="text-sm text-gray-600 break-words">
+              {attachmentMeta
+                ? `${attachmentMeta.name} (${formatAttachmentSize(attachmentMeta.size)})`
+                : `${form.attachment.name} (${formatAttachmentSize(form.attachment.size)})`}
+            </div>
           </div>
         )}
       </div>

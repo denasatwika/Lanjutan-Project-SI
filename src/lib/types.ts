@@ -33,6 +33,8 @@ type RequestBase = {
   attachmentMimeType?: string
   attachmentSize?: number
   attachmentDownloadPath?: string
+  attachmentCid?: string | null
+  attachmentUrl?: string | null
   notes?: string | null
   createdAt: string
   updatedAt: string

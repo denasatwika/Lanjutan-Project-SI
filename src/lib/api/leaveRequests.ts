@@ -1,4 +1,4 @@
-import type { AttachmentUploadResponse } from './attachments'
+import type { AttachmentInfo } from './attachments'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:8787'
 
@@ -16,6 +16,7 @@ export type ApprovalSeed = {
 }
 
 export type LeaveRequestPayload = {
+  type: 'LEAVE'
   requesterId: string
   leaveType: LeaveType
   leaveStartDate: string
@@ -23,7 +24,7 @@ export type LeaveRequestPayload = {
   leaveDays: number
   leaveReason: string
   notes?: string | null
-  attachmentId?: string | null
+  attachmentIds?: string[]
   approvals?: ApprovalSeed[]
 }
 
@@ -39,7 +40,9 @@ export type LeaveRequestResponse = {
   leaveReason: string
   notes: string | null
   attachmentId: string | null
-  attachment?: AttachmentUploadResponse | null
+  attachmentIds?: string[] | null
+  attachment?: AttachmentInfo | null
+  attachments?: AttachmentInfo[] | null
   createdAt: string | null
   updatedAt: string | null
 }
@@ -92,16 +95,18 @@ export async function listLeaveRequests(query?: LeaveRequestQuery): Promise<Leav
     }),
     { method: 'GET', credentials: 'include' },
   )
-  return parseJson<LeaveRequestResponse[]>(response)
+  const data = await parseJson<LeaveRequestResponse[]>(response)
+  return data.map(normalizeAttachment)
 }
 
 export async function getLeaveRequest(id: string): Promise<LeaveRequestResponse> {
-  const response = await fetch(buildUrl(`/leave-request/${id}`), {
+  const response = await fetch(buildUrl(`/leave-requests/${id}`), {
     method: 'GET',
     credentials: 'include',
   })
 
-  return parseJson<LeaveRequestResponse>(response)
+  const data = await parseJson<LeaveRequestResponse>(response)
+  return normalizeAttachment(data)
 }
 
 export async function getLeaveRequestByUser(userId: string): Promise<LeaveRequestResponse> {
@@ -110,7 +115,8 @@ export async function getLeaveRequestByUser(userId: string): Promise<LeaveReques
     credentials: 'include',
   })
 
-  return parseJson<LeaveRequestResponse>(response)
+  const data = await parseJson<LeaveRequestResponse>(response)
+  return normalizeAttachment(data)
 }
 
 export async function createLeaveRequest(payload: LeaveRequestPayload): Promise<LeaveRequestResponse> {
@@ -121,5 +127,18 @@ export async function createLeaveRequest(payload: LeaveRequestPayload): Promise<
     body: JSON.stringify(payload),
   })
 
-  return parseJson<LeaveRequestResponse>(response)
+  const data = await parseJson<LeaveRequestResponse>(response)
+  return normalizeAttachment(data)
+}
+
+function normalizeAttachment(input: LeaveRequestResponse): LeaveRequestResponse {
+  const attachments = input.attachments ?? (input.attachment ? [input.attachment] : null)
+  const firstAttachment = attachments?.[0] ?? input.attachment ?? null
+  return {
+    ...input,
+    attachmentId: input.attachmentId ?? firstAttachment?.id ?? null,
+    attachmentIds: input.attachmentIds ?? (attachments ? attachments.map((item) => item.id) : input.attachmentId ? [input.attachmentId] : undefined),
+    attachment: firstAttachment,
+    attachments: attachments ?? (firstAttachment ? [firstAttachment] : null),
+  }
 }

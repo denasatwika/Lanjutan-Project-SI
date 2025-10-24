@@ -2,7 +2,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { buildAttachmentDownloadUrl, formatAttachmentSize } from '@/lib/api/attachments'
+import { buildAttachmentDownloadUrl, formatAttachmentSize, withImageOptimisation } from '@/lib/api/attachments'
 import { useAuth } from '@/lib/state/auth'
 import { useRequests } from '@/lib/state/requests'
 import { PageHeader } from '@/components/PageHeader'
@@ -278,9 +278,15 @@ function ReviewModal({
     : formatLeavePeriod(req as LeaveRequest)
 
   const badgeStatus = (req.status === 'approved' ? 'signed' : req.status) as 'pending' | 'signed' | 'rejected'
-  const attachmentHref = req.attachmentId
-    ? buildAttachmentDownloadUrl(req.attachmentId, req.attachmentDownloadPath)
-    : null
+  const baseAttachmentHref =
+    req.attachmentUrl ??
+    (req.attachmentId
+      ? buildAttachmentDownloadUrl(req.attachmentId, req.attachmentDownloadPath)
+      : null)
+  const attachmentHref =
+    baseAttachmentHref && req.attachmentMimeType?.startsWith('image/')
+      ? withImageOptimisation(baseAttachmentHref)
+      : baseAttachmentHref
   const attachmentSize =
     typeof req.attachmentSize === 'number' && req.attachmentSize > 0
       ? formatAttachmentSize(req.attachmentSize)

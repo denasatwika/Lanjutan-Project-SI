@@ -6,6 +6,16 @@ import { format } from 'date-fns'
 import { enUS } from 'date-fns/locale'
 import { DayPicker } from 'react-day-picker'
 import { Calendar as CalendarIcon, Clock, ChevronDown } from 'lucide-react'
+import { useAuth } from '@/lib/state/auth'
+import { useRequests } from '@/lib/state/requests'
+import { createOvertimeRequest } from '@/lib/api/requests'
+import {
+  formatAttachmentSize,
+  isSupportedAttachmentType,
+  MAX_ATTACHMENT_BYTES,
+  uploadAttachment,
+  type AttachmentInfo,
+} from '@/lib/api/attachments'
 
 /* ------------------------------------------
    Helpers: date <-> string
@@ -354,6 +364,8 @@ function TimePicker({
    Overtime Request Form
 ------------------------------------------ */
 export function OvertimeRequestForm({ onSubmitted }: { onSubmitted?: () => void }) {
+  const { user } = useAuth()
+  const upsertRequest = useRequests((s) => s.upsertFromApi)
   const [form, setForm] = useState<{
     tanggal: string
     mulai: string
@@ -367,6 +379,10 @@ export function OvertimeRequestForm({ onSubmitted }: { onSubmitted?: () => void 
     alasan: '',
     lampiran: null,
   })
+  const [submitting, setSubmitting] = useState(false)
+  const [uploadingAttachment, setUploadingAttachment] = useState(false)
+  const [attachmentMeta, setAttachmentMeta] = useState<AttachmentInfo | null>(null)
+  const [attachmentError, setAttachmentError] = useState<string | null>(null)
 
   const fileRef = useRef<HTMLInputElement | null>(null)
 
@@ -385,38 +401,111 @@ export function OvertimeRequestForm({ onSubmitted }: { onSubmitted?: () => void 
     !!form.tanggal &&
     !!form.mulai &&
     !!form.selesai &&
-    form.alasan.trim().length > 0
+    durationHours > 0 &&
+    form.alasan.trim().length > 0 &&
+    !!form.lampiran
 
-  function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
+  async function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0]
-    if (f) setForm(s => ({ ...s, lampiran: f }))
+    if (!f) return
+
+    if (!isSupportedAttachmentType(f.type)) {
+      toast.error('Only PDF or image files (PNG, JPEG, etc.) are allowed.')
+      e.target.value = ''
+      return
+    }
+
+    if (f.size > MAX_ATTACHMENT_BYTES) {
+      toast.error(`File must be smaller than ${formatAttachmentSize(MAX_ATTACHMENT_BYTES)}.`)
+      e.target.value = ''
+      return
+    }
+
+    setForm(s => ({ ...s, lampiran: f }))
+    setAttachmentMeta(null)
+    setAttachmentError(null)
   }
   function clearFile() {
     setForm(s => ({ ...s, lampiran: null }))
+    setAttachmentMeta(null)
+    setAttachmentError(null)
     if (fileRef.current) fileRef.current.value = ''
   }
 
   async function submit() {
     if (!valid) return
+    if (!user?.id) {
+      toast.error('Unable to determine the requester. Please sign in again.')
+      return
+    }
+    if (uploadingAttachment) {
+      toast.error('Please wait until the attachment upload finishes.')
+      return
+    }
+    const file = form.lampiran
+    if (!file) {
+      toast.error('Attachment is missing. Please choose a file and try again.')
+      return
+    }
+    setSubmitting(true)
+    setUploadingAttachment(true)
+    setAttachmentError(null)
     try {
-      const fd = new FormData()
-      fd.append('tanggal', form.tanggal)
-      fd.append('mulai', form.mulai)
-      fd.append('selesai', form.selesai)
-      fd.append('alasan', form.alasan)
-      if (form.lampiran) fd.append('lampiran', form.lampiran)
-      // await fetch('/api/overtime', { method: 'POST', body: fd })
+      const uploaded = await uploadAttachment(file, user.id)
+      setAttachmentMeta(uploaded)
+      setUploadingAttachment(false)
+
+      const created = await createOvertimeRequest({
+        type: 'OVERTIME',
+        requesterId: user.id,
+        overtimeDate: form.tanggal,
+        overtimeStartTime: form.mulai,
+        overtimeEndTime: form.selesai,
+        overtimeHours: Number(durationHours),
+        overtimeReason: form.alasan.trim(),
+        attachmentId: uploaded.id,
+        approvals: [],
+      })
+      upsertRequest(created)
       toast.success('Overtime request submitted')
       setForm({ tanggal: '', mulai: '', selesai: '', alasan: '', lampiran: null })
+      setAttachmentMeta(null)
+      setAttachmentError(null)
       if (fileRef.current) fileRef.current.value = ''
       onSubmitted?.()
-    } catch {
-      toast.error('Failed to submit overtime request')
+    } catch (error) {
+      const status = (error as any)?.status
+      const detail = (error as any)?.details
+      let message = detail || (error instanceof Error ? error.message : 'Failed to submit overtime request')
+      if (status === 400) {
+        message = 'Attachment is too large or a required field is missing.'
+      } else if (status === 404) {
+        message = 'Requester not found. Please sign in again.'
+      } else if (status === 403 || status === 409) {
+        message = 'Attachment could not be linked. Please re-upload and try again.'
+      } else if (status === 415) {
+        message = 'File type not supported. Please upload a PDF or image.'
+      }
+      setAttachmentError(message)
+      toast.error(message)
+    } finally {
+      setUploadingAttachment(false)
+      setSubmitting(false)
     }
   }
 
-  const isImg = form.lampiran?.type.startsWith('image/')
-  const previewUrl = form.lampiran && isImg ? URL.createObjectURL(form.lampiran) : null
+  const previewUrl = useMemo(() => {
+    if (!form.lampiran) return null
+    return form.lampiran.type.startsWith('image/') ? URL.createObjectURL(form.lampiran) : null
+  }, [form.lampiran])
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl)
+    }
+  }, [previewUrl])
+
+  const isImg = !!previewUrl
 
   return (
     <form className="grid gap-4 text-[15px]" onSubmit={(e) => { e.preventDefault(); submit() }}>
@@ -444,7 +533,7 @@ export function OvertimeRequestForm({ onSubmitted }: { onSubmitted?: () => void 
       </label>
 
       <div>
-        <span className="text-sm text-gray-700">Attachment (optional)</span>
+        <span className="text-sm text-gray-700">Attachment (required)</span>
         <div className="mt-1 flex flex-col gap-3 sm:flex-row sm:items-center">
           <input
             ref={fileRef}
@@ -465,26 +554,37 @@ export function OvertimeRequestForm({ onSubmitted }: { onSubmitted?: () => void 
             </button>
           )}
         </div>
+        {uploadingAttachment && (
+          <div className="mt-2 text-xs text-gray-500">Uploading attachment…</div>
+        )}
+        {attachmentError && (
+          <div className="mt-2 text-sm text-rose-600">{attachmentError}</div>
+        )}
         {form.lampiran && (
-          <div className="mt-3">
-            {isImg ? (
-              <img src={previewUrl || ''} alt="Attachment preview" className="max-h-40 max-w-full rounded-xl border" />
-            ) : (
-              <div className="text-sm text-gray-600 break-words">
-                {form.lampiran.name} ({Math.round((form.lampiran.size || 0) / 1024)} KB)
-              </div>
+          <div className="mt-3 space-y-2">
+            {isImg && (
+              <img
+                src={previewUrl || ''}
+                alt="Attachment preview"
+                className="max-h-40 max-w-full rounded-xl border object-contain"
+              />
             )}
+            <div className="text-sm text-gray-600 break-words">
+              {attachmentMeta
+                ? `${attachmentMeta.name} (${formatAttachmentSize(attachmentMeta.size)})`
+                : `${form.lampiran.name} (${formatAttachmentSize(form.lampiran.size)})`}
+            </div>
           </div>
         )}
       </div>
 
       <button
         type="submit"
-        disabled={!valid}
+        disabled={!valid || submitting || uploadingAttachment || !user}
         className="w-full inline-flex items-center justify-center rounded-xl px-4 py-3 text-white font-semibold shadow-md transition disabled:cursor-not-allowed disabled:bg-slate-400"
         style={{ background: '#00156B' }}
       >
-        Submit Overtime Request
+        {uploadingAttachment ? 'Uploading attachment...' : submitting ? 'Submitting...' : 'Submit Overtime Request'}
       </button>
     </form>
   )

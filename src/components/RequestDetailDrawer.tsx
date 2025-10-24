@@ -1,7 +1,7 @@
 'use client'
 
 import { ReactNode } from 'react'
-import { buildAttachmentDownloadUrl, formatAttachmentSize } from '@/lib/api/attachments'
+import { buildAttachmentDownloadUrl, formatAttachmentSize, withImageOptimisation } from '@/lib/api/attachments'
 import { DecoratedRequest, formatLeavePeriod, formatOvertimePeriod } from '@/lib/utils/requestDisplay'
 import { LeaveRequest, OvertimeRequest } from '@/lib/types'
 import { X, FileText, Clock, CalendarDays } from 'lucide-react'
@@ -23,24 +23,28 @@ export function RequestDetailDrawer({
   const isLeave = request.type === 'leave'
   const leave = isLeave ? (request as LeaveRequest) : undefined
   const overtime = !isLeave ? (request as OvertimeRequest) : undefined
-  const attachmentLink =
-    request.attachmentId
-      ? (
-        <a
-          href={buildAttachmentDownloadUrl(request.attachmentId, request.attachmentDownloadPath)}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 text-sm font-medium text-[#00156B] hover:underline"
-        >
-          <span>{request.attachmentName ?? 'View attachment'}</span>
-          {typeof request.attachmentSize === 'number' && request.attachmentSize > 0 && (
-            <span className="text-xs text-slate-500">
-              ({formatAttachmentSize(request.attachmentSize)})
-            </span>
-          )}
-        </a>
-      )
-      : '—'
+  const baseAttachmentHref = request.attachmentUrl ?? (request.attachmentId
+    ? buildAttachmentDownloadUrl(request.attachmentId, request.attachmentDownloadPath)
+    : null)
+  const attachmentHref =
+    baseAttachmentHref && request.attachmentMimeType?.startsWith('image/')
+      ? withImageOptimisation(baseAttachmentHref)
+      : baseAttachmentHref
+  const attachmentLink = attachmentHref ? (
+    <a
+      href={attachmentHref}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex items-center gap-2 text-sm font-medium text-[#00156B] hover:underline"
+    >
+      <span>{request.attachmentName ?? 'View attachment'}</span>
+      {typeof request.attachmentSize === 'number' && request.attachmentSize > 0 && (
+        <span className="text-xs text-slate-500">
+          ({formatAttachmentSize(request.attachmentSize)})
+        </span>
+      )}
+    </a>
+  ) : '—'
 
   return (
     <div className="fixed inset-0 z-50">

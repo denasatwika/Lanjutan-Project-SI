@@ -2,7 +2,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { buildAttachmentDownloadUrl, formatAttachmentSize } from '@/lib/api/attachments'
+import { buildAttachmentDownloadUrl, formatAttachmentSize, withImageOptimisation } from '@/lib/api/attachments'
 import clsx from 'clsx'
 import { Search, User2, X, ChevronDown } from 'lucide-react'
 import type { DateRange } from 'react-day-picker'
@@ -373,9 +373,15 @@ function DetailsModal({
   const jenis = req.type === 'leave'
     ? labelLeaveRequest(req as LeaveRequest, req.leaveTypeLabel)
     : `Overtime ${formatOvertimePeriod(req as OvertimeRequest)}`
-  const attachmentHref = req.attachmentId
-    ? buildAttachmentDownloadUrl(req.attachmentId, req.attachmentDownloadPath)
-    : null
+  const baseAttachmentHref =
+    req.attachmentUrl ??
+    (req.attachmentId
+      ? buildAttachmentDownloadUrl(req.attachmentId, req.attachmentDownloadPath)
+      : null)
+  const attachmentHref =
+    baseAttachmentHref && req.attachmentMimeType?.startsWith('image/')
+      ? withImageOptimisation(baseAttachmentHref)
+      : baseAttachmentHref
   const attachmentSize =
     typeof req.attachmentSize === 'number' && req.attachmentSize > 0
       ? formatAttachmentSize(req.attachmentSize)

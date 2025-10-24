@@ -1,8 +1,11 @@
+import type { AttachmentInfo } from './attachments'
+
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:8787'
 
 type ErrorPayload = { error: string }
 
 export type OvertimeRequestPayload = {
+    type: 'OVERTIME',
     requesterId: string,
     overtimeDate: string, // YYYY-MM-DD
     overtimeStartTime: string, // HH:MM
@@ -10,7 +13,13 @@ export type OvertimeRequestPayload = {
     overtimeHours: number,
     overtimeReason: string,
     notes?: string | null,
-    attachmentId?: string,
+    attachmentId: string,
+    approvals?: {
+        approverId: string
+        approverLevel: string
+        stage: number
+        status?: string
+    }[],
 }
 
 export type OvertimeRequestResponse = {
@@ -25,6 +34,7 @@ export type OvertimeRequestResponse = {
     overtimeReason: string,
     notes?: string | null
     attachmentId?: string | null
+    attachment?: AttachmentInfo | null
 }
 
 async function parseJson<T>(response: Response): Promise<T> {
@@ -55,7 +65,8 @@ export async function getOvertimeRequest(id: string): Promise<OvertimeRequestRes
         credentials: 'include',
     })
 
-    return parseJson<OvertimeRequestResponse>(response)
+    const data = await parseJson<OvertimeRequestResponse>(response)
+    return normalizeAttachment(data)
 }
 
 export async function createOvertimeRequest(payload: OvertimeRequestPayload): Promise<OvertimeRequestResponse> {
@@ -66,5 +77,13 @@ export async function createOvertimeRequest(payload: OvertimeRequestPayload): Pr
         body: JSON.stringify(payload),
     })
 
-    return parseJson<OvertimeRequestResponse>(response)
+    const data = await parseJson<OvertimeRequestResponse>(response)
+    return normalizeAttachment(data)
+}
+
+function normalizeAttachment(input: OvertimeRequestResponse): OvertimeRequestResponse {
+    return {
+        ...input,
+        attachment: input.attachment ?? null,
+    }
 }

@@ -67,15 +67,19 @@ const typeToApi: Record<Request['type'], RequestTypeApi> = {
 
 function normalizeFromApi(input: RequestResponse): Request {
   const type = typeToClient[input.type] ?? 'leave'
+  const attachment = input.attachment ?? input.attachments?.[0] ?? null
+  const attachmentId = input.attachmentId ?? input.attachmentIds?.[0] ?? attachment?.id
   const base = {
     id: input.id,
     employeeId: input.requesterId,
     status: statusToClient[input.status] ?? 'pending',
-    attachmentId: input.attachmentId ?? undefined,
-    attachmentName: input.attachment?.name ?? undefined,
-    attachmentMimeType: input.attachment?.mimeType ?? undefined,
-    attachmentSize: input.attachment?.size ?? undefined,
-    attachmentDownloadPath: input.attachment?.downloadPath ?? undefined,
+    attachmentId: attachmentId ?? undefined,
+    attachmentName: attachment?.name ?? undefined,
+    attachmentMimeType: attachment?.mimeType ?? undefined,
+    attachmentSize: attachment?.size ?? undefined,
+    attachmentDownloadPath: attachment?.downloadPath ?? undefined,
+    attachmentCid: attachment?.cid ?? undefined,
+    attachmentUrl: attachment?.url ?? undefined,
     reason: input.leaveReason ?? input.overtimeReason ?? undefined,
     notes: input.notes ?? undefined,
     createdAt: input.createdAt ?? new Date().toISOString(),
@@ -203,7 +207,11 @@ export const useRequests = create<RequestState>()(
         const items = Array.isArray((persistedState as any).items)
           ? (persistedState as any).items.map((item: any) => {
               if (!item || typeof item !== 'object') return item
-              const { attachmentUrl, ...rest } = item
+              const {
+                attachmentUrl: legacyAttachmentUrl,
+                attachmentCid: legacyAttachmentCid,
+                ...rest
+              } = item
               return {
                 ...rest,
                 attachmentId: undefined,
@@ -211,6 +219,8 @@ export const useRequests = create<RequestState>()(
                 attachmentMimeType: undefined,
                 attachmentSize: undefined,
                 attachmentDownloadPath: undefined,
+                attachmentCid: legacyAttachmentCid ?? undefined,
+                attachmentUrl: legacyAttachmentUrl ?? undefined,
               }
             })
           : []

@@ -5,16 +5,20 @@ const configuredLimit = Number(process.env.NEXT_PUBLIC_MAX_ATTACHMENT_BYTES)
 export const MAX_ATTACHMENT_BYTES =
   Number.isFinite(configuredLimit) && configuredLimit > 0 ? configuredLimit : FALLBACK_MAX_BYTES
 
-type ErrorPayload = { error?: string }
+type ErrorPayload = { error?: string; details?: string }
 
-export type AttachmentUploadResponse = {
+export type AttachmentInfo = {
   id: string
+  cid?: string | null
+  url?: string | null
   name: string
   size: number
   mimeType: string
   createdAt: string
   downloadPath: string
 }
+
+export type AttachmentUploadResponse = AttachmentInfo
 
 export function formatAttachmentSize(bytes: number) {
   if (!Number.isFinite(bytes) || bytes <= 0) return '0 B'
@@ -38,14 +42,36 @@ export function isSupportedAttachmentType(mime: string) {
   return false
 }
 
+export function withImageOptimisation(url: string, params: Record<string, string> = { 'img-width': '800' }) {
+  try {
+    const parsed = new URL(url)
+    for (const [key, value] of Object.entries(params)) {
+      if (!parsed.searchParams.has(key)) parsed.searchParams.append(key, value)
+    }
+    return parsed.toString()
+  } catch {
+    const hasQuery = url.includes('?')
+    const serialized = Object.entries(params)
+      .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+      .join('&')
+    return hasQuery ? `${url}&${serialized}` : `${url}?${serialized}`
+  }
+}
+
 async function parseJson<T>(response: Response): Promise<T> {
   const text = await response.text()
   const data = text ? safeParseJSON(text) : undefined
 
   if (!response.ok) {
-    const message = (data as ErrorPayload | undefined)?.error ?? response.statusText ?? 'Attachment upload failed'
+    const payload = data as ErrorPayload | undefined
+    const message =
+      payload?.details ??
+      payload?.error ??
+      response.statusText ??
+      'Attachment upload failed'
     const error = new Error(message)
     ;(error as any).status = response.status
+    if (payload?.details) (error as any).details = payload.details
     throw error
   }
 
@@ -60,9 +86,21 @@ function safeParseJSON(input: string) {
   }
 }
 
-export async function uploadAttachment(file: File, init?: { signal?: AbortSignal }): Promise<AttachmentUploadResponse> {
+type UploadAttachmentOptions = {
+  signal?: AbortSignal
+}
+
+export async function uploadAttachment(
+  file: File,
+  uploaderId: string,
+  options?: UploadAttachmentOptions,
+): Promise<AttachmentInfo> {
   if (!(file instanceof File)) {
     throw new Error('No file selected for upload.')
+  }
+
+  if (!uploaderId) {
+    throw new Error('Missing uploader information. Please sign in again.')
   }
 
   if (!isSupportedAttachmentType(file.type)) {
@@ -75,13 +113,24 @@ export async function uploadAttachment(file: File, init?: { signal?: AbortSignal
 
   const form = new FormData()
   form.append('file', file)
+  form.append('uploaderId', uploaderId)
 
-  const response = await fetch(`${API_BASE}/attachments`, {
+  const response = await fetch(`${API_BASE}/uploads/attachments`, {
     method: 'POST',
     body: form,
+    credentials: 'include',
+    signal: options?.signal,
+  })
+
+  return parseJson<AttachmentInfo>(response)
+}
+
+export async function getAttachment(id: string, init?: { signal?: AbortSignal }): Promise<AttachmentInfo> {
+  const response = await fetch(`${API_BASE}/attachments/${id}`, {
+    method: 'GET',
     credentials: 'include',
     signal: init?.signal,
   })
 
-  return parseJson<AttachmentUploadResponse>(response)
+  return parseJson<AttachmentInfo>(response)
 }
