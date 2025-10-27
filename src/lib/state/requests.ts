@@ -11,6 +11,7 @@ import {
   type RequestStatus as RequestStatusApi,
   type RequestType as RequestTypeApi,
 } from '../api/requests'
+import { normalizeAttachmentUrl } from '../api/attachments'
 
 interface RequestState {
   items: Request[]
@@ -69,6 +70,7 @@ function normalizeFromApi(input: RequestResponse): Request {
   const type = typeToClient[input.type] ?? 'leave'
   const attachment = input.attachment ?? input.attachments?.[0] ?? null
   const attachmentId = input.attachmentId ?? input.attachmentIds?.[0] ?? attachment?.id
+  const normalizedUrl = normalizeAttachmentUrl(attachment?.url ?? undefined, attachment?.cid ?? undefined)
   const base = {
     id: input.id,
     employeeId: input.requesterId,
@@ -79,7 +81,7 @@ function normalizeFromApi(input: RequestResponse): Request {
     attachmentSize: attachment?.size ?? undefined,
     attachmentDownloadPath: attachment?.downloadPath ?? undefined,
     attachmentCid: attachment?.cid ?? undefined,
-    attachmentUrl: attachment?.url ?? undefined,
+    attachmentUrl: normalizedUrl ?? undefined,
     reason: input.leaveReason ?? input.overtimeReason ?? undefined,
     notes: input.notes ?? undefined,
     createdAt: input.createdAt ?? new Date().toISOString(),
@@ -220,7 +222,7 @@ export const useRequests = create<RequestState>()(
                 attachmentSize: undefined,
                 attachmentDownloadPath: undefined,
                 attachmentCid: legacyAttachmentCid ?? undefined,
-                attachmentUrl: legacyAttachmentUrl ?? undefined,
+                attachmentUrl: normalizeAttachmentUrl(legacyAttachmentUrl ?? undefined, legacyAttachmentCid ?? undefined) ?? undefined,
               }
             })
           : []

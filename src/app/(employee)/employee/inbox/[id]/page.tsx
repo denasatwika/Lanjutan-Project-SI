@@ -1,5 +1,7 @@
 'use client'
 
+import Image from 'next/image'
+
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { PageHeader } from '@/components/PageHeader'
@@ -7,7 +9,7 @@ import { useAuth } from '@/lib/state/auth'
 import { useRequests } from '@/lib/state/requests'
 import type { LeaveRequest, OvertimeRequest, Request } from '@/lib/types'
 import { resolveLeaveTypeLabel } from '@/lib/utils/requestDisplay'
-import { buildAttachmentDownloadUrl, formatAttachmentSize } from '@/lib/api/attachments'
+import { buildAttachmentDownloadUrl, formatAttachmentSize, normalizeAttachmentUrl } from '@/lib/api/attachments'
 import { getRequest } from '@/lib/api/requests'
 import { StatusPill, formatDateOnly, formatDateTime } from '../utils'
 import { useInboxRead } from '../useInboxRead'
@@ -24,18 +26,11 @@ export default function InboxDetailPage() {
   const [request, setRequest] = useState<Request | null>(null)
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
-  const [attachmentPreview, setAttachmentPreview] = useState<string | null>(null)
-  const [attachmentLoading, setAttachmentLoading] = useState(false)
-  const [attachmentError, setAttachmentError] = useState<string | null>(null)
-
   useEffect(() => {
     if (!requestId) return
     let cancelled = false
 
     setError(null)
-    setAttachmentPreview(null)
-    setAttachmentError(null)
-    setAttachmentLoading(false)
     setLoading(true)
 
     const cached = byId(requestId)
@@ -64,78 +59,19 @@ export default function InboxDetailPage() {
     }
   }, [requestId, byId, upsertFromApi, markRead])
 
-  useEffect(() => {
-    if (!requestId) return
-
-    if (!request?.attachmentId || !request.attachmentDownloadPath) {
-      setAttachmentPreview(null)
-      setAttachmentLoading(false)
-      setAttachmentError(null)
-      return
-    }
-
-    const mime = request.attachmentMimeType ?? ''
-    if (!mime.startsWith('image/')) {
-      setAttachmentPreview(null)
-      setAttachmentLoading(false)
-      setAttachmentError(null)
-      return
-    }
-
-    let cancelled = false
-    const controller = new AbortController()
-    let objectUrl: string | null = null
-
-    async function loadAttachment() {
-      setAttachmentLoading(true)
-      setAttachmentError(null)
-      try {
-        const url = buildAttachmentDownloadUrl(request.attachmentId!, request.attachmentDownloadPath!)
-        const response = await fetch(url, {
-          credentials: 'include',
-          signal: controller.signal,
-        })
-        if (!response.ok) {
-          throw new Error(`Failed to load attachment (${response.status})`)
-        }
-        const blob = await response.blob()
-        if (cancelled) return
-        if (!blob.type.startsWith('image/')) {
-          setAttachmentPreview(null)
-          return
-        }
-        objectUrl = URL.createObjectURL(blob)
-        setAttachmentPreview(objectUrl)
-      } catch (err) {
-        if (controller.signal.aborted || cancelled) return
-        console.error(err)
-        setAttachmentError('Gagal memuat lampiran.')
-        setAttachmentPreview(null)
-      } finally {
-        if (!controller.signal.aborted && !cancelled) {
-          setAttachmentLoading(false)
-        }
-      }
-    }
-
-    loadAttachment()
-
-    return () => {
-      cancelled = true
-      controller.abort()
-      if (objectUrl) URL.revokeObjectURL(objectUrl)
-    }
-  }, [requestId, request?.attachmentId, request?.attachmentDownloadPath, request?.attachmentMimeType])
+  const attachmentUrl = normalizeAttachmentUrl(request?.attachmentUrl, request?.attachmentCid)
+  const isImageAttachment = Boolean(request?.attachmentMimeType?.startsWith('image/'))
+  const attachmentDownloadHref =
+    attachmentUrl ??
+    (request?.attachmentId
+      ? buildAttachmentDownloadUrl(request.attachmentId, request.attachmentDownloadPath)
+      : null)
+  const attachmentPreviewSrc = attachmentUrl && isImageAttachment ? attachmentUrl : null
 
   const isLeave = request?.type === 'leave'
   const detailLeave = isLeave ? (request as LeaveRequest) : null
   const detailOvertime =
     !isLeave && request?.type === 'overtime' ? (request as OvertimeRequest) : null
-
-  const attachmentLink =
-    request?.attachmentId && request.attachmentDownloadPath
-      ? buildAttachmentDownloadUrl(request.attachmentId, request.attachmentDownloadPath)
-      : null
 
   const attachmentSize =
     request && typeof request.attachmentSize === 'number' && request.attachmentSize > 0
@@ -239,32 +175,38 @@ export default function InboxDetailPage() {
 
           <div>
             <div className="text-gray-500">Lampiran</div>
-            {attachmentLoading ? (
-              <div className="mt-2 text-sm text-gray-500">Memuat lampiran…</div>
-            ) : request.attachmentId ? (
+            {request?.attachmentId || request?.attachmentUrl ? (
               <div className="mt-2 space-y-2">
                 <div className="text-sm font-medium text-gray-700">
                   {request.attachmentName ?? 'Lampiran'}
                   {attachmentSize ? ` • ${attachmentSize}` : ''}
                 </div>
-                {attachmentError && (
-                  <div className="text-xs text-rose-600">{attachmentError}</div>
-                )}
-                {attachmentPreview ? (
-                  <img
-                    src={attachmentPreview}
-                    alt={request.attachmentName ?? 'Lampiran'}
-                    className="max-h-64 w-full rounded-xl border object-contain"
-                  />
-                ) : (
+                {isImageAttachment && attachmentPreviewSrc ? (
                   <a
-                    href={attachmentLink ?? '#'}
+                    href={attachmentDownloadHref ?? attachmentPreviewSrc}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block"
+                  >
+                    <Image
+                      src={attachmentPreviewSrc}
+                      alt={request.attachmentName ?? 'Lampiran'}
+                      width={800}
+                      height={600}
+                      className="h-auto max-h-72 w-full object-contain"
+                    />
+                  </a>
+                ) : attachmentDownloadHref ? (
+                  <a
+                    href={attachmentDownloadHref}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center text-sm font-medium text-[var(--B-700)] hover:underline"
                   >
                     Unduh lampiran
                   </a>
+                ) : (
+                  <div className="text-sm text-gray-500">Lampiran tidak tersedia.</div>
                 )}
               </div>
             ) : (

@@ -1,6 +1,8 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:8787'
 const FALLBACK_MAX_BYTES = 5 * 1024 * 1024
 const configuredLimit = Number(process.env.NEXT_PUBLIC_MAX_ATTACHMENT_BYTES)
+const configuredGateway = (process.env.NEXT_PUBLIC_PINATA_GATEWAY ?? '').trim()
+const PINATA_GATEWAY_BASE = (configuredGateway || 'https://gateway.pinata.cloud').replace(/\/$/, '')
 
 export const MAX_ATTACHMENT_BYTES =
   Number.isFinite(configuredLimit) && configuredLimit > 0 ? configuredLimit : FALLBACK_MAX_BYTES
@@ -33,6 +35,37 @@ export function buildAttachmentDownloadUrl(id: string, downloadPath?: string) {
   const basePath = downloadPath ?? `/attachments/${id}/file`
   const normalizedPath = basePath.startsWith('/') ? basePath : `/${basePath}`
   return `${API_BASE}${normalizedPath}`
+}
+
+function normalizeGatewayUrl(url?: string | null, cid?: string | null) {
+  if (!url) return null
+  const trimmed = url.trim()
+  if (!trimmed) return null
+  if (trimmed.includes('/ipfs/')) return trimmed
+
+  const identifier = cid?.trim() ?? inferIdentifier(trimmed)
+  if (!identifier) return trimmed
+  const idx = trimmed.indexOf(identifier)
+  if (idx === -1) return trimmed
+
+  const prefix = trimmed.slice(0, idx)
+  const suffix = trimmed.slice(idx)
+  const separator = prefix.endsWith('/') ? '' : '/'
+  const normalized = `${prefix}${separator}ipfs/${suffix}`
+  return normalized.replace(/\/{2,}ipfs/, '/ipfs')
+}
+
+function inferIdentifier(input: string) {
+  const withoutQuery = input.split(/[?#]/)[0]
+  const segments = withoutQuery.split('/').filter(Boolean)
+  return segments.length ? segments[segments.length - 1] : null
+}
+
+export function normalizeAttachmentUrl(url?: string | null, cid?: string | null) {
+  const normalized = normalizeGatewayUrl(url, cid)
+  if (normalized) return normalized
+  if (!cid) return null
+  return `${PINATA_GATEWAY_BASE}/ipfs/${cid}`
 }
 
 export function isSupportedAttachmentType(mime: string) {
