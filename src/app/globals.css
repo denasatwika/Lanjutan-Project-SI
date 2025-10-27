@@ -39,8 +39,9 @@
 }
 
 /* Role themes (data-role is set by client layouts) */
-[data-role="requester"]{ --accent: var(--B-500); --accent-foreground: var(--N-0); --surface: var(--S-100);}
+[data-role="user"]{ --accent: var(--B-500); --accent-foreground: var(--N-0); --surface: var(--S-100);}
 [data-role="approver"]{ --accent: var(--B-950); --accent-foreground: var(--N-0); --surface: var(--S-100);}
+[data-role="admin"]{ --accent: var(--B-950); --accent-foreground: var(--N-0); --surface: var(--S-100);}
 
 html, body, #__next { height: 100%; }
 body { @apply bg-white text-black; }

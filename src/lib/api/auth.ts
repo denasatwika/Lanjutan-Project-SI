@@ -57,7 +57,7 @@ type SessionResponse = {
   user: {
     id: string
     address: string
-    role: 'requester' | 'approver'
+    role: 'user' | 'approver' | 'admin'
     name?: string
     department?: string
     departmentId?: string

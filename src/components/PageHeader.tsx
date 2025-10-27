@@ -36,7 +36,7 @@ type PageHeaderProps = {
 
 export function PageHeader({
   title,
-  backHref = '/employee/dashboard',
+  backHref = '/user/dashboard',
   right,
   subtitle,
   bg = 'var(--B-950)',
