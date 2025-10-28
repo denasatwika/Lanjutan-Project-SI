@@ -200,7 +200,7 @@ export default function ApproverApprovalDetailPage() {
                   <InfoRow label="Leave type">{leaveLabel ?? leaveRequest.leaveTypeId}</InfoRow>
                   <InfoRow label="Start">{leaveRequest.startDate}</InfoRow>
                   <InfoRow label="End">{leaveRequest.endDate}</InfoRow>
-                  <InfoRow label="Duration">{leaveRequest.days} day(s)</InfoRow>
+                  <InfoRow label="Duration">{leaveRequest.days} hari</InfoRow>
                 </>
               ) : overtimeRequest ? (
                 <>

@@ -1,7 +1,8 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import clsx from 'clsx'
+import { useRouter } from 'next/navigation'
 import { Search, User2, ChevronDown } from 'lucide-react'
 import type { DateRange } from 'react-day-picker'
 import { format, parseISO } from 'date-fns'
@@ -13,14 +14,8 @@ import DateRangePicker from '@/components/DateRangePicker'
 import { useAuth } from '@/lib/state/auth'
 import { useRequests } from '@/lib/state/requests'
 import { listApprovals, getRequest, type ApprovalResponse } from '@/lib/api/requests'
-import {
-  buildAttachmentDownloadUrl,
-  formatAttachmentSize,
-  normalizeAttachmentUrl,
-} from '@/lib/api/attachments'
-import type { Request, LeaveRequest, OvertimeRequest } from '@/lib/types'
+import type { Request } from '@/lib/types'
 import { resolveLeaveTypeLabel } from '@/lib/utils/requestDisplay'
-import { formatWhen } from '@/lib/utils/date'
 
 /** Brand color */
 const BRAND = '#00156B'
@@ -42,6 +37,7 @@ type HistoryRow = {
 type DropdownOption<T extends string> = { value: T; label: string }
 
 export default function ApproverHistoryPage() {
+  const router = useRouter()
   const user = useAuth((state) => state.user)
   const upsertRequest = useRequests((state) => state.upsertFromApi)
   const requests = useRequests((state) => state.items)
@@ -61,6 +57,7 @@ export default function ApproverHistoryPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined })
   const [search, setSearch] = useState('')
+
   const loadHistory = useCallback(async () => {
     if (!user?.id) {
       setApprovals([])
@@ -183,8 +180,6 @@ export default function ApproverHistoryPage() {
     }
     return Array.from(map.entries()).sort(([a], [b]) => b.localeCompare(a))
   }, [filtered])
-
-  const [detail, setDetail] = useState<HistoryRow | null>(null)
 
   return (
     <main className="mx-auto w-full max-w-[640px] p-3 pb-20">
@@ -309,7 +304,9 @@ export default function ApproverHistoryPage() {
                           Updated: {formatDateTime(row.updatedAt)}
                         </p>
                         <button
-                          onClick={() => setDetail(row)}
+                          onClick={() =>
+                            router.push(`/approver/history/${row.approval.requestId}?approval=${row.approval.id}`)
+                          }
                           className="rounded-xl border px-3 py-1.5 text-xs font-semibold text-[color:var(--brand,_#00156B)] transition hover:bg-slate-50"
                           style={{ ['--brand' as any]: BRAND }}
                         >
@@ -330,9 +327,6 @@ export default function ApproverHistoryPage() {
           </div>
         )}
       </div>
-
-      <HistoryDetailDrawer open={!!detail} row={detail} onClose={() => setDetail(null)} />
-
     </main>
   )
 }
@@ -417,266 +411,6 @@ function StatusBadge({ status }: { status: 'pending' | 'approved' | 'rejected' }
   )
 }
 
-function HistoryDetailDrawer({
-  open,
-  row,
-  onClose,
-}: {
-  open: boolean
-  row: HistoryRow | null
-  onClose: () => void
-}) {
-  const upsertRequest = useRequests((state) => state.upsertFromApi)
-  const byId = useRequests((state) => state.byId)
-
-  const [request, setRequest] = useState<Request | null>(null)
-  const [chain, setChain] = useState<ApprovalResponse[]>([])
-  const [loading, setLoading] = useState(false)
-
-  useEffect(() => {
-    if (!open || !row) {
-      setRequest(null)
-      setChain([])
-      setLoading(false)
-      return
-    }
-
-    const existing = row.request ?? byId(row.approval.requestId) ?? null
-    setRequest(existing)
-
-    let cancelled = false
-    async function load() {
-      setLoading(true)
-      try {
-        const fetched = await getRequest(row.approval.requestId)
-        if (cancelled) return
-        const normalized = upsertRequest(fetched)
-        setRequest(normalized)
-      } catch (error) {
-        if (cancelled) return
-        const message = error instanceof Error ? error.message : 'Failed to load request detail'
-        toast.error(message)
-      }
-
-      try {
-        const approvals = await listApprovals({ requestId: row.approval.requestId })
-        if (cancelled) return
-        setChain(approvals)
-      } catch (error) {
-        if (cancelled) return
-        const message = error instanceof Error ? error.message : 'Failed to load approval chain'
-        toast.error(message)
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    }
-
-    load()
-    return () => {
-      cancelled = true
-    }
-  }, [byId, open, row, upsertRequest])
-
-  if (!open || !row) return null
-
-  const currentRequest = request ?? row.request ?? undefined
-  const approval = row.approval
-  const approvalsChain = chain.length > 0 ? chain : [approval]
-
-  const isLeave = currentRequest?.type === 'leave'
-  const leave = isLeave ? (currentRequest as LeaveRequest) : undefined
-  const overtime = currentRequest?.type === 'overtime' ? (currentRequest as OvertimeRequest) : undefined
-  const leaveLabel = leave?.leaveTypeName ?? (leave ? resolveLeaveTypeLabel(leave.leaveTypeId) : undefined)
-
-  const attachmentSize =
-    typeof currentRequest?.attachmentSize === 'number' && currentRequest.attachmentSize > 0
-      ? formatAttachmentSize(currentRequest.attachmentSize)
-      : null
-  const normalizedAttachment = normalizeAttachmentUrl(
-    currentRequest?.attachmentUrl,
-    currentRequest?.attachmentCid,
-  )
-  const attachmentHref =
-    normalizedAttachment ??
-    (currentRequest?.attachmentId
-      ? buildAttachmentDownloadUrl(currentRequest.attachmentId, currentRequest.attachmentDownloadPath)
-      : null)
-
-  const statusChip = deriveStatus(currentRequest?.status, approval.status)
-  const statusTone =
-    statusChip === 'approved'
-      ? 'bg-green-50 text-green-700 ring-green-200'
-      : statusChip === 'rejected'
-      ? 'bg-rose-50 text-rose-700 ring-rose-200'
-      : 'bg-amber-50 text-amber-700 ring-amber-200'
-
-  const employeeName =
-    row.requesterName ??
-    currentRequest?.employeeName ??
-    currentRequest?.employeeId ??
-    approval.requesterId ??
-    'Unknown employee'
-  const department = currentRequest?.employeeDepartment ?? '—'
-
-  return (
-    <div className="fixed inset-0 z-50">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="absolute right-0 top-0 h-full w-full overflow-auto bg-white p-6 shadow-xl sm:w-[520px]">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-xs uppercase tracking-[0.2em] text-slate-500">History detail</p>
-            <h2 className="text-xl font-extrabold text-slate-900">{employeeName}</h2>
-            <p className="text-xs text-slate-500">{department}</p>
-          </div>
-          <button onClick={onClose} className="rounded-full p-2 hover:bg-slate-100 transition">
-            <svg viewBox="0 0 24 24" className="size-5 text-slate-600">
-              <path
-                d="M18 6L6 18M6 6l12 12"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </button>
-        </div>
-
-        <div className="mt-6 space-y-4">
-          <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h3 className="text-base font-semibold text-slate-900">
-                  Request {approval.requestId}
-                </h3>
-                <p className="text-xs text-slate-500">
-                  Created {currentRequest ? formatWhen(currentRequest.createdAt) : formatDateTime(row.createdAt)} •{' '}
-                  Updated {formatDateTime(row.updatedAt)}
-                </p>
-              </div>
-              <span className={clsx('rounded-full px-3 py-1 text-xs font-semibold ring-1', statusTone)}>
-                {statusChip === 'pending'
-                  ? 'Pending'
-                  : statusChip === 'approved'
-                  ? 'Approved'
-                  : 'Rejected'}
-              </span>
-            </div>
-
-            {loading && (
-              <p className="text-xs text-slate-500">Refreshing request detail…</p>
-            )}
-
-            <div className="grid gap-2 text-sm">
-              <DetailInfo label="Type">
-                <span className="capitalize font-semibold">{currentRequest?.type ?? row.type}</span>
-              </DetailInfo>
-              {isLeave && leave ? (
-                <>
-                  <DetailInfo label="Leave type">{leaveLabel ?? leave.leaveTypeId}</DetailInfo>
-                  <DetailInfo label="Start">{leave.startDate}</DetailInfo>
-                  <DetailInfo label="End">{leave.endDate}</DetailInfo>
-                  <DetailInfo label="Duration">{leave.days} day(s)</DetailInfo>
-                </>
-              ) : overtime ? (
-                <>
-                  <DetailInfo label="Work date">{overtime.workDate}</DetailInfo>
-                  <DetailInfo label="From">{overtime.startTime}</DetailInfo>
-                  <DetailInfo label="To">{overtime.endTime}</DetailInfo>
-                  <DetailInfo label="Hours">{overtime.hours}</DetailInfo>
-                </>
-              ) : null}
-              <DetailInfo label="Reason">{currentRequest?.reason ?? '—'}</DetailInfo>
-              <DetailInfo label="Notes">{currentRequest?.notes ?? '—'}</DetailInfo>
-              <DetailInfo label="Attachment">
-                {attachmentHref ? (
-                  <a
-                    href={attachmentHref}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-[#00156B] hover:underline"
-                  >
-                    {currentRequest?.attachmentName ?? 'View attachment'}
-                    {attachmentSize ? ` (${attachmentSize})` : ''}
-                  </a>
-                ) : (
-                  '—'
-                )}
-              </DetailInfo>
-            </div>
-          </section>
-
-            <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="flex items-center justify-between">
-                <h3 className="text-base font-semibold text-slate-900">Approval chain</h3>
-                <span className="text-xs text-slate-500">
-                  Stage {approval.stage}{approval.approverLevel ? ` • ${approval.approverLevel}` : ''}
-                </span>
-              </div>
-
-              <ul className="space-y-2">
-                {approvalsChain.map((item) => (
-                  <li
-                    key={item.id}
-                    className={clsx(
-                      'rounded-xl border p-3 text-sm',
-                      item.id === approval.id ? 'border-[#00156B] bg-[#00156B]/5' : 'border-slate-200 bg-white',
-                    )}
-                  >
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="font-semibold text-slate-900">
-                        Stage {item.stage}
-                        {item.approverLevel ? ` • ${item.approverLevel}` : ''}
-                      </div>
-                      <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                        {formatApprovalStatus(item.status)}
-                      </span>
-                    </div>
-                    <div className="mt-1 text-xs text-slate-500">
-                      {item.decidedAt ? `Decided ${formatDateTime(item.decidedAt)}` : 'Awaiting decision'}
-                    </div>
-                    {item.comments && (
-                      <p className="mt-2 text-sm text-slate-600">“{item.comments}”</p>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </section>
-
-            <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-              <h3 className="text-base font-semibold text-slate-900">Additional info</h3>
-              <DetailInfo label="Requester">
-                {row.requesterName ?? approval.requesterName ?? approval.requesterId ?? 'Unknown employee'}
-              </DetailInfo>
-              <DetailInfo label="Approval ID">
-                <code className="text-xs">{approval.id}</code>
-              </DetailInfo>
-              <DetailInfo label="Request ID">
-                <code className="text-xs">{approval.requestId}</code>
-              </DetailInfo>
-              <DetailInfo label="Submitted">
-                {formatDateTime(row.createdAt)}
-              </DetailInfo>
-              <DetailInfo label="Decided">
-                {approval.decidedAt ? formatDateTime(approval.decidedAt) : 'Pending'}
-              </DetailInfo>
-              {row.reason && <DetailInfo label="Reason">{row.reason}</DetailInfo>}
-              {approval.comments && <DetailInfo label="Comments">{approval.comments}</DetailInfo>}
-            </section>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function DetailInfo({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="grid grid-cols-[120px,1fr] gap-3 text-sm">
-      <span className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</span>
-      <div className="text-sm text-slate-700">{children}</div>
-    </div>
-  )
-}
-
 function deriveType(request: Request | undefined, approval: ApprovalResponse): 'leave' | 'overtime' {
   if (request?.type === 'overtime') return 'overtime'
   if (request?.type === 'leave') return 'leave'
@@ -730,7 +464,7 @@ function leaveSummary(request?: Request) {
   if (!request || request.type !== 'leave') return 'Leave request'
   const start = request.startDate ? formatShortDate(request.startDate) : undefined
   const end = request.endDate ? formatShortDate(request.endDate) : undefined
-  const label = request.leaveTypeName ?? request.reason ?? 'Leave'
+  const label = request.leaveTypeName ?? resolveLeaveTypeLabel(request.leaveTypeId ?? '') ?? 'Leave'
   if (start && end && start !== end) return `${label} • ${start} → ${end}`
   if (start) return `${label} • ${start}`
   return label
@@ -772,13 +506,4 @@ function formatDateTime(iso?: string) {
   } catch {
     return iso
   }
-}
-
-function formatApprovalStatus(status: ApprovalResponse['status']) {
-  if (status === 'APPROVED') return 'Approved'
-  if (status === 'REJECTED') return 'Rejected'
-  if (status === 'BLOCKED') return 'Blocked'
-  if (status === 'CANCELLED') return 'Cancelled'
-  if (status === 'DRAFT') return 'Draft'
-  return 'Pending'
 }
