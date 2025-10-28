@@ -14,6 +14,7 @@ import { toast } from 'sonner'
 import { StatusPill, formatDateTime } from './utils'
 import { useInboxRead } from './useInboxRead'
 
+const BRAND = '#00156B'
 export default function InboxPage() {
   const router = useRouter()
   const user = useAuth((state) => state.user)
@@ -160,11 +161,12 @@ export default function InboxPage() {
                         </button>
                       )}
                       <button
-                        onClick={() => handleViewDetail(request.id)}
-                        className="text-sm text-gray-600 hover:underline"
-                      >
-                        Lihat detail
-                      </button>
+                          onClick={() => handleViewDetail(request.id)}
+                          className="rounded-xl border px-3 py-1.5 text-xs font-semibold text-[color:var(--brand,_#00156B)] transition hover:bg-slate-50"
+                          style={{ ['--brand' as any]: BRAND }}
+                        >
+                          Details
+                        </button>
                     </div>
                   </div>
                 </div>

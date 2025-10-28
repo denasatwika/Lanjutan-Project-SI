@@ -86,8 +86,14 @@ function normalizeFromApi(input: RequestResponse): Request {
     notes: input.notes ?? undefined,
     createdAt: input.createdAt ?? new Date().toISOString(),
     updatedAt: input.updatedAt ?? input.createdAt ?? new Date().toISOString(),
-    employeeName: undefined,
-    employeeDepartment: undefined,
+    employeeName:
+      typeof input.requesterName === 'string' && input.requesterName.trim().length > 0
+        ? input.requesterName
+        : undefined,
+    employeeDepartment:
+      typeof input.requesterDepartment === 'string' && input.requesterDepartment.trim().length > 0
+        ? input.requesterDepartment
+        : undefined,
     leaveTypeName: undefined,
   }
 
