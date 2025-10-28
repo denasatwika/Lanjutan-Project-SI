@@ -43,19 +43,32 @@ export type RequestUpdatePayload = {
   attachmentId?: string | null
 }
 
+export type ApprovalStatus = RequestStatus | 'BLOCKED'
+
 export type ApprovalResponse = {
   id: string
   requestId: string
+  requestType: RequestType
   approverId: string
   approverLevel: string
   stage: number
-  status: RequestStatus
+  status: ApprovalStatus
   comments: string | null
   decidedAt: string | null
   createdAt: string | null
+  requesterId?: string | null
+  requesterName?: string | null
 }
 
-export type ApprovalCreatePayload = ApprovalSeed & {
+export type ApprovalListQuery = {
+  approverId?: string
+  status?: ApprovalStatus
+  requestId?: string
+  requestType?: RequestType
+}
+
+export type ApprovalDecisionPayload = {
+  status: 'APPROVED' | 'REJECTED'
   comments?: string | null
 }
 
@@ -163,9 +176,26 @@ export async function listRequestApprovals(id: string): Promise<ApprovalResponse
   return parseJson<ApprovalResponse[]>(response)
 }
 
-export async function createRequestApproval(id: string, payload: ApprovalCreatePayload): Promise<ApprovalResponse> {
-  const response = await fetch(buildUrl(`/requests/${id}/approvals`), {
-    method: 'POST',
+export async function listApprovals(query?: ApprovalListQuery): Promise<ApprovalResponse[]> {
+  const response = await fetch(
+    buildUrl('/approvals', {
+      approverId: query?.approverId,
+      status: query?.status,
+      requestId: query?.requestId,
+      requestType: query?.requestType,
+    }),
+    {
+      method: 'GET',
+      credentials: 'include',
+    },
+  )
+
+  return parseJson<ApprovalResponse[]>(response)
+}
+
+export async function updateApproval(id: string, payload: ApprovalDecisionPayload): Promise<ApprovalResponse> {
+  const response = await fetch(buildUrl(`/approvals/${id}`), {
+    method: 'PATCH',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),

@@ -30,8 +30,8 @@ const mobileItemsByRole: Record<Role, { href: string; label: string; icon: any }
   approver: [
     { href: '/approver/dashboard', label: 'Dashboard', icon: LayoutGrid },
     { href: '/approver/approval', label: 'Approval', icon: ClipboardCheck },
-    { href: '/approver/review', label: 'Review', icon: FileText },
     { href: '/approver/history', label: 'History', icon: HistoryIcon },
+    { href: '/approver/profile', label: 'Profile', icon: User },
   ],
   admin: [
     { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutGrid },
