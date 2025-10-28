@@ -287,16 +287,6 @@ export default function ApproverHistoryDetailPage() {
             {request.reason && <DetailRow label="Reason">{request.reason}</DetailRow>}
             {activeApproval?.comments && <DetailRow label="Comments">{activeApproval.comments}</DetailRow>}
           </section> */}
-
-          <div className="flex justify-end">
-            <button
-              type="button"
-              onClick={() => router.push('/approver/history')}
-              className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-white"
-            >
-              Back to history
-            </button>
-          </div>
         </div>
       )}
     </main>
