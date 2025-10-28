@@ -8,24 +8,9 @@ import { useAuth } from '@/lib/state/auth'
 import { cn } from '@/lib/utils/cn'
 import { useDisconnect } from 'wagmi'
 import {
-  LayoutGrid,
-  CalendarCheck2,
-  FileText,
-  ClipboardCheck,
-  ClipboardList,
-  History as HistoryIcon,
-  Home,
-  Inbox,
-  User,
-  // extra for HR drawer header
-  Menu,
-  // icons used inside HRSidebar (aliases to match the code you shared)
-  LayoutGrid as LayoutDashboard,
-  ChevronDown,
-  History as FileClock,
-  ClipboardCheck as FileCheck,
-  LogOut,
-  X,
+  LayoutGrid, CalendarCheck2, FileText, ClipboardCheck, ClipboardList,
+  History as HistoryIcon, Home, Inbox, User, LogOut, X,
+  Menu, LayoutGrid as LayoutDashboard, ChevronDown, History as FileClock, ClipboardCheck as FileCheck,
 } from 'lucide-react'
 
 type Role = 'requester' | 'approver'
@@ -37,8 +22,8 @@ const RED = '#BD0016'
 const mobileItemsByRole: Record<Role, { href: string; label: string; icon: any }[]> = {
   requester: [
     { href: '/employee/dashboard', label: 'Home', icon: Home },
-    { href: '/employee/riwayat', label: 'History', icon: HistoryIcon },
-    { href: '/employee/izin', label: 'Request', icon: ClipboardList },
+    { href: '/employee/history', label: 'History', icon: HistoryIcon },
+    { href: '/employee/requests', label: 'Request', icon: ClipboardList },
     { href: '/employee/inbox', label: 'Inbox', icon: Inbox },
     { href: '/employee/profile', label: 'Profile', icon: User },
   ],
