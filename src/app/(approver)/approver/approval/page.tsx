@@ -97,8 +97,9 @@ export default function ApproverApprovalsPage() {
           item.status,
           item.requesterName,
           item.requesterId,
-          request?.employeeName,
-          request?.employeeDepartment,
+          request?.requesterName,
+          request?.requesterDepartment,
+          item.requesterDepartment,
           request?.notes,
           request?.leaveReason,
           request?.overtimeReason,
@@ -191,12 +192,15 @@ export default function ApproverApprovalsPage() {
             approval.comments ??
             undefined
           const employeeName =
-            request?.employeeName ??
+            request?.requesterName ??
             approval.requesterName ??
-            request?.employeeId ??
+            request?.requesterId ??
             approval.requesterId ??
             'Unknown employee'
-          const department = request?.employeeDepartment ?? '—'
+          const department =
+            request?.requesterDepartment ??
+            approval.requesterDepartment ??
+            '—'
           return (
             <li
               key={approval.id}

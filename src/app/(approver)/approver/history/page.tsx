@@ -144,6 +144,7 @@ export default function ApproverHistoryPage() {
           row.requesterName,
           request?.employeeName,
           request?.employeeDepartment,
+          row.approval.requesterDepartment,
           row.reason,
           request?.id,
           row.approval.requestId,
@@ -266,7 +267,10 @@ export default function ApproverHistoryPage() {
                 request?.employeeId ??
                 row.approval.requesterId ??
                 'Unknown employee'
-              const department = request?.employeeDepartment ?? '—'
+              const department =
+                request?.employeeDepartment ??
+                row.approval.requesterDepartment ??
+                '—'
 
               return (
                 <article

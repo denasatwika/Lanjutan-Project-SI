@@ -11,6 +11,8 @@ export type RequestStatus = LeaveRequestStatus
 export type RequestResponse = {
   id: string
   requesterId: string
+  requesterName?: string | null
+  requesterDepartment?: string | null
   type: RequestType
   status: RequestStatus
   overtimeDate: string | null
@@ -58,6 +60,7 @@ export type ApprovalResponse = {
   createdAt: string | null
   requesterId?: string | null
   requesterName?: string | null
+  requesterDepartment?: string | null
 }
 
 export type ApprovalListQuery = {

@@ -1,5 +1,7 @@
 'use client'
 
+import Image from 'next/image'
+
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import clsx from 'clsx'
@@ -103,11 +105,14 @@ export default function ApproverApprovalDetailPage() {
       ? formatAttachmentSize(request.attachmentSize)
       : null
   const normalizedAttachmentUrl = normalizeAttachmentUrl(request?.attachmentUrl, request?.attachmentCid)
-  const attachmentHref =
+  const isImageAttachment = Boolean(request?.attachmentMimeType?.startsWith('image/'))
+  const attachmentDownloadHref =
     normalizedAttachmentUrl ??
     (request?.attachmentId
       ? buildAttachmentDownloadUrl(request.attachmentId, request.attachmentDownloadPath)
       : null)
+  const attachmentPreviewSrc =
+    normalizedAttachmentUrl && isImageAttachment ? normalizedAttachmentUrl : null
 
   async function handleDecision(decision: 'APPROVED' | 'REJECTED') {
     if (!id || !activeApproval) return
@@ -141,7 +146,10 @@ export default function ApproverApprovalDetailPage() {
     request?.employeeId ??
     primaryApproval?.requesterId ??
     'Unknown employee'
-  const department = request?.employeeDepartment ?? '—'
+  const department =
+    request?.employeeDepartment ??
+    primaryApproval?.requesterDepartment ??
+    '—'
 
   const statusTone = request?.status === 'approved'
     ? 'bg-green-50 text-green-700 ring-green-200'
@@ -213,18 +221,42 @@ export default function ApproverApprovalDetailPage() {
               <InfoRow label="Reason">{request.reason ?? '—'}</InfoRow>
               <InfoRow label="Notes">{request.notes ?? '—'}</InfoRow>
               <InfoRow label="Attachment">
-                {attachmentHref ? (
-                  <a
-                    href={attachmentHref}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-[#00156B] transition hover:underline"
-                  >
-                    {request.attachmentName ?? 'View attachment'}
-                    {attachmentSize ? ` (${attachmentSize})` : ''}
-                  </a>
+                {request?.attachmentId || request?.attachmentUrl ? (
+                  <div className="space-y-2">
+                    <div className="text-sm font-medium text-slate-700">
+                      {request.attachmentName ?? 'Attachment'}
+                      {attachmentSize ? ` (${attachmentSize})` : ''}
+                    </div>
+                    {attachmentPreviewSrc ? (
+                      <a
+                        href={attachmentDownloadHref ?? attachmentPreviewSrc}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block overflow-hidden rounded-xl border"
+                      >
+                        <Image
+                          src={attachmentPreviewSrc}
+                          alt={request.attachmentName ?? 'Attachment preview'}
+                          width={960}
+                          height={600}
+                          className="h-auto max-h-72 w-full object-contain bg-slate-100"
+                        />
+                      </a>
+                    ) : attachmentDownloadHref ? (
+                      <a
+                        href={attachmentDownloadHref}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center text-sm font-semibold text-[#00156B] hover:underline"
+                      >
+                        Download attachment
+                      </a>
+                    ) : (
+                      <span className="text-xs text-slate-500">Attachment unavailable.</span>
+                    )}
+                  </div>
                 ) : (
-                  '—'
+                  <span className="text-xs text-slate-500">No attachment</span>
                 )}
               </InfoRow>
             </div>
