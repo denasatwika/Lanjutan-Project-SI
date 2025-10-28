@@ -19,7 +19,7 @@ export type EmployeeResponse = {
   department?: string | null
   departmentName?: string | null
   address?: string | null
-  role?: 'requester' | 'approver'
+  role?: 'user' | 'approver' | 'admin'
   avatarUrl?: string | null
   [key: string]: unknown
 }

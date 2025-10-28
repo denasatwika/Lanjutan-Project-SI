@@ -13,36 +13,42 @@ import {
   Menu, LayoutGrid as LayoutDashboard, ChevronDown, History as FileClock, ClipboardCheck as FileCheck,
 } from 'lucide-react'
 
-type Role = 'requester' | 'approver'
+type Role = 'user' | 'approver' | 'admin'
 
 const NAVY = '#00156B'
 const RED = '#BD0016'
 
 /** ----------------------- MOBILE items (unchanged) ----------------------- */
 const mobileItemsByRole: Record<Role, { href: string; label: string; icon: any }[]> = {
-  requester: [
-    { href: '/employee/dashboard', label: 'Home', icon: Home },
-    { href: '/employee/history', label: 'History', icon: HistoryIcon },
-    { href: '/employee/requests', label: 'Request', icon: ClipboardList },
-    { href: '/employee/inbox', label: 'Inbox', icon: Inbox },
-    { href: '/employee/profile', label: 'Profile', icon: User },
+  user: [
+    { href: '/user/dashboard', label: 'Home', icon: Home },
+    { href: '/user/history', label: 'History', icon: HistoryIcon },
+    { href: '/user/requests', label: 'Request', icon: ClipboardList },
+    { href: '/user/inbox', label: 'Inbox', icon: Inbox },
+    { href: '/user/profile', label: 'Profile', icon: User },
   ],
   approver: [
-    { href: '/hr/dashboard', label: 'Dashboard', icon: LayoutGrid },
-    { href: '/hr/approval', label: 'Approval', icon: ClipboardCheck },
-    { href: '/hr/dokumen', label: 'Dokumen', icon: FileText },
-    { href: '/hr/history', label: 'History', icon: HistoryIcon },
-    { href: '/hr/karyawan', label: 'User', icon: User },
+    { href: '/approver/dashboard', label: 'Dashboard', icon: LayoutGrid },
+    { href: '/approver/approval', label: 'Approval', icon: ClipboardCheck },
+    { href: '/approver/history', label: 'History', icon: HistoryIcon },
+    { href: '/approver/profile', label: 'Profile', icon: User },
+  ],
+  admin: [
+    { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutGrid },
+    { href: '/admin/approval', label: 'Approval', icon: ClipboardCheck },
+    { href: '/admin/dokumen', label: 'Dokumen', icon: FileText },
+    { href: '/admin/history', label: 'History', icon: HistoryIcon },
+    { href: '/admin/karyawan', label: 'User', icon: User },
   ],
 }
 
 /** ========================================================================
- *  HR SIDEBAR (INLINE)
+ *  ADMIN SIDEBAR (INLINE)
  *  - Static on md+ (like your existing desktop HR sidebar style)
  *  - Drawer on <md with overlay and Escape-to-close
  *  - Uses your original Sidebar behavior & styles, adapted to HR routes
  * ======================================================================= */
-function HRSidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
+function AdminSidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
   const pathname = usePathname()
   const [openMenu, setOpenMenu] = useState('Dashboard')
   const logout = useAuth((state) => state.logout)
@@ -54,14 +60,14 @@ function HRSidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
       name: 'Dashboard',
       icon: LayoutDashboard,
       sub: [
-        { name: 'Kehadiran', href: '/hr/dashboard/kehadiran', icon: CalendarCheck2 },
-        { name: 'Dokumen', href: '/hr/dashboard/dokumen', icon: FileText },
+        { name: 'Kehadiran', href: '/admin/dashboard/kehadiran', icon: CalendarCheck2 },
+        { name: 'Dokumen', href: '/admin/dashboard/dokumen', icon: FileText },
       ],
     },
-    { name: 'Approval', icon: FileCheck, href: '/hr/approval' },
-    { name: 'Dokumen', icon: FileText, href: '/hr/dokumen' },
-    { name: 'History', icon: FileClock, href: '/hr/history' },
-    { name: 'Karyawan', icon: User, href: '/hr/karyawan' },
+    { name: 'Approval', icon: FileCheck, href: '/admin/approval' },
+    { name: 'Dokumen', icon: FileText, href: '/admin/dokumen' },
+    { name: 'History', icon: FileClock, href: '/admin/history' },
+    { name: 'Karyawan', icon: User, href: '/admin/karyawan' },
   ]
 
   const handleLogout = async () => {
@@ -91,7 +97,7 @@ function HRSidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
 
       <aside
         role="navigation"
-        aria-label="HR Sidebar"
+        aria-label="Admin Sidebar"
         className={`fixed inset-y-0 left-0 z-40 w-30 bg-white p-4 transition-transform duration-200 ease-out
         ${open ? 'translate-x-0' : '-translate-x-full'}
         md:static md:translate-x-0 md:inset-auto md:min-h-screen flex flex-col`}
@@ -199,10 +205,10 @@ function HRSidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
 /** =============================== NAV BAR ================================ */
 export function NavBar({ role }: { role: Role }) {
   const pathname = usePathname()
-  const [hrSidebarOpen, setHrSidebarOpen] = useState(false)
+  const [adminSidebarOpen, setAdminSidebarOpen] = useState(false)
 
   // HR: sidebar UI (drawer on mobile; static on md+)
-  if (role === 'approver') {
+  if (role === 'admin') {
     return (
       <nav className="z-50">
         {/* Top bar (mobile) with hamburger */}
@@ -210,7 +216,7 @@ export function NavBar({ role }: { role: Role }) {
           <div className="flex items-center gap-3 px-4 py-3">
             <button
               aria-label="Open menu"
-              onClick={() => setHrSidebarOpen(true)}
+              onClick={() => setAdminSidebarOpen(true)}
               className="rounded-lg p-2 hover:bg-gray-100"
             >
               <Menu className="h-5 w-5" />
@@ -223,18 +229,18 @@ export function NavBar({ role }: { role: Role }) {
 
         {/* Static sidebar on md+ */}
         <div className="hidden md:block">
-          <HRSidebar open={true} onClose={() => {}} />
+          <AdminSidebar open={true} onClose={() => {}} />
         </div>
 
         {/* Drawer on mobile */}
         <div className="md:hidden">
-          <HRSidebar open={hrSidebarOpen} onClose={() => setHrSidebarOpen(false)} />
+          <AdminSidebar open={adminSidebarOpen} onClose={() => setAdminSidebarOpen(false)} />
         </div>
       </nav>
     )
   }
 
-  // Non-HR roles: keep your existing mobile pill
+  // Non-admin roles: keep your existing mobile pill
   return (
     <nav className="z-50">
       <div className="fixed inset-x-0 bottom-4 md:hidden">
