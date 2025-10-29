@@ -91,7 +91,7 @@ export default function ApproverApprovalDetailPage() {
   const canAct = Boolean(
     activeApproval &&
       activeApproval.status === 'PENDING' &&
-      (user?.role === 'approver' || user?.role === 'admin') &&
+      (user?.primaryRole === 'approver' || user?.primaryRole === 'admin') &&
       (!user?.id || activeApproval.approverId === user.id),
   )
 
