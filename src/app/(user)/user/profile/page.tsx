@@ -80,9 +80,9 @@ export default function ProfilePage() {
         : undefined
     const profileDepartmentObjId =
       rawProfileDepartment &&
-      typeof rawProfileDepartment === 'object' &&
-      'id' in rawProfileDepartment &&
-      typeof (rawProfileDepartment as any).id === 'string'
+        typeof rawProfileDepartment === 'object' &&
+        'id' in rawProfileDepartment &&
+        typeof (rawProfileDepartment as any).id === 'string'
         ? (rawProfileDepartment as any).id
         : undefined
     const userDepartmentId =
@@ -280,99 +280,99 @@ export default function ProfilePage() {
           Silakan login untuk melihat dan mengubah profil karyawan.
         </section>
       ) : (
-      <>
-      {/* Identity card */}
-      <section className="card p-4">
-        <div className="flex items-center gap-4">
-          <div
-            className="relative shrink-0 w-16 h-16 rounded-full grid place-items-center text-white"
-            style={{ backgroundColor: '#00156B' }}
-          >
-            {form.avatarUrl ? (
-              <img
-                src={form.avatarUrl}
-                alt="avatar"
-                className="absolute inset-0 w-full h-full rounded-full object-cover"
-              />
-            ) : (
-              <span className="font-semibold text-lg">{initial}</span>
-            )}
-            <label
-              htmlFor="avatar"
-              className="absolute -bottom-1 -right-1 size-8 rounded-full grid place-items-center bg-white text-gray-700 border shadow hover:bg-gray-50"
-              title="Ganti foto"
-            >
-              <Camera size={16} />
-            </label>
-            <input id="avatar" type="file" accept="image/*" onChange={onPickAvatar} className="hidden" />
-          </div>
+        <>
+          {/* Identity card */}
+          <section className="card p-4">
+            <div className="flex items-center gap-4">
+              <div
+                className="relative shrink-0 w-16 h-16 rounded-full grid place-items-center text-white"
+                style={{ backgroundColor: '#00156B' }}
+              >
+                {form.avatarUrl ? (
+                  <img
+                    src={form.avatarUrl}
+                    alt="avatar"
+                    className="absolute inset-0 w-full h-full rounded-full object-cover"
+                  />
+                ) : (
+                  <span className="font-semibold text-lg">{initial}</span>
+                )}
+                <label
+                  htmlFor="avatar"
+                  className="absolute -bottom-1 -right-1 size-8 rounded-full grid place-items-center bg-white text-gray-700 border shadow hover:bg-gray-50"
+                  title="Ganti foto"
+                >
+                  <Camera size={16} />
+                </label>
+                <input id="avatar" type="file" accept="image/*" onChange={onPickAvatar} className="hidden" />
+              </div>
 
-          <div className="flex-1">
-            <input
-                className="w-full bg-transparent text-xl md:text-2xl font-extrabold outline-none"
-                value={form.name ?? ''}
-                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-            />
-            <div className="mt-1 text-sm text-gray-500">EMPLOYEE</div>
-          </div>
+              <div className="flex-1">
+                <div className="w-full text-xl md:text-2xl font-extrabold">
+                  {form.name}
+                </div>
+                <div className="mt-1 text-sm text-gray-500">
+                  {profile?.level}
+                </div>
+              </div>
 
-          {/* Theme toggle */}
-          <button
-            onClick={() => setDark((v) => !v)}
-            className="rounded-xl px-3 py-2 border text-sm inline-flex items-center gap-2"
-            title="Tema"
-          >
-            {dark ? <Sun size={16} /> : <Moon size={16} />} {dark ? 'Light' : 'Dark'}
-          </button>
-         </div>
-      </section>
+              {/* Theme toggle */}
+              <button
+                onClick={() => setDark((v) => !v)}
+                className="rounded-xl px-3 py-2 border text-sm inline-flex items-center gap-2"
+                title="Tema"
+              >
+                {dark ? <Sun size={16} /> : <Moon size={16} />} {dark ? 'Light' : 'Dark'}
+              </button>
+            </div>
+          </section>
 
-      {/* Contact & Org */}
-      <section className="grid md:grid-cols-2 gap-4">
-        <div className="card p-4">
-          <h3 className="font-bold mb-3">Credential</h3>
-          <InfoRow icon={<Mail size={16} />} label="Email">
-            <input
-              className="w-full bg-transparent outline-none"
-              value={form.email}
-              onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-            />
-          </InfoRow>
-          <InfoRow icon={<Phone size={16} />} label="Phone Number">
-          <input
-              className="w-full bg-transparent outline-none"
-              value={form.phone}
-              onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-            />
-          </InfoRow>
-          <InfoRow icon={<Building2 size={16} />} label="Department">
-            <input
-              className="w-full bg-transparent outline-none text-gray-500"
-              value={form.departmentName}
-              readOnly
-            />
-          </InfoRow>
-          <InfoRow icon={<Wallet size={16} />} label="Wallet">
-            <input
-              className="w-full bg-transparent outline-none text-gray-500"
-              value={form.wallet}
-              readOnly
-            />
-          </InfoRow>
+          {/* Contact & Org */}
+          <section className="grid md:grid-cols-2 gap-4">
+            <div className="card p-4">
+              <h3 className="font-bold mb-3">Credential</h3>
+              <InfoRow icon={<Mail size={16} />} label="Email">
+                <input
+                  className="w-full bg-transparent outline-none"
+                  value={form.email}
+                  onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+                />
+              </InfoRow>
+              <InfoRow icon={<Phone size={16} />} label="Phone Number">
+                <input
+                  className="w-full bg-transparent outline-none"
+                  value={form.phone}
+                  onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+                />
+              </InfoRow>
+              <InfoRow icon={<Building2 size={16} />} label="Department">
+                <input
+                  className="w-full bg-transparent outline-none text-gray-500"
+                  value={form.departmentName}
+                  readOnly
+                />
+              </InfoRow>
+              <InfoRow icon={<Wallet size={16} />} label="Wallet">
+                <input
+                  className="w-full bg-transparent outline-none text-gray-500"
+                  value={form.wallet}
+                  readOnly
+                />
+              </InfoRow>
 
-          <div className="mt-4 flex items-center gap-3">
-            <button
-              onClick={saveProfile}
-              disabled={saving || loadingProfile}
-              className="btn btn-primary"
-            >
-              {saving ? 'Saving' : loadingProfile ? 'Loading...' : 'Save'}
-            </button>
-            <button onClick={logout} className="btn">Logout</button>
-          </div>
-        </div>
-     </section>
-      </>
+              <div className="mt-4 flex items-center gap-3">
+                <button
+                  onClick={saveProfile}
+                  disabled={saving || loadingProfile}
+                  className="btn btn-primary"
+                >
+                  {saving ? 'Saving' : loadingProfile ? 'Loading...' : 'Save'}
+                </button>
+                <button onClick={logout} className="btn">Logout</button>
+              </div>
+            </div>
+          </section>
+        </>
       )}
     </div>
   )

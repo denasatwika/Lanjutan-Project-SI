@@ -203,12 +203,17 @@ function AdminSidebar({ open, onClose }: { open: boolean; onClose: () => void })
 }
 
 /** =============================== NAV BAR ================================ */
-export function NavBar({ role }: { role: Role }) {
+export function NavBar() {
+  const auth = useAuth()
+  const user = auth.user
+  const roles = user?.roles ?? []
+  const primaryRole = user?.primaryRole
+  const effectiveRoles = roles.length > 0 ? roles : primaryRole ? [primaryRole] : ['user']
   const pathname = usePathname()
   const [adminSidebarOpen, setAdminSidebarOpen] = useState(false)
+  const hasAdmin = effectiveRoles.includes('admin')
 
-  // HR: sidebar UI (drawer on mobile; static on md+)
-  if (role === 'admin') {
+  if (hasAdmin) {
     return (
       <nav className="z-50">
         {/* Top bar (mobile) with hamburger */}
@@ -241,10 +246,19 @@ export function NavBar({ role }: { role: Role }) {
   }
 
   // Non-admin roles: keep your existing mobile pill
+  const currentSegment = pathname.split('/')[1] as Role | undefined
+  const activeRole = currentSegment && effectiveRoles.includes(currentSegment)
+    ? currentSegment
+    : primaryRole && effectiveRoles.includes(primaryRole)
+    ? primaryRole
+    : effectiveRoles[0]
+
+  const mobileItems = mobileItemsByRole[activeRole as Role] ?? []
+
   return (
     <nav className="z-50">
       <div className="fixed inset-x-0 bottom-4 md:hidden">
-        <MobilePill items={mobileItemsByRole[role] ?? []} pathname={pathname} />
+        <MobilePill items={mobileItems} pathname={pathname} />
       </div>
       {/* You can optionally keep / add a desktop sidebar for these roles later */}
     </nav>

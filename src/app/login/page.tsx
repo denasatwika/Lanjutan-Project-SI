@@ -40,12 +40,12 @@ export default function LoginPage() {
         throw new Error('Session belum tersedia. Silakan coba lagi.')
       }
 
-      const destinationMap: Record<typeof session.role, string> = {
+      const destinationMap: Record<'user' | 'approver' | 'admin', string> = {
         user: '/user/dashboard',
         approver: '/approver/dashboard',
         admin: '/admin/dashboard',
       }
-      const destination = destinationMap[session.role] ?? '/user/dashboard'
+      const destination = destinationMap[session.primaryRole] ?? '/user/dashboard'
       toast.success('Login berhasil')
       router.replace(destination)
     } catch (error) {

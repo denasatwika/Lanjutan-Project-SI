@@ -1,6 +1,6 @@
 'use client'
 import { create } from 'zustand'
-import { User } from '../types'
+import { User, Role } from '../types'
 import { getSession, postLogout } from '../api/auth'
 
 interface AuthState {
@@ -29,7 +29,8 @@ export const useAuth = create<AuthState>()((set) => ({
 
       const user: User = {
         id: session.user.id,
-        role: session.user.role,
+        roles: session.user.roles,
+        primaryRole: session.user.primaryRole,
         address,
         name: resolvedName && resolvedName.length > 0 ? resolvedName : fallbackName,
         department: session.user.department ?? undefined,
@@ -54,3 +55,8 @@ export const useAuth = create<AuthState>()((set) => ({
     }
   },
 }))
+
+export function userHasRole(user: User | undefined, role: Role) {
+  if (!user) return false
+  return user.roles.includes(role)
+}

@@ -307,12 +307,12 @@ export default function ProfilePage() {
                             </div>
 
                             <div className="flex-1">
-                                <input
-                                    className="w-full bg-transparent text-xl md:text-2xl font-extrabold outline-none"
-                                    value={form.name ?? ''}
-                                    onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                                />
-                                <div className="mt-1 text-sm text-gray-500">EMPLOYEE</div>
+                                <div className="w-full text-xl md:text-2xl font-extrabold">
+                                    {form.name}
+                                </div>
+                                <div className="mt-1 text-sm text-gray-500">
+                                    {profile?.level}
+                                </div>
                             </div>
 
                             {/* Theme toggle */}
