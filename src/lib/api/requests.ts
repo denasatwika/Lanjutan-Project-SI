@@ -1,3 +1,4 @@
+import type { TypedData, TypedDataDomain, TypedDataParameter } from 'viem'
 import type { AttachmentInfo } from './attachments'
 import type { ApprovalSeed, LeaveType, RequestStatus as LeaveRequestStatus } from './leaveRequests'
 
@@ -56,7 +57,13 @@ export type ApprovalResponse = {
   stage: number
   status: ApprovalStatus
   comments: string | null
+  commentsHash?: string | null
   decidedAt: string | null
+  signedAt?: string | null
+  signature?: string | null
+  signatureR?: string | null
+  signatureS?: string | null
+  signatureV?: number | null
   createdAt: string | null
   requesterId?: string | null
   requesterName?: string | null
@@ -71,8 +78,10 @@ export type ApprovalListQuery = {
 }
 
 export type ApprovalDecisionPayload = {
-  status: 'APPROVED' | 'REJECTED'
+  decision: 'APPROVED' | 'REJECTED'
   comments?: string | null
+  nonce: string
+  signature: string
 }
 
 export type OvertimeRequestCreatePayload = {
@@ -194,6 +203,31 @@ export async function listApprovals(query?: ApprovalListQuery): Promise<Approval
   )
 
   return parseJson<ApprovalResponse[]>(response)
+}
+
+export type ApprovalChallengeResponse<
+  PrimaryType extends string = string,
+  Message extends TypedData = TypedData,
+> = {
+  domain: TypedDataDomain
+  types: Record<string, readonly TypedDataParameter[]>
+  primaryType?: PrimaryType
+  message: Message
+  nonce: string
+  issuedAt?: string | null
+  expiresAt?: string | null
+  walletAddress: string
+}
+
+export async function getApprovalChallenge(
+  id: string,
+): Promise<ApprovalChallengeResponse<'Decision'>> {
+  const response = await fetch(buildUrl(`/approvals/${id}/challenge`), {
+    method: 'GET',
+    credentials: 'include',
+  })
+
+  return parseJson<ApprovalChallengeResponse<'Decision'>>(response)
 }
 
 export async function updateApproval(id: string, payload: ApprovalDecisionPayload): Promise<ApprovalResponse> {
