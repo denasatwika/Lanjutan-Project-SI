@@ -1,5 +1,6 @@
-// app/(employee)/employee/dashboard/page.tsx
 'use client'
+import { RoleSwitcher } from '@/components/RoleSwitcher'
+// app/(employee)/employee/dashboard/page.tsx
 import { useAuth } from '@/lib/state/auth'
 import { useAttendance } from '@/lib/state/attendance'
 import { useMemo, useEffect, useState, useRef } from 'react'
@@ -15,62 +16,6 @@ import { mandalaTestnet } from '@/lib/web3/wagmiConfig'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE
 
-// ---------- Role Switcher ----------
-type RoleKey = 'user' | 'approver' | 'admin'
-function RoleSwitcher({
-  storageKey,
-  onChange,
-}: {
-  storageKey: string
-  onChange?: (role: RoleKey) => void
-}) {
-  const router = useRouter()
-  const roles: RoleKey[] = ['user', 'approver', 'admin']
-  const [role, setRole] = useState<RoleKey>('user')
-
-  // map label -> segment url
-  const roleToSeg: Record<RoleKey, string> = {
-    user: 'user',
-    approver: 'approver',
-    admin: 'admin',
-  }
-
-  // hydrate
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(storageKey) as RoleKey | null
-      if (saved && roles.includes(saved)) setRole(saved)
-    } catch { }
-  }, [storageKey])
-
-  function handleChange(next: RoleKey) {
-    setRole(next)
-    try { localStorage.setItem(storageKey, next) } catch { }
-    onChange?.(next)
-    router.push(`/${roleToSeg[next]}/dashboard`)
-  }
-
-  return (
-    <label className="inline-flex items-center gap-2 text-sm">
-      <span className="text-gray-600 hidden sm:inline">Role</span>
-      <div className="relative">
-        <select
-          value={role}
-          onChange={(e) => handleChange(e.target.value as RoleKey)}
-          className="appearance-none rounded-xl border border-gray-300 bg-white/80 px-3 py-2 pr-8 text-sm font-medium shadow-sm
-                     hover:bg-white focus:outline-none focus:ring-2 focus:ring-[--S-800]/30"
-          aria-label="Change role"
-        >
-          {roles.map((r) => <option key={r} value={r}>{r}</option>)}
-        </select>
-        <svg aria-hidden="true" className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path d="M6 9l6 6 6-6" />
-        </svg>
-      </div>
-    </label>
-  )
-}
-// ---------- end Role Switcher ----------
 function useLiveClock() {
   const [now, setNow] = useState(new Date())
   useEffect(() => { const t = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(t) }, [])
@@ -299,7 +244,6 @@ export default function Page() {
         <RoleSwitcher
           storageKey={`role:${user.id}`}
           onChange={(next) => {
-            // optional: toast or analytics here
             toast.success(`Role changed to ${next}`)
           }}
         />
