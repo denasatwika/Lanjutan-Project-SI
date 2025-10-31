@@ -344,12 +344,6 @@ export default function ApproverApprovalDetailPage() {
           <section className="card space-y-3 p-5">
             <div className="flex items-center justify-between">
               <h2 className="text-base font-semibold text-slate-900">Approval chain</h2>
-              {activeApproval && (
-                <span className="text-xs text-slate-500">
-                  You are at stage {activeApproval.stage}
-                  {activeApproval.approverLevel ? ` • ${activeApproval.approverLevel}` : ''}
-                </span>
-              )}
             </div>
 
             {approvals.length === 0 ? (
