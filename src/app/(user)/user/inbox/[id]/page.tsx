@@ -10,7 +10,7 @@ import { useRequests } from '@/lib/state/requests'
 import type { LeaveRequest, OvertimeRequest, Request } from '@/lib/types'
 import { resolveLeaveTypeLabel } from '@/lib/utils/requestDisplay'
 import { buildAttachmentDownloadUrl, formatAttachmentSize, normalizeAttachmentUrl } from '@/lib/api/attachments'
-import { getRequest } from '@/lib/api/requests'
+import { getRequest, listApprovals, type ApprovalResponse } from '@/lib/api/requests'
 import { StatusPill, formatDateOnly, formatDateTime } from '../utils'
 import { useInboxRead } from '../useInboxRead'
 import { toast } from 'sonner'
@@ -26,33 +26,62 @@ export default function InboxDetailPage() {
   const [request, setRequest] = useState<Request | null>(null)
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
+  const [approvals, setApprovals] = useState<ApprovalResponse[]>([])
+  const [approvalsError, setApprovalsError] = useState<string | null>(null)
   useEffect(() => {
     if (!requestId) return
     let cancelled = false
 
     setError(null)
     setLoading(true)
+    setApprovalsError(null)
 
     const cached = byId(requestId)
     setRequest(cached ?? null)
     markRead(requestId)
 
-    getRequest(requestId)
-      .then((response) => {
+    async function load() {
+      try {
+        const [requestResult, approvalsResult] = await Promise.allSettled([
+          getRequest(requestId),
+          listApprovals({ requestId }),
+        ])
+
         if (cancelled) return
-        const normalized = upsertFromApi(response)
-        setRequest(normalized)
-      })
-      .catch((err) => {
-        if (cancelled) return
-        const message = err instanceof Error ? err.message : 'Failed to load request detail'
-        toast.error(message)
-        setError(message)
-      })
-      .finally(() => {
-        if (cancelled) return
-        setLoading(false)
-      })
+
+        const requestFailed = requestResult.status === 'rejected'
+
+        if (requestResult.status === 'fulfilled') {
+          const normalized = upsertFromApi(requestResult.value)
+          setRequest(normalized)
+        } else {
+          const reason = requestResult.reason
+          const message =
+            reason instanceof Error ? reason.message : 'Failed to load request detail'
+          toast.error(message)
+          setError(message)
+        }
+
+        if (approvalsResult.status === 'fulfilled') {
+          setApprovals(approvalsResult.value)
+        } else {
+          const reason = approvalsResult.reason
+          const message =
+            reason instanceof Error ? reason.message : 'Failed to load approval chain'
+          if (!requestFailed) {
+            toast.error(message)
+          }
+          setApprovals([])
+          setApprovalsError('Gagal memuat riwayat persetujuan.')
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false)
+        }
+      }
+    }
+
+    load()
 
     return () => {
       cancelled = true
@@ -85,6 +114,14 @@ export default function InboxDetailPage() {
         ? 'Permintaan Lembur'
         : ''
     : ''
+
+  const totalApprovals = approvals.length
+  const approvedCount = approvals.reduce(
+    (count, approval) => (approval.status === 'APPROVED' ? count + 1 : count),
+    0,
+  )
+  const approvalProgress = totalApprovals > 0 ? Math.round((approvedCount / totalApprovals) * 100) : 0
+  const approvalsEmptyMessage = approvalsError ?? 'Belum ada data persetujuan.'
 
   return (
     <div className="space-y-4">
@@ -213,8 +250,65 @@ export default function InboxDetailPage() {
               <div className="mt-2 text-sm text-gray-500">Tidak ada lampiran</div>
             )}
           </div>
+
+          <div>
+            <div className="text-gray-500">Riwayat Persetujuan</div>
+            {approvals.length === 0 ? (
+              <div className="mt-2 text-sm text-gray-500">{approvalsEmptyMessage}</div>
+            ) : (
+              <>
+                <div className="mt-2">
+                  <div className="flex items-center justify-between text-xs text-gray-500">
+                    <span>
+                      {approvedCount} dari {totalApprovals} disetujui
+                    </span>
+                    <span>{approvalProgress}%</span>
+                  </div>
+                  <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-gray-200">
+                    <div
+                      className="h-full bg-[#00156B]"
+                      style={{ width: `${approvalProgress}%` }}
+                    />
+                  </div>
+                </div>
+
+                <ul className="mt-4 space-y-2">
+                  {approvals.map((approval) => (
+                    <li key={approval.id} className="rounded-xl border border-gray-200 bg-white p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                        <div className="font-medium text-gray-900">
+                          Tahap {approval.stage}
+                          {approval.approverLevel ? ` • ${approval.approverLevel}` : ''}
+                        </div>
+                        <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                          {formatApprovalStatus(approval.status)}
+                        </span>
+                      </div>
+                      <div className="mt-1 text-xs text-gray-500">
+                        {approval.decidedAt
+                          ? `Diputuskan ${formatDateTime(approval.decidedAt)}`
+                          : 'Menunggu keputusan'}
+                      </div>
+                      {approval.comments && (
+                        <p className="mt-2 text-sm text-gray-600">"{approval.comments}"</p>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </div>
         </section>
       )}
     </div>
   )
+}
+
+function formatApprovalStatus(status: ApprovalResponse['status']) {
+  if (status === 'APPROVED') return 'Disetujui'
+  if (status === 'REJECTED') return 'Ditolak'
+  if (status === 'BLOCKED') return 'Diblokir'
+  if (status === 'CANCELLED') return 'Dibatalkan'
+  if (status === 'DRAFT') return 'Draft'
+  return 'Menunggu'
 }
