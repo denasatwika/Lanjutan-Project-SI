@@ -3,7 +3,7 @@
 import Image from 'next/image'
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import clsx from 'clsx'
 import { toast } from 'sonner'
 
@@ -13,7 +13,7 @@ import {
   formatAttachmentSize,
   normalizeAttachmentUrl,
 } from '@/lib/api/attachments'
-import { getRequest, listApprovals, type ApprovalResponse } from '@/lib/api/requests'
+import { getRequest } from '@/lib/api/requests'
 import { useRequests } from '@/lib/state/requests'
 import { formatWhen } from '@/lib/utils/date'
 import { resolveLeaveTypeLabel } from '@/lib/utils/requestDisplay'
@@ -24,52 +24,40 @@ type DecisionState = 'idle' | 'loading'
 export default function ApproverHistoryDetailPage() {
   const router = useRouter()
   const { id } = useParams<{ id: string }>()
-  const searchParams = useSearchParams()
-  const approvalIdFromQuery = searchParams.get('approval')
 
   const request = useRequests((state) => (id ? state.byId(id) : undefined))
   const upsertRequest = useRequests((state) => state.upsertFromApi)
 
-  const [approvals, setApprovals] = useState<ApprovalResponse[]>([])
-  const [activeApproval, setActiveApproval] = useState<ApprovalResponse | null>(null)
   const [loading, setLoading] = useState<DecisionState>('idle')
 
   useEffect(() => {
     if (!id) return
     let cancelled = false
 
-    async function load() {
+    async function loadMissingRequest() {
+      if (request) return
+
       setLoading('loading')
       try {
-        if (!request) {
-          const fetched = await getRequest(id)
-          if (cancelled) return
-          upsertRequest(fetched)
-        }
-
-        const approvalList = await listApprovals({ requestId: id })
+        const fetched = await getRequest(id)
         if (cancelled) return
-        setApprovals(approvalList)
-
-        let current =
-          approvalList.find((item) => item.id === approvalIdFromQuery) ??
-          approvalList[0] ??
-          null
-        setActiveApproval(current)
+        upsertRequest(fetched)
       } catch (error) {
         if (cancelled) return
         const message = error instanceof Error ? error.message : 'Failed to load history detail'
         toast.error(message)
       } finally {
-        if (!cancelled) setLoading('idle')
+        if (!cancelled) {
+          setLoading('idle')
+        }
       }
     }
 
-    load()
+    loadMissingRequest()
     return () => {
       cancelled = true
     }
-  }, [approvalIdFromQuery, id, request, upsertRequest])
+  }, [id, request, upsertRequest])
 
   const isLeave = request?.type === 'leave'
   const leaveRequest = isLeave ? (request as LeaveRequest) : undefined
@@ -92,17 +80,8 @@ export default function ApproverHistoryDetailPage() {
   const attachmentPreviewSrc =
     normalizedAttachmentUrl && isImageAttachment ? normalizedAttachmentUrl : null
 
-  const approvalsChain = approvals.length > 0 ? approvals : activeApproval ? [activeApproval] : []
-  const employeeName =
-    request?.employeeName ??
-    activeApproval?.requesterName ??
-    request?.employeeId ??
-    activeApproval?.requesterId ??
-    'Unknown employee'
-  const department =
-    request?.employeeDepartment ??
-    activeApproval?.requesterDepartment ??
-    '—'
+  const employeeName = request?.employeeName ?? request?.employeeId ?? 'Unknown employee'
+  const department = request?.employeeDepartment ?? '—'
 
   const statusTone = request?.status === 'approved'
     ? 'bg-green-50 text-green-700 ring-green-200'
@@ -222,71 +201,6 @@ export default function ApproverHistoryDetailPage() {
               </DetailRow>
             </div>
           </section>
-
-          <section className="card space-y-3 p-5">
-            <div className="flex items-center justify-between">
-              <h2 className="text-base font-semibold text-slate-900">Approval chain</h2>
-              {activeApproval && (
-                <span className="text-xs text-slate-500">
-                  Stage {activeApproval.stage}
-                  {activeApproval.approverLevel ? ` • ${activeApproval.approverLevel}` : ''}
-                </span>
-              )}
-            </div>
-
-            {approvalsChain.length === 0 ? (
-              <p className="text-sm text-slate-500">No approval records found for this request.</p>
-            ) : (
-              <ul className="space-y-2">
-                {approvalsChain.map((approval) => (
-                  <li
-                    key={approval.id}
-                    className={clsx(
-                      'rounded-xl border p-3 text-sm',
-                      approval.id === activeApproval?.id
-                        ? 'border-[#00156B] bg-[#00156B]/5'
-                        : 'border-slate-200 bg-white',
-                    )}
-                  >
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="font-semibold text-slate-900">
-                        Stage {approval.stage}
-                        {approval.approverLevel ? ` • ${approval.approverLevel}` : ''}
-                      </div>
-                      <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                        {formatApprovalStatus(approval.status)}
-                      </span>
-                    </div>
-                    <div className="mt-1 text-xs text-slate-500">
-                      {approval.decidedAt ? `Decided ${formatWhen(approval.decidedAt)}` : 'Awaiting decision'}
-                    </div>
-                    {approval.comments && (
-                      <p className="mt-2 text-sm text-slate-600">“{approval.comments}”</p>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-
-          {/* Will use this later if needed */}
-          {/* <section className="card space-y-3 p-5">
-            <h2 className="text-base font-semibold text-slate-900">Additional info</h2>
-            <DetailRow label="Approval ID">
-              <code className="text-xs">{activeApproval?.id ?? '—'}</code>
-            </DetailRow>
-            <DetailRow label="Request ID">
-              <code className="text-xs">{request.id}</code>
-            </DetailRow>
-            <DetailRow label="Submitted">
-              {formatWhen(request.createdAt)}
-            </DetailRow>
-            <DetailRow label="Decided">
-              {activeApproval?.decidedAt ? formatWhen(activeApproval.decidedAt) : 'Pending'}
-            </DetailRow>
-            {request.reason && <DetailRow label="Reason">{request.reason}</DetailRow>}
-            {activeApproval?.comments && <DetailRow label="Comments">{activeApproval.comments}</DetailRow>}
-          </section> */}
         </div>
       )}
     </main>
@@ -309,13 +223,4 @@ function formatRequestStatus(status: string | undefined | null) {
   if (status === 'pending') return 'Pending'
   if (status === 'draft') return 'Draft'
   return status
-}
-
-function formatApprovalStatus(status: ApprovalResponse['status']) {
-  if (status === 'APPROVED') return 'Approved'
-  if (status === 'REJECTED') return 'Rejected'
-  if (status === 'BLOCKED') return 'Blocked'
-  if (status === 'CANCELLED') return 'Cancelled'
-  if (status === 'DRAFT') return 'Draft'
-  return 'Pending'
 }

@@ -2,10 +2,13 @@
 
 import Image from 'next/image'
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import clsx from 'clsx'
 import { toast } from 'sonner'
+import { useAccount, useWalletClient } from 'wagmi'
+import { getAddress, isAddressEqual, keccak256, stringToBytes } from 'viem'
+import type { Address } from 'viem'
 
 import { PageHeader } from '@/components/PageHeader'
 import {
@@ -15,9 +18,11 @@ import {
 } from '@/lib/api/attachments'
 import {
   getRequest,
+  getApprovalChallenge,
   listApprovals,
   updateApproval,
   type ApprovalResponse,
+  type ApprovalChallengeResponse,
 } from '@/lib/api/requests'
 import { useAuth } from '@/lib/state/auth'
 import { useRequests } from '@/lib/state/requests'
@@ -31,6 +36,8 @@ export default function ApproverApprovalDetailPage() {
   const searchParams = useSearchParams()
   const approvalIdFromQuery = searchParams.get('approval')
   const user = useAuth((state) => state.user)
+  const { address } = useAccount()
+  const { data: walletClient } = useWalletClient()
 
   const request = useRequests((state) => (id ? state.byId(id) : undefined))
   const upsertRequest = useRequests((state) => state.upsertFromApi)
@@ -41,6 +48,9 @@ export default function ApproverApprovalDetailPage() {
   const [note, setNote] = useState('')
   const [submitting, setSubmitting] = useState<'APPROVED' | 'REJECTED' | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const challengeCacheRef = useRef<Map<string, ApprovalChallengeResponse<'Decision'>>>(
+    new Map(),
+  )
 
   useEffect(() => {
     if (!id) return
@@ -116,13 +126,72 @@ export default function ApproverApprovalDetailPage() {
 
   async function handleDecision(decision: 'APPROVED' | 'REJECTED') {
     if (!id || !activeApproval) return
+    if (!walletClient) {
+      toast.error('Connect your wallet to submit a decision.')
+      return
+    }
+    if (!address) {
+      toast.error('No wallet address found. Please reconnect and try again.')
+      return
+    }
+
     setSubmitting(decision)
     setErrorMessage(null)
     try {
-      await updateApproval(activeApproval.id, {
-        status: decision,
-        comments: note.trim().length > 0 ? note.trim() : undefined,
+      let challenge = challengeCacheRef.current.get(activeApproval.id)
+      if (!challenge || isChallengeExpired(challenge)) {
+        challenge = await getApprovalChallenge(activeApproval.id)
+        challengeCacheRef.current.set(activeApproval.id, challenge)
+      }
+
+      if (isChallengeExpired(challenge)) {
+        challengeCacheRef.current.delete(activeApproval.id)
+        throw new Error('Signature challenge expired. Please try again.')
+      }
+
+      let connectedAddress: Address
+      let challengeAddress: Address
+      try {
+        connectedAddress = getAddress(address)
+        challengeAddress = getAddress(challenge.walletAddress)
+      } catch {
+        throw new Error('Invalid wallet address provided by challenge. Please retry.')
+      }
+
+      if (!isAddressEqual(connectedAddress, challengeAddress)) {
+        throw new Error('Connected wallet does not match the approver address on file.')
+      }
+
+      const trimmedNote = note.trim()
+      const typedMessage: Record<string, unknown> = {
+        ...challenge.message,
+        decision,
+      }
+
+      if (trimmedNote.length > 0) {
+        typedMessage.commentsHash = keccak256(stringToBytes(trimmedNote))
+      }
+
+      const signature = await walletClient.signTypedData({
+        account: connectedAddress,
+        domain: challenge.domain,
+        types: challenge.types,
+        primaryType: challenge.primaryType ?? 'Decision',
+        message: typedMessage,
       })
+
+      const updatedApproval = await updateApproval(activeApproval.id, {
+        decision,
+        comments: trimmedNote.length > 0 ? trimmedNote : undefined,
+        nonce: challenge.nonce,
+        signature,
+      })
+
+      setApprovals((prev) =>
+        prev.map((item) => (item.id === updatedApproval.id ? updatedApproval : item)),
+      )
+      setActiveApproval((prev) => (prev && prev.id === updatedApproval.id ? updatedApproval : prev))
+      challengeCacheRef.current.delete(activeApproval.id)
 
       const updatedRequest = await getRequest(id)
       upsertRequest(updatedRequest)
@@ -130,9 +199,19 @@ export default function ApproverApprovalDetailPage() {
       toast.success(decision === 'APPROVED' ? 'Request approved' : 'Request rejected')
       router.push('/approver/approval')
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to submit decision'
+      const status = (error as any)?.status as number | undefined
+      const message =
+        status === 422
+          ? 'Signature invalid or wrong account. Please reconnect with the correct wallet.'
+          : error instanceof Error
+          ? error.message
+          : 'Failed to submit decision'
+      console.error('Failed to submit approval decision', error)
       toast.error(message)
       setErrorMessage(message)
+      if (activeApproval) {
+        challengeCacheRef.current.delete(activeApproval.id)
+      }
     } finally {
       setSubmitting(null)
     }
@@ -265,12 +344,6 @@ export default function ApproverApprovalDetailPage() {
           <section className="card space-y-3 p-5">
             <div className="flex items-center justify-between">
               <h2 className="text-base font-semibold text-slate-900">Approval chain</h2>
-              {activeApproval && (
-                <span className="text-xs text-slate-500">
-                  You are at stage {activeApproval.stage}
-                  {activeApproval.approverLevel ? ` • ${activeApproval.approverLevel}` : ''}
-                </span>
-              )}
             </div>
 
             {approvals.length === 0 ? (
@@ -301,6 +374,14 @@ export default function ApproverApprovalDetailPage() {
                     </div>
                     {item.comments && (
                       <p className="mt-2 text-sm text-slate-600">“{item.comments}”</p>
+                    )}
+                    {item.signature && (
+                      <div
+                        className="mt-2 text-[11px] font-mono text-slate-500 break-all"
+                        title={item.signature}
+                      >
+                        Signature: {formatSignaturePreview(item.signature)}
+                      </div>
                     )}
                   </li>
                 ))}
@@ -394,4 +475,36 @@ function formatApprovalStatus(status: ApprovalResponse['status']) {
   if (status === 'CANCELLED') return 'Cancelled'
   if (status === 'DRAFT') return 'Draft'
   return 'Pending'
+}
+
+function formatSignaturePreview(value: string) {
+  if (value.length <= 18) return value
+  return `${value.slice(0, 10)}…${value.slice(-8)}`
+}
+
+function isChallengeExpired(
+  challenge: ApprovalChallengeResponse<'Decision'>,
+  graceMs = 5000,
+): boolean {
+  const expiryMs = normalizeEpochMs(challenge.expiresAt)
+  if (expiryMs === null) return false
+  return expiryMs <= Date.now() + graceMs
+}
+
+function normalizeEpochMs(input: unknown): number | null {
+  if (typeof input === 'number') {
+    if (!Number.isFinite(input)) return null
+    return input < 1e12 ? input * 1000 : input
+  }
+  if (typeof input === 'string') {
+    const trimmed = input.trim()
+    if (!trimmed) return null
+    const numeric = Number(trimmed)
+    if (Number.isFinite(numeric)) {
+      return numeric < 1e12 ? numeric * 1000 : numeric
+    }
+    const parsed = Date.parse(trimmed)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  return null
 }

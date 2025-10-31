@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
-import { Calendar, Check, Clock3, Filter, Search, User2 } from 'lucide-react'
+import { Calendar, Clock3, Filter, Search, User2 } from 'lucide-react'
 import clsx from 'clsx'
 import { format } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
@@ -29,7 +29,6 @@ export default function ApproverApprovalsPage() {
   const upsertRequest = useRequests((s) => s.upsertFromApi)
 
   const [type, setType] = useState<TypeFilter>('all')
-  const [onlyPending, setOnlyPending] = useState(true)
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(false)
   const [loaded, setLoaded] = useState(false)
@@ -49,7 +48,7 @@ export default function ApproverApprovalsPage() {
     }
 
     try {
-      const fetchedApprovals = await listApprovals({ approverId: user.id })
+      const fetchedApprovals = await listApprovals({ approverId: user.id, status: 'PENDING' })
       setApprovals(fetchedApprovals)
 
       const uniqueIds = Array.from(new Set(fetchedApprovals.map((item) => item.requestId)))
@@ -87,7 +86,6 @@ export default function ApproverApprovalsPage() {
     const query = search.trim().toLowerCase()
     return approvals
       .filter((item) => type === 'all' || item.requestType.toLowerCase() === type)
-      .filter((item) => (!onlyPending ? true : item.status === 'PENDING'))
       .filter((item) => {
         if (query.length === 0) return true
         const request = requestsById.get(item.requestId)
@@ -115,7 +113,7 @@ export default function ApproverApprovalsPage() {
         const bTime = dateValue(b.decidedAt ?? b.createdAt)
         return bTime - aTime
       })
-  }, [approvals, onlyPending, requestsById, search, type])
+  }, [approvals, requestsById, search, type])
 
   const pendingCount = useMemo(
     () => approvals.filter((item) => item.status === 'PENDING').length,
@@ -147,9 +145,6 @@ export default function ApproverApprovalsPage() {
           <Chip active={type === 'overtime'} onClick={() => setType('overtime')}>
             <Clock3 className="size-4" /> Overtime
           </Chip>
-          <Chip active={onlyPending} onClick={() => setOnlyPending((prev) => !prev)}>
-            <Check className="size-4" /> Pending only
-          </Chip>
         </div>
 
         <div className="relative ml-auto min-w-[160px]">
@@ -164,7 +159,7 @@ export default function ApproverApprovalsPage() {
 
         {loaded && (
           <p className="mt-2 text-xs text-slate-500">
-            Pending now: <span className="font-semibold">{pendingCount}</span> • Showing{' '}
+            Pending assigned: <span className="font-semibold">{pendingCount}</span> • Showing{' '}
             <span className="font-semibold">{filtered.length}</span>
           </p>
         )}
@@ -176,9 +171,9 @@ export default function ApproverApprovalsPage() {
 
       {!loading && filtered.length === 0 && loaded && (
         <p className="mt-6 text-center text-sm text-slate-500">
-          {search || type !== 'all' || !onlyPending
-            ? 'No approvals match your filters.'
-            : 'No approvals assigned to you yet.'}
+          {search || type !== 'all'
+            ? 'No pending approvals match your filters.'
+            : 'No pending approvals assigned to you yet.'}
         </p>
       )}
 
