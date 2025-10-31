@@ -369,16 +369,24 @@ export default function ApproverApprovalDetailPage() {
                         {formatApprovalStatus(item.status)}
                       </span>
                     </div>
-                <div className="mt-1 text-xs text-slate-500">
-                  {item.decidedAt ? `Decided ${formatWhen(item.decidedAt)}` : 'Awaiting decision'}
-                </div>
-                {item.comments && (
-                  <p className="mt-2 text-sm text-slate-600">“{item.comments}”</p>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
+                    <div className="mt-1 text-xs text-slate-500">
+                      {item.decidedAt ? `Decided ${formatWhen(item.decidedAt)}` : 'Awaiting decision'}
+                    </div>
+                    {item.comments && (
+                      <p className="mt-2 text-sm text-slate-600">“{item.comments}”</p>
+                    )}
+                    {item.signature && (
+                      <div
+                        className="mt-2 text-[11px] font-mono text-slate-500 break-all"
+                        title={item.signature}
+                      >
+                        Signature: {formatSignaturePreview(item.signature)}
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
           </section>
 
           <section className="card space-y-3 p-5">
@@ -467,6 +475,11 @@ function formatApprovalStatus(status: ApprovalResponse['status']) {
   if (status === 'CANCELLED') return 'Cancelled'
   if (status === 'DRAFT') return 'Draft'
   return 'Pending'
+}
+
+function formatSignaturePreview(value: string) {
+  if (value.length <= 18) return value
+  return `${value.slice(0, 10)}…${value.slice(-8)}`
 }
 
 function isChallengeExpired(

@@ -292,6 +292,14 @@ export default function InboxDetailPage() {
                       {approval.comments && (
                         <p className="mt-2 text-sm text-gray-600">"{approval.comments}"</p>
                       )}
+                      {approval.signature && (
+                        <div
+                          className="mt-2 break-all text-[11px] font-mono text-gray-500"
+                          title={approval.signature}
+                        >
+                          Signature: {formatSignaturePreview(approval.signature)}
+                        </div>
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -311,4 +319,9 @@ function formatApprovalStatus(status: ApprovalResponse['status']) {
   if (status === 'CANCELLED') return 'Dibatalkan'
   if (status === 'DRAFT') return 'Draft'
   return 'Menunggu'
+}
+
+function formatSignaturePreview(value: string) {
+  if (value.length <= 18) return value
+  return `${value.slice(0, 10)}…${value.slice(-8)}`
 }
