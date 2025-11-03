@@ -53,11 +53,14 @@ export async function postLogin(address: string, signature: string): Promise<voi
   await parseJson<{ ok: true }>(response)
 }
 
+type Role = 'user' | 'approver' | 'admin'
+
 type SessionResponse = {
   user: {
     id: string
     address: string
-    role: 'user' | 'approver' | 'admin'
+    roles: Role[]
+    primaryRole: Role
     name?: string
     department?: string
     departmentId?: string

@@ -81,14 +81,6 @@ export default function InboxPage() {
                 {option.label}
               </button>
             ))}
-            {filtered.length > 0 && (
-              <button
-                onClick={() => markAll(filtered.map((request) => request.id))}
-                className="ml-auto text-sm text-[var(--B-700)] hover:underline"
-              >
-                Tandai semua dibaca
-              </button>
-            )}
           </div>
 
           <div className="space-y-3">

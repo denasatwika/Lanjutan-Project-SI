@@ -8,6 +8,7 @@ import { ReactNode } from 'react'
 import { useAccount, useSendTransaction } from 'wagmi'
 import { parseEther } from 'viem'
 import { toast } from 'sonner'
+import { useAuth } from '@/lib/state/auth'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { EmployeeWallet, getWallets } from '@/lib/api/wallets'
 
@@ -49,8 +50,11 @@ function formatWalletLabel(wallet: EmployeeWallet) {
   return alias ? `${alias} • ${shortAddress}` : shortAddress
 }
 
+import { RoleSwitcher } from '@/components/RoleSwitcher'
+
 export default function HRDashboard() {
   const now = useNow()
+  const user = useAuth(s => s.user)
   const present = 26; const absent = 4; const total = present + absent
   const percent = Math.round((present / total) * 100)
   const { isConnected } = useAccount()
@@ -231,9 +235,15 @@ export default function HRDashboard() {
             </div>
           </div>
 
-          {/* Transfer KPGT form */}
+          {/* Role Switcher */}
           <div className="space-y-3">
-            <button
+            <RoleSwitcher
+              storageKey={`role:${user?.id}`}
+              onChange={(next) => {
+                toast.success(`Role changed to ${next}`)
+              }}
+            />
+            {/* <button
               type="button"
               onClick={() => setShowTransferForm((prev) => !prev)}
               disabled={!isConnected}
@@ -306,7 +316,7 @@ export default function HRDashboard() {
                   </button>
                 </div>
               </div>
-            )}
+            )} */}
           </div>
 
           {/* Kehadiran Hari ini table */}
