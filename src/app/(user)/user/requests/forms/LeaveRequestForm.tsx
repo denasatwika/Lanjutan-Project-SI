@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { ChevronDown } from 'lucide-react'
 import DateRangePicker from '@/components/DateRangePicker'
@@ -133,6 +134,7 @@ function SelectBox<T extends string>({
 export type LeaveKind = (typeof LEAVE_TYPE_OPTIONS)[number]['value']
 
 export function LeaveRequestForm({ onSubmitted }: { onSubmitted?: () => void }) {
+  const router = useRouter()
   const { user } = useAuth()
   const upsertRequest = useRequests((s) => s.upsertFromApi)
   const [submitting, setSubmitting] = useState(false)
@@ -227,7 +229,10 @@ export function LeaveRequestForm({ onSubmitted }: { onSubmitted?: () => void }) 
     setAttachmentError(null)
     try {
       const file = form.attachment
-      const uploaded = await uploadAttachment(file, user.id)
+      const uploaded = await uploadAttachment(file, user.id, {
+        requesterId: user.id,
+        requestType: 'LEAVE',
+      })
       setAttachmentMeta(uploaded)
       setUploadingAttachment(false)
 
@@ -262,6 +267,7 @@ export function LeaveRequestForm({ onSubmitted }: { onSubmitted?: () => void }) 
       setAttachmentError(null)
       if (fileRef.current) fileRef.current.value = ''
       onSubmitted?.()
+      router.push(`/user/inbox/${created.id}`)
     } catch (error) {
       const status = (error as any)?.status
       const detail = (error as any)?.details
