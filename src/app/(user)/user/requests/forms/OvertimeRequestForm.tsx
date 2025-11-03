@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useRef, useState, useEffect, type ReactNode } from 'react'
+import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { enUS } from 'date-fns/locale'
@@ -364,6 +365,7 @@ function TimePicker({
    Overtime Request Form
 ------------------------------------------ */
 export function OvertimeRequestForm({ onSubmitted }: { onSubmitted?: () => void }) {
+  const router = useRouter()
   const { user } = useAuth()
   const upsertRequest = useRequests((s) => s.upsertFromApi)
   const [form, setForm] = useState<{
@@ -476,6 +478,7 @@ export function OvertimeRequestForm({ onSubmitted }: { onSubmitted?: () => void 
       setAttachmentError(null)
       if (fileRef.current) fileRef.current.value = ''
       onSubmitted?.()
+      router.push(`/user/inbox/${created.id}`)
     } catch (error) {
       const status = (error as any)?.status
       const detail = (error as any)?.details
