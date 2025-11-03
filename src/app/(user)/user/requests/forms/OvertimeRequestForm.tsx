@@ -142,19 +142,41 @@ function DatePicker({
    Time helpers
 ------------------------------------------ */
 const DEFAULT_STEP_MINUTES = 15
-function parseTimeHHMM(v: string | undefined) {
-  if (!v) return { h: 0, m: 0, ok: false }
-  const [hs, ms] = v.split(':')
-  const h = Math.max(0, Math.min(23, Number(hs)))
-  const m = Math.max(0, Math.min(59, Number(ms)))
-  const ok = !Number.isNaN(h) && !Number.isNaN(m)
-  return { h, m, ok }
-}
 function fmtHHMM(h: number, m: number) {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
 }
-function clampToStep(m: number, step = DEFAULT_STEP_MINUTES) {
-  return Math.round(m / step) * step
+function generateTimeSlots(step: number) {
+  const slots: string[] = []
+  for (let minutes = 0; minutes < 24 * 60; minutes += step) {
+    const h = Math.floor(minutes / 60)
+    const m = minutes % 60
+    slots.push(fmtHHMM(h, m))
+  }
+  return slots
+}
+function formatTimeDisplay(time: string) {
+  const [hourRaw, minuteRaw] = time.split(':')
+  let hour = Number(hourRaw)
+  if (!Number.isFinite(hour)) hour = 0
+  const suffix = hour >= 12 ? 'PM' : 'AM'
+  let formattedHour = hour % 12
+  if (formattedHour === 0) formattedHour = 12
+  return {
+    main: `${formattedHour}:${minuteRaw}`,
+    suffix,
+  }
+}
+function minutesToTime(totalMinutes: number) {
+  const normalized = ((totalMinutes % (24 * 60)) + 24 * 60) % (24 * 60)
+  const h = Math.floor(normalized / 60)
+  const m = normalized % 60
+  return fmtHHMM(h, m)
+}
+function getCurrentTimeSlot(step: number) {
+  const now = new Date()
+  const totalMinutes = now.getHours() * 60 + now.getMinutes()
+  const snapped = Math.round(totalMinutes / step) * step
+  return minutesToTime(snapped)
 }
 
 function TimePicker({
@@ -171,192 +193,124 @@ function TimePicker({
   step?: number
 }) {
   const [open, setOpen] = useState(false)
-  const { h: initH, m: initM, ok } = parseTimeHHMM(value)
-  const [hour, setHour] = useState<number>(ok ? initH : 9)
-  const [minute, setMinute] = useState<number>(ok ? initM : 0)
+  const listRef = useRef<HTMLDivElement | null>(null)
+  const slots = useMemo(() => generateTimeSlots(step), [step])
+  const selected = value && slots.includes(value) ? value : null
 
   useEffect(() => {
-    const { h, m, ok } = parseTimeHHMM(value)
-    if (open && ok) {
-      setHour(h)
-      setMinute(m)
+    if (!open) return
+    if (!listRef.current) return
+    if (!selected) {
+      listRef.current.scrollTop = 0
+      return
     }
-  }, [value, open])
+    const active = listRef.current.querySelector<HTMLButtonElement>(`[data-time="${selected}"]`)
+    if (active) {
+      active.scrollIntoView({ block: 'center' })
+    }
+  }, [open, selected])
 
-  const hours = useMemo(() => Array.from({ length: 24 }, (_, i) => i), [])
-  const minutes = useMemo(() => Array.from({ length: Math.ceil(60 / step) }, (_, i) => (i * step) % 60), [step])
+  const display = selected ? formatTimeDisplay(selected) : null
 
-  function commitAndClose(h = hour, m = minute) {
-    onChange(fmtHHMM(h, m))
+  const handleSelect = (slot: string) => {
+    onChange(slot)
     setOpen(false)
   }
-  function clear() {
+
+  const handleNow = () => {
+    const snapped = getCurrentTimeSlot(step)
+    onChange(snapped)
+    setOpen(false)
+  }
+
+  const handleClear = () => {
     onChange('')
     setOpen(false)
-  }
-  function setNow() {
-    const d = new Date()
-    const h = d.getHours()
-    const m = clampToStep(d.getMinutes(), step) % 60
-    setHour(h)
-    setMinute(m)
-    commitAndClose(h, m)
-  }
-  function plus30() {
-    const base = parseTimeHHMM(value).ok ? parseTimeHHMM(value) : { h: hour, m: minute, ok: true }
-    const total = base.h * 60 + base.m + 30
-    const clamped = (total % (24 * 60) + 24 * 60) % (24 * 60)
-    const h = Math.floor(clamped / 60)
-    const m = clamped % 60
-    setHour(h)
-    setMinute(m)
-    commitAndClose(h, m)
   }
 
   return (
     <div className="grid gap-1.5">
       <span className="text-sm text-gray-700">{label}</span>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="w-full rounded-xl border px-3 py-3 text-left shadow-sm flex items-center justify-between focus-visible:ring-2 focus-visible:ring-offset-0"
-        style={{ borderColor: '#00156B20', boxShadow: '0 1px 2px rgba(0,0,0,.06)' }}
+      <Popover
+        open={open}
+        onOpenChange={setOpen}
+        trigger={
+          <button
+            type="button"
+            className="w-full rounded-xl border px-3 py-3 text-left shadow-sm flex items-center justify-between focus-visible:ring-2 focus-visible:ring-offset-0"
+            style={{ borderColor: '#00156B20', boxShadow: '0 1px 2px rgba(0,0,0,.06)' }}
+          >
+            <span className="inline-flex items-center gap-2">
+              <Clock className="size-4 opacity-70" />
+              {display ? (
+                <span className="inline-flex items-baseline gap-2">
+                  <span>{display.main}</span>
+                  <span className="text-xs uppercase tracking-wide text-gray-400">{display.suffix}</span>
+                </span>
+              ) : (
+                <span className="text-gray-400">{placeholder}</span>
+              )}
+            </span>
+            <ChevronDown className="size-4 opacity-70" />
+          </button>
+        }
+        align="start"
       >
-        <span className="inline-flex items-center gap-2">
-          <Clock className="size-4 opacity-70" />
-          {value ? <span>{value}</span> : <span className="text-gray-400">{placeholder}</span>}
-        </span>
-        <ChevronDown className="size-4 opacity-70" />
-      </button>
+        <div className="w-60 rounded-2xl border border-gray-100 bg-white p-3 shadow-xl">
+          <div className="flex items-center justify-between gap-2">
+            <button
+              type="button"
+              onClick={handleClear}
+              className="rounded-full px-3 py-1 text-xs font-medium text-gray-500 hover:bg-gray-100"
+            >
+              Clear
+            </button>
+            <button
+              type="button"
+              onClick={handleNow}
+              className="rounded-full bg-[#FFE2DC] px-3 py-1 text-xs font-semibold text-[#E0574D] hover:bg-[#ffd3c8]"
+            >
+              Now
+            </button>
+          </div>
 
-      {open && (
-        <div className="fixed inset-0 z-[60]">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setOpen(false)} aria-hidden />
-          <div className="absolute inset-x-0 bottom-0 rounded-t-2xl bg-white shadow-2xl">
-            <div className="py-2 grid place-items-center">
-              <div className="h-1.5 w-10 rounded-full bg-gray-300" />
-            </div>
-
-            <div className="px-4 pb-3 pt-1">
-              <div className="flex items-center justify-between">
-                <div className="font-semibold text-base">Pick a time</div>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={clear}
-                    className="text-sm text-gray-500 px-3 py-2 rounded-lg hover:bg-gray-100"
-                  >
-                    Clear
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => commitAndClose()}
-                    className="text-white text-sm px-4 py-2 rounded-xl"
-                    style={{ background: '#00156B' }}
-                  >
-                    Done
-                  </button>
-                </div>
-              </div>
-
-              <div className="mt-3 flex items-center gap-2 overflow-x-auto no-scrollbar">
-                <button
-                  type="button"
-                  onClick={setNow}
-                  className="px-3 py-2 rounded-full border text-sm whitespace-nowrap"
-                  style={{ borderColor: '#00156B33' }}
-                >
-                  Now
-                </button>
-                <button
-                  type="button"
-                  onClick={plus30}
-                  className="px-3 py-2 rounded-full border text-sm whitespace-nowrap"
-                  style={{ borderColor: '#00156B33' }}
-                >
-                  +30m
-                </button>
-                {['18:00', '19:00', '20:00', '21:00'].map((t) => {
-                  const { h, m } = parseTimeHHMM(t)
-                  return (
+          <div
+            ref={listRef}
+            className="mt-3 max-h-56 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent"
+          >
+            <ul className="space-y-1">
+              {slots.map((slot) => {
+                const isActive = slot === selected
+                const { main, suffix } = formatTimeDisplay(slot)
+                return (
+                  <li key={slot}>
                     <button
-                      key={t}
                       type="button"
-                      onClick={() => commitAndClose(h, m)}
-                      className="px-3 py-2 rounded-full border text-sm whitespace-nowrap"
-                      style={{ borderColor: '#00156B33' }}
+                      data-time={slot}
+                      onClick={() => handleSelect(slot)}
+                      className={`flex w-full items-baseline justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition ${
+                        isActive
+                          ? 'bg-[#00156B] text-white shadow-sm'
+                          : 'text-gray-600 hover:bg-gray-100'
+                      }`}
+                      aria-pressed={isActive}
                     >
-                      {t}
+                      <span className="text-lg">{main}</span>
+                      <span
+                        className={`text-xs uppercase ${
+                          isActive ? 'text-white/80' : 'text-gray-400'
+                        }`}
+                      >
+                        {suffix}
+                      </span>
                     </button>
-                  )
-                })}
-              </div>
-
-              <div className="mt-4 grid grid-cols-2 gap-4">
-                <div>
-                  <div className="text-xs text-gray-500 mb-2">Hours</div>
-                  <div
-                    className="max-h-[240px] overflow-y-auto rounded-xl border p-1 scroll-smooth snap-y snap-mandatory"
-                    style={{ borderColor: '#00156B20' }}
-                  >
-                    <ul>
-                      {hours.map((h) => (
-                        <li key={h} className="snap-start">
-                          <button
-                            type="button"
-                            onClick={() => setHour(h)}
-                            className={`w-full px-3 py-3 rounded-lg text-left text-base ${
-                              h === hour ? 'bg-[#00156B] text-white font-medium' : 'hover:bg-gray-100'
-                            }`}
-                          >
-                            {String(h).padStart(2, '0')}
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-                <div>
-                  <div className="text-xs text-gray-500 mb-2">Minutes</div>
-                  <div
-                    className="max-h-[240px] overflow-y-auto rounded-xl border p-1 scroll-smooth snap-y snap-mandatory"
-                    style={{ borderColor: '#00156B20' }}
-                  >
-                    <ul>
-                      {minutes.map((m) => (
-                        <li key={m} className="snap-start">
-                          <button
-                            type="button"
-                            onClick={() => setMinute(m)}
-                            className={`w-full px-3 py-3 rounded-lg text-left text-base ${
-                              m === minute ? 'bg-[#00156B] text-white font-medium' : 'hover:bg-gray-100'
-                            }`}
-                          >
-                            {String(m).padStart(2, '0')}
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-4 text-center text-sm text-gray-600">
-                Selected: <span className="font-semibold text-gray-800">{fmtHHMM(hour, minute)}</span>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => commitAndClose()}
-                className="mt-4 mb-3 w-full rounded-xl py-3 text-white font-semibold shadow-sm"
-                style={{ background: '#00156B' }}
-              >
-                Use This Time
-              </button>
-            </div>
+                  </li>
+                )
+              })}
+            </ul>
           </div>
         </div>
-      )}
+      </Popover>
     </div>
   )
 }
