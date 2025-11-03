@@ -227,7 +227,10 @@ export function LeaveRequestForm({ onSubmitted }: { onSubmitted?: () => void }) 
     setAttachmentError(null)
     try {
       const file = form.attachment
-      const uploaded = await uploadAttachment(file, user.id)
+      const uploaded = await uploadAttachment(file, user.id, {
+        requesterId: user.id,
+        requestType: 'LEAVE',
+      })
       setAttachmentMeta(uploaded)
       setUploadingAttachment(false)
 

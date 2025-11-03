@@ -451,7 +451,10 @@ export function OvertimeRequestForm({ onSubmitted }: { onSubmitted?: () => void 
     setUploadingAttachment(true)
     setAttachmentError(null)
     try {
-      const uploaded = await uploadAttachment(file, user.id)
+      const uploaded = await uploadAttachment(file, user.id, {
+        requesterId: user.id,
+        requestType: 'OVERTIME',
+      })
       setAttachmentMeta(uploaded)
       setUploadingAttachment(false)
 
@@ -463,7 +466,7 @@ export function OvertimeRequestForm({ onSubmitted }: { onSubmitted?: () => void 
         overtimeEndTime: form.selesai,
         overtimeHours: Number(durationHours),
         overtimeReason: form.alasan.trim(),
-        attachmentId: uploaded.id,
+        attachmentIds: [uploaded.id],
         approvals: [],
       })
       upsertRequest(created)

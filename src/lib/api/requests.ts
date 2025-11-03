@@ -93,7 +93,7 @@ export type OvertimeRequestCreatePayload = {
   overtimeHours: number
   overtimeReason: string
   notes?: string | null
-  attachmentId: string
+  attachmentIds: string[]
   approvals?: ApprovalSeed[]
 }
 

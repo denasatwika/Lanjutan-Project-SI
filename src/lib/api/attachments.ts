@@ -123,9 +123,16 @@ type UploadAttachmentOptions = {
   signal?: AbortSignal
 }
 
+export type AttachmentUploadMetadata = {
+  requesterId?: string
+  requestType?: string
+  requestId?: string
+}
+
 export async function uploadAttachment(
   file: File,
   uploaderId: string,
+  metadata?: AttachmentUploadMetadata,
   options?: UploadAttachmentOptions,
 ): Promise<AttachmentInfo> {
   if (!(file instanceof File)) {
@@ -147,6 +154,9 @@ export async function uploadAttachment(
   const form = new FormData()
   form.append('file', file)
   form.append('uploaderId', uploaderId)
+  if (metadata?.requesterId) form.append('requesterId', metadata.requesterId)
+  if (metadata?.requestType) form.append('requestType', metadata.requestType)
+  if (metadata?.requestId) form.append('requestId', metadata.requestId)
 
   const response = await fetch(`${API_BASE}/uploads/attachments`, {
     method: 'POST',

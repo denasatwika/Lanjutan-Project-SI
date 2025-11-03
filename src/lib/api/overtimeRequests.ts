@@ -5,21 +5,21 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:8787'
 type ErrorPayload = { error: string }
 
 export type OvertimeRequestPayload = {
-    type: 'OVERTIME',
-    requesterId: string,
-    overtimeDate: string, // YYYY-MM-DD
-    overtimeStartTime: string, // HH:MM
-    overtimeEndTime: string, // HH:MM
-    overtimeHours: number,
-    overtimeReason: string,
-    notes?: string | null,
-    attachmentId: string,
-    approvals?: {
-        approverId: string
-        approverLevel: string
-        stage: number
-        status?: string
-    }[],
+  type: 'OVERTIME',
+  requesterId: string,
+  overtimeDate: string, // YYYY-MM-DD
+  overtimeStartTime: string, // HH:MM
+  overtimeEndTime: string, // HH:MM
+  overtimeHours: number,
+  overtimeReason: string,
+  notes?: string | null,
+  attachmentIds: string[],
+  approvals?: {
+    approverId: string
+    approverLevel: string
+    stage: number
+    status?: string
+  }[],
 }
 
 export type OvertimeRequestResponse = {
