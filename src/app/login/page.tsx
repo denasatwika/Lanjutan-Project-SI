@@ -98,7 +98,7 @@ export default function LoginPage() {
   const buttonLabel = (() => {
     if (authorising) return 'Signing…'
     if (isConnecting || awaitingConnection) return 'Connecting…'
-    if (!isConnected) return 'Connect & Sign'
+    if (!isConnected) return 'Log In'
     return 'Sign & Login'
   })()
 
@@ -135,8 +135,8 @@ export default function LoginPage() {
               onClick={handlePrimaryAction}
               disabled={authorising || isConnecting}
               className={`w-full rounded-lg px-4 py-3 text-sm font-semibold text-white transition ${authorising || isConnecting
-                  ? 'cursor-not-allowed bg-gray-300'
-                  : 'bg-gray-900 hover:bg-black'
+                  ? 'cursor-not-allowed'
+                  : 'bg-[#00156B]'
                 }`}
             >
               {buttonLabel}
