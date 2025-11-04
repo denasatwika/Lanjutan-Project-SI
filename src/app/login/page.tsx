@@ -1,12 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
-import { ConnectButton } from '@rainbow-me/rainbowkit'
+import { useConnectModal } from '@rainbow-me/rainbowkit'
 import { useAccount, useSignMessage } from 'wagmi'
 import { toast } from 'sonner'
-import { requestNonce, postLogin } from '@/lib/api/auth'
+import { postLogin } from '@/lib/api/auth'
 import { useAuth } from '@/lib/state/auth'
 
 function shortenAddress(address: string) {
@@ -16,24 +16,33 @@ function shortenAddress(address: string) {
 export default function LoginPage() {
   const router = useRouter()
   const fetchSession = useAuth((state) => state.fetchSession)
-  const { address, isConnected } = useAccount()
+  const { address, isConnected, isConnecting } = useAccount()
   const { signMessageAsync } = useSignMessage()
+  const { openConnectModal } = useConnectModal()
   const [authorising, setAuthorising] = useState(false)
+  const [awaitingConnection, setAwaitingConnection] = useState(false)
 
-  const handleLogin = async () => {
-    if (!address) {
-      toast.error('Connect your wallet first.')
-      return
-    }
-
-    const normalisedAddress = address.trim().toLowerCase()
+  const runLogin = useCallback(async (walletAddress: string) => {
+    const normalisedAddress = walletAddress.trim().toLowerCase()
 
     try {
       setAuthorising(true)
-      const { nonce } = await requestNonce(normalisedAddress)
-      const signature = await signMessageAsync({ message: nonce })
+      const challenge = await postLogin({ address: normalisedAddress })
+      if (challenge.stage !== 'CHALLENGE') {
+        throw new Error('Login sudah divalidasi. Silakan coba lagi.')
+      }
 
-      await postLogin(normalisedAddress, signature)
+      const signature = await signMessageAsync({ message: challenge.message })
+
+      const sessionResponse = await postLogin({
+        address: normalisedAddress,
+        nonce: challenge.nonce,
+        signature,
+      })
+
+      if (sessionResponse.stage !== 'SESSION') {
+        throw new Error('Login gagal diproses. Silakan coba lagi.')
+      }
 
       const session = await fetchSession()
       if (!session) {
@@ -58,7 +67,40 @@ export default function LoginPage() {
     } finally {
       setAuthorising(false)
     }
+  }, [fetchSession, router, signMessageAsync])
+
+  const handlePrimaryAction = async () => {
+    if (authorising) return
+
+    if (!isConnected || !address) {
+      if (!openConnectModal) {
+        toast.error('Wallet connection unavailable. Refresh the page and try again.')
+        return
+      }
+
+      setAwaitingConnection(true)
+      openConnectModal()
+      return
+    }
+
+    setAwaitingConnection(false)
+    await runLogin(address)
   }
+
+  useEffect(() => {
+    if (!awaitingConnection) return
+    if (!isConnected || !address) return
+
+    setAwaitingConnection(false)
+    void runLogin(address)
+  }, [address, awaitingConnection, isConnected, runLogin])
+
+  const buttonLabel = (() => {
+    if (authorising) return 'Signing…'
+    if (isConnecting || awaitingConnection) return 'Connecting…'
+    if (!isConnected) return 'Log In'
+    return 'Sign & Login'
+  })()
 
   return (
     <main className="min-h-screen bg-gray-50">
@@ -78,11 +120,6 @@ export default function LoginPage() {
             <p className="text-sm text-gray-600 text-center">
               Use your Mandala Wallet to login to this app.
             </p>
-            <ConnectButton
-              accountStatus="address"
-              chainStatus="icon"
-              showBalance={false}
-            />
             {isConnected && address ? (
               <p className="mt-2 text-xs text-gray-600">
                 Connected as{' '}
@@ -95,14 +132,14 @@ export default function LoginPage() {
             )}
             <button
               type="button"
-              onClick={handleLogin}
-              disabled={!isConnected || authorising}
-              className={`w-full rounded-lg px-4 py-3 text-sm font-semibold text-white transition ${!isConnected || authorising
-                  ? 'cursor-not-allowed bg-gray-300'
-                  : 'bg-gray-900 hover:bg-black'
+              onClick={handlePrimaryAction}
+              disabled={authorising || isConnecting}
+              className={`w-full rounded-lg px-4 py-3 text-sm font-semibold text-white transition ${authorising || isConnecting
+                  ? 'cursor-not-allowed'
+                  : 'bg-[#00156B]'
                 }`}
             >
-              {authorising ? 'Signing…' : 'Sign & Login'}
+              {buttonLabel}
             </button>
           </div>
         </div>
