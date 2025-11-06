@@ -1,3 +1,4 @@
+import type { TypedData, TypedDataDomain, TypedDataParameter } from 'viem'
 import type { AttachmentInfo } from './attachments'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:8787'
@@ -51,6 +52,43 @@ export type LeaveRequestQuery = {
   status?: RequestStatus
   leaveType?: LeaveType
   requesterId?: string
+}
+
+export type MetaTransactionPreparePayload = {
+  from: `0x${string}`
+  gas: bigint | number | string
+  data: `0x${string}`
+  to?: `0x${string}`
+  value?: bigint | number | string
+}
+
+export type MetaTransactionRequest = {
+  from: `0x${string}`
+  to: `0x${string}`
+  gas: string
+  data: `0x${string}`
+  value?: string
+  [key: string]: unknown
+}
+
+export type MetaTransactionTypedDataResponse<
+  PrimaryType extends string = string,
+  Message extends TypedData = TypedData,
+> = {
+  domain: TypedDataDomain
+  types: Record<string, readonly TypedDataParameter[]>
+  primaryType?: PrimaryType
+  message: Message
+  request: MetaTransactionRequest
+}
+
+export type MetaTransactionSubmitPayload = {
+  request: MetaTransactionRequest
+  signature: `0x${string}`
+}
+
+export type MetaTransactionSubmitResponse = {
+  txHash: `0x${string}`
 }
 
 async function parseJson<T>(response: Response): Promise<T> {
@@ -141,4 +179,60 @@ function normalizeAttachment(input: LeaveRequestResponse): LeaveRequestResponse 
     attachment: firstAttachment,
     attachments: attachments ?? (firstAttachment ? [firstAttachment] : null),
   }
+}
+
+export async function prepareLeaveRequestMeta<
+  PrimaryType extends string = string,
+  Message extends TypedData = TypedData,
+>(
+  payload: MetaTransactionPreparePayload,
+): Promise<MetaTransactionTypedDataResponse<PrimaryType, Message>> {
+  const response = await fetch(buildUrl('/leave-requests/meta/prepare'), {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(buildMetaPreparePayload(payload)),
+  })
+
+  return parseJson<MetaTransactionTypedDataResponse<PrimaryType, Message>>(response)
+}
+
+export async function submitLeaveRequestMeta(
+  payload: MetaTransactionSubmitPayload,
+): Promise<MetaTransactionSubmitResponse> {
+  const response = await fetch(buildUrl('/leave-requests/meta/submit'), {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+
+  return parseJson<MetaTransactionSubmitResponse>(response)
+}
+
+export function buildMetaPreparePayload(payload: MetaTransactionPreparePayload) {
+  return {
+    from: payload.from,
+    to: payload.to,
+    gas: normalizeQuantity(payload.gas),
+    value: payload.value !== undefined ? normalizeQuantity(payload.value) : undefined,
+    data: payload.data,
+  }
+}
+
+function normalizeQuantity(value: bigint | number | string) {
+  if (typeof value === 'bigint') {
+    return `0x${value.toString(16)}`
+  }
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value) || value < 0) {
+      throw new Error('Gas/value must be a finite non-negative number')
+    }
+    return value.toString()
+  }
+  const trimmed = value.trim()
+  if (!trimmed) {
+    throw new Error('Gas/value cannot be empty')
+  }
+  return trimmed
 }

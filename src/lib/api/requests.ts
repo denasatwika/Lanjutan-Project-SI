@@ -1,6 +1,15 @@
 import type { TypedData, TypedDataDomain, TypedDataParameter } from 'viem'
 import type { AttachmentInfo } from './attachments'
-import type { ApprovalSeed, LeaveType, RequestStatus as LeaveRequestStatus } from './leaveRequests'
+import {
+  buildMetaPreparePayload,
+  type ApprovalSeed,
+  type LeaveType,
+  type MetaTransactionPreparePayload,
+  type MetaTransactionSubmitPayload,
+  type MetaTransactionSubmitResponse,
+  type MetaTransactionTypedDataResponse,
+  type RequestStatus as LeaveRequestStatus,
+} from './leaveRequests'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:8787'
 
@@ -239,6 +248,35 @@ export async function updateApproval(id: string, payload: ApprovalDecisionPayloa
   })
 
   return parseJson<ApprovalResponse>(response)
+}
+
+export async function prepareApprovalMeta<
+  PrimaryType extends string = string,
+  Message extends TypedData = TypedData,
+>(
+  payload: MetaTransactionPreparePayload,
+): Promise<MetaTransactionTypedDataResponse<PrimaryType, Message>> {
+  const response = await fetch(buildUrl('/approvals/meta/prepare'), {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(buildMetaPreparePayload(payload)),
+  })
+
+  return parseJson<MetaTransactionTypedDataResponse<PrimaryType, Message>>(response)
+}
+
+export async function submitApprovalMeta(
+  payload: MetaTransactionSubmitPayload,
+): Promise<MetaTransactionSubmitResponse> {
+  const response = await fetch(buildUrl('/approvals/meta/submit'), {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+
+  return parseJson<MetaTransactionSubmitResponse>(response)
 }
 
 function normalizeAttachment(input: RequestResponse): RequestResponse {
