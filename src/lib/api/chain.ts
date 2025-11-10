@@ -11,6 +11,12 @@ export type ChainConfigResponse = {
   leaveCoreAddress?: string | null
   companyMultisigAddress?: string | null
   relayerAddress?: string | null
+  name?: string | null
+  nativeCurrency?: {
+    name: string
+    symbol: string
+    decimals: number
+  } | null
   [key: string]: unknown
 }
 
@@ -22,6 +28,12 @@ export type ChainConfig = {
   leaveCoreAddress?: `0x${string}`
   companyMultisigAddress?: `0x${string}`
   relayerAddress?: `0x${string}`
+  name?: string
+  nativeCurrency?: {
+    name: string
+    symbol: string
+    decimals: number
+  }
   raw: ChainConfigResponse
 }
 
@@ -72,8 +84,26 @@ function normalizeChainConfig(payload: ChainConfigResponse): ChainConfig {
     leaveCoreAddress: normalizeAddress(payload.leaveCoreAddress) ?? undefined,
     companyMultisigAddress: normalizeAddress(payload.companyMultisigAddress) ?? undefined,
     relayerAddress: normalizeAddress(payload.relayerAddress) ?? undefined,
+    name: typeof payload.name === 'string' ? payload.name : undefined,
+    nativeCurrency: isValidNativeCurrency(payload.nativeCurrency)
+      ? payload.nativeCurrency ?? undefined
+      : undefined,
     raw: payload,
   }
+}
+
+function isValidNativeCurrency(
+  input: ChainConfigResponse['nativeCurrency'],
+): input is NonNullable<ChainConfigResponse['nativeCurrency']> {
+  if (!input || typeof input !== 'object') return false
+  const { name, symbol, decimals } = input as Record<string, unknown>
+  return (
+    typeof name === 'string' &&
+    name.trim().length > 0 &&
+    typeof symbol === 'string' &&
+    symbol.trim().length > 0 &&
+    typeof decimals === 'number'
+  )
 }
 
 function normalizeChainId(input: unknown): number | null {

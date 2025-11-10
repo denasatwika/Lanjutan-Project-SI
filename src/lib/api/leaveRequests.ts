@@ -34,6 +34,7 @@ export type LeaveRequestResponse = {
   requesterId: string
   type: 'LEAVE'
   status: RequestStatus
+  docHash?: string | null
   leaveType: LeaveType
   leaveStartDate: string
   leaveEndDate: string
@@ -54,12 +55,23 @@ export type LeaveRequestQuery = {
   requesterId?: string
 }
 
+export type LeaveMetaPreparePayload = {
+  requester: `0x${string}`
+  requestId: `0x${string}`
+  docHash: `0x${string}`
+  gasLimit?: bigint | number | string
+  deadline?: bigint | number | string
+}
+
 export type MetaTransactionPreparePayload = {
   from: `0x${string}`
   gas: bigint | number | string
   data: `0x${string}`
   to?: `0x${string}`
   value?: bigint | number | string
+  nonce: bigint | number | string
+  deadline: bigint | number | string
+  metadata?: Record<string, unknown>
 }
 
 export type MetaTransactionRequest = {
@@ -68,6 +80,9 @@ export type MetaTransactionRequest = {
   gas: string
   data: `0x${string}`
   value?: string
+  nonce: string
+  deadline: string
+  metadata?: Record<string, unknown>
   [key: string]: unknown
 }
 
@@ -85,6 +100,7 @@ export type MetaTransactionTypedDataResponse<
 export type MetaTransactionSubmitPayload = {
   request: MetaTransactionRequest
   signature: `0x${string}`
+  metadata?: Record<string, unknown>
 }
 
 export type MetaTransactionSubmitResponse = {
@@ -185,13 +201,19 @@ export async function prepareLeaveRequestMeta<
   PrimaryType extends string = string,
   Message extends TypedData = TypedData,
 >(
-  payload: MetaTransactionPreparePayload,
+  payload: LeaveMetaPreparePayload,
 ): Promise<MetaTransactionTypedDataResponse<PrimaryType, Message>> {
   const response = await fetch(buildUrl('/leave-requests/meta/prepare'), {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(buildMetaPreparePayload(payload)),
+    body: JSON.stringify({
+      requester: payload.requester,
+      requestId: payload.requestId,
+      docHash: payload.docHash,
+      gasLimit: payload.gasLimit !== undefined ? normalizeQuantity(payload.gasLimit) : undefined,
+      deadline: payload.deadline !== undefined ? normalizeQuantity(payload.deadline) : undefined,
+    }),
   })
 
   return parseJson<MetaTransactionTypedDataResponse<PrimaryType, Message>>(response)
@@ -216,13 +238,19 @@ export function buildMetaPreparePayload(payload: MetaTransactionPreparePayload) 
     to: payload.to,
     gas: normalizeQuantity(payload.gas),
     value: payload.value !== undefined ? normalizeQuantity(payload.value) : undefined,
+    nonce: normalizeQuantity(payload.nonce),
+    deadline: normalizeQuantity(payload.deadline),
     data: payload.data,
+    metadata: payload.metadata,
   }
 }
 
 function normalizeQuantity(value: bigint | number | string) {
   if (typeof value === 'bigint') {
-    return `0x${value.toString(16)}`
+    if (value < BigInt(0)) {
+      throw new Error('Numeric values must be non-negative.')
+    }
+    return value.toString()
   }
   if (typeof value === 'number') {
     if (!Number.isFinite(value) || value < 0) {

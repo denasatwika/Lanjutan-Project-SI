@@ -2,13 +2,11 @@
 
 import Image from 'next/image'
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import clsx from 'clsx'
 import { toast } from 'sonner'
-import { useAccount, useWalletClient } from 'wagmi'
-import { getAddress, isAddressEqual, keccak256, stringToBytes } from 'viem'
-import type { Address } from 'viem'
+import { useAccount } from 'wagmi'
 
 import { PageHeader } from '@/components/PageHeader'
 import {
@@ -18,17 +16,32 @@ import {
 } from '@/lib/api/attachments'
 import {
   getRequest,
-  getApprovalChallenge,
   listApprovals,
-  updateApproval,
+  prepareApprovalMeta,
+  submitApprovalMeta,
   type ApprovalResponse,
-  type ApprovalChallengeResponse,
 } from '@/lib/api/requests'
 import { useAuth } from '@/lib/state/auth'
 import { useRequests } from '@/lib/state/requests'
 import { formatWhen } from '@/lib/utils/date'
 import { resolveLeaveTypeLabel } from '@/lib/utils/requestDisplay'
 import type { LeaveRequest, OvertimeRequest } from '@/lib/types'
+import { useChainConfig, isChainConfigReady } from '@/lib/state/chain'
+import { usePrimaryWalletAddress } from '@/lib/hooks/usePrimaryWalletAddress'
+import {
+  buildCollectApprovalCalldata,
+  buildForwardRequestPayload,
+  ensureCompanyMultisigAddress,
+  ensureForwarderAddress,
+  DEFAULT_FORWARD_GAS,
+} from '@/lib/web3/metaTx'
+import { ensureChain } from '@/lib/web3/network'
+import { getForwarderNonce } from '@/lib/web3/forwarder'
+import {
+  EthereumProviderUnavailableError,
+  UserRejectedRequestError,
+  signForwardRequest,
+} from '@/lib/web3/signing'
 
 export default function ApproverApprovalDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -36,8 +49,17 @@ export default function ApproverApprovalDetailPage() {
   const searchParams = useSearchParams()
   const approvalIdFromQuery = searchParams.get('approval')
   const user = useAuth((state) => state.user)
-  const { address } = useAccount()
-  const { data: walletClient } = useWalletClient()
+  const { address: connectedAddress } = useAccount()
+  const chainConfig = useChainConfig((state) => state.config)
+  const {
+    address: expectedWalletAddress,
+    loading: expectedWalletLoading,
+    error: expectedWalletError,
+  } = usePrimaryWalletAddress({ employeeId: user?.id, fallbackAddress: user?.address ?? null })
+  const walletMismatch = useMemo(() => {
+    if (!expectedWalletAddress || !connectedAddress) return false
+    return expectedWalletAddress.toLowerCase() !== connectedAddress.toLowerCase()
+  }, [connectedAddress, expectedWalletAddress])
 
   const request = useRequests((state) => (id ? state.byId(id) : undefined))
   const upsertRequest = useRequests((state) => state.upsertFromApi)
@@ -48,9 +70,7 @@ export default function ApproverApprovalDetailPage() {
   const [note, setNote] = useState('')
   const [submitting, setSubmitting] = useState<'APPROVED' | 'REJECTED' | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const challengeCacheRef = useRef<Map<string, ApprovalChallengeResponse<'Decision'>>>(
-    new Map(),
-  )
+  const [txHash, setTxHash] = useState<string | null>(null)
 
   useEffect(() => {
     if (!id) return
@@ -98,11 +118,18 @@ export default function ApproverApprovalDetailPage() {
     setNote(activeApproval?.comments ?? '')
   }, [activeApproval?.id])
 
+  useEffect(() => {
+    setTxHash(null)
+  }, [activeApproval?.id])
+
   const canAct = Boolean(
     activeApproval &&
       activeApproval.status === 'PENDING' &&
       (user?.primaryRole === 'approver' || user?.primaryRole === 'admin') &&
-      (!user?.id || activeApproval.approverId === user.id),
+      (!user?.id || activeApproval.approverId === user.id) &&
+      expectedWalletAddress &&
+      connectedAddress &&
+      !walletMismatch,
   )
 
   const isLeave = request?.type === 'leave'
@@ -126,92 +153,123 @@ export default function ApproverApprovalDetailPage() {
 
   async function handleDecision(decision: 'APPROVED' | 'REJECTED') {
     if (!id || !activeApproval) return
-    if (!walletClient) {
+    if (!expectedWalletAddress) {
+      toast.error('No registered wallet on file for this approver. Please contact the administrator.')
+      return
+    }
+    if (!connectedAddress) {
       toast.error('Connect your wallet to submit a decision.')
       return
     }
-    if (!address) {
-      toast.error('No wallet address found. Please reconnect and try again.')
+    if (walletMismatch) {
+      toast.error('Switch your wallet to the registered approver account before signing.')
+      return
+    }
+    if (!chainConfig || !isChainConfigReady(chainConfig)) {
+      toast.error('Chain configuration is incomplete. Please contact the administrator.')
+      return
+    }
+
+    const roleValue = resolveMultisigRole(activeApproval.approverLevel)
+    if (roleValue === null) {
+      toast.error('Unable to map your approval role to the on-chain role. Please contact support.')
       return
     }
 
     setSubmitting(decision)
     setErrorMessage(null)
     try {
-      let challenge = challengeCacheRef.current.get(activeApproval.id)
-      if (!challenge || isChallengeExpired(challenge)) {
-        challenge = await getApprovalChallenge(activeApproval.id)
-        challengeCacheRef.current.set(activeApproval.id, challenge)
-      }
+      const forwarderAddress = ensureForwarderAddress(chainConfig)
+      const multisigAddress = ensureCompanyMultisigAddress(chainConfig)
 
-      if (isChallengeExpired(challenge)) {
-        challengeCacheRef.current.delete(activeApproval.id)
-        throw new Error('Signature challenge expired. Please try again.')
-      }
-
-      let connectedAddress: Address
-      let challengeAddress: Address
       try {
-        connectedAddress = getAddress(address)
-        challengeAddress = getAddress(challenge.walletAddress)
-      } catch {
-        throw new Error('Invalid wallet address provided by challenge. Please retry.')
+        await ensureChain(chainConfig, {
+          allowAdd: true,
+          chainName: chainConfig.name,
+          nativeCurrency: chainConfig.nativeCurrency,
+        })
+      } catch (networkError) {
+        throw new Error(
+          networkError instanceof Error ? networkError.message : 'Please switch your wallet to the configured network.',
+        )
       }
 
-      if (!isAddressEqual(connectedAddress, challengeAddress)) {
-        throw new Error('Connected wallet does not match the approver address on file.')
-      }
+      const signerAddress = expectedWalletAddress as `0x${string}`
+      const nonce = await getForwarderNonce(chainConfig, forwarderAddress, signerAddress)
+      const deadline = BigInt(Math.floor(Date.now() / 1000) + 60 * 60 * 24)
+      const comments = note.trim()
 
-      const trimmedNote = note.trim()
-      const typedMessage: Record<string, unknown> = {
-        ...challenge.message,
-        decision,
-      }
-
-      if (trimmedNote.length > 0) {
-        typedMessage.commentsHash = keccak256(stringToBytes(trimmedNote))
-      }
-
-      const signature = await walletClient.signTypedData({
-        account: connectedAddress,
-        domain: challenge.domain,
-        types: challenge.types,
-        primaryType: challenge.primaryType ?? 'Decision',
-        message: typedMessage,
+      const calldata = buildCollectApprovalCalldata({
+        requestId: activeApproval.requestId ?? id,
+        signer: signerAddress,
+        role: roleValue,
       })
 
-      const updatedApproval = await updateApproval(activeApproval.id, {
+      const metadata = {
+        approvalId: activeApproval.id,
+        requestId: activeApproval.requestId ?? id,
         decision,
-        comments: trimmedNote.length > 0 ? trimmedNote : undefined,
-        nonce: challenge.nonce,
+        comments: comments.length > 0 ? comments : undefined,
+        signer: signerAddress,
+      }
+
+      const forwardRequest = buildForwardRequestPayload({
+        from: signerAddress,
+        to: multisigAddress,
+        data: calldata,
+        gas: DEFAULT_FORWARD_GAS,
+        value: 0,
+        nonce,
+        deadline,
+        metadata,
+      })
+
+      console.debug('[approver-meta] preparing decision for wallet', signerAddress)
+      const prepareResponse = await prepareApprovalMeta(forwardRequest)
+      const signature = await signForwardRequest(signerAddress, prepareResponse)
+      const relayResponse = await submitApprovalMeta({
+        request: prepareResponse.request,
         signature,
+        metadata,
       })
 
-      setApprovals((prev) =>
-        prev.map((item) => (item.id === updatedApproval.id ? updatedApproval : item)),
-      )
-      setActiveApproval((prev) => (prev && prev.id === updatedApproval.id ? updatedApproval : prev))
-      challengeCacheRef.current.delete(activeApproval.id)
+      setTxHash(relayResponse.txHash ?? null)
+      toast.success(decision === 'APPROVED' ? 'Approval relayed' : 'Decision relayed', {
+        description: relayResponse.txHash ? `Tx: ${relayResponse.txHash}` : undefined,
+      })
+
+      const refreshedApprovals = await listApprovals({ requestId: id })
+      setApprovals(refreshedApprovals)
+      const updatedActive =
+        refreshedApprovals.find((item) => item.id === activeApproval.id) ?? null
+      setActiveApproval(updatedActive)
+      setNote(updatedActive?.comments ?? '')
 
       const updatedRequest = await getRequest(id)
       upsertRequest(updatedRequest)
 
-      toast.success(decision === 'APPROVED' ? 'Request approved' : 'Request rejected')
       router.push('/approver/approval')
     } catch (error) {
       const status = (error as any)?.status as number | undefined
-      const message =
-        status === 422
-          ? 'Signature invalid or wrong account. Please reconnect with the correct wallet.'
+      let message =
+        error instanceof UserRejectedRequestError
+          ? 'Signature request was rejected.'
+          : error instanceof EthereumProviderUnavailableError
+          ? 'No Ethereum provider detected. Please install MetaMask or a compatible wallet.'
           : error instanceof Error
           ? error.message
           : 'Failed to submit decision'
+
+      if (status === 422) {
+        message = 'Signature invalid or wrong account. Please reconnect with the correct wallet.'
+      } else if (status === 403) {
+        message = 'Please use your verified company wallet to act on this approval.'
+      }
+
       console.error('Failed to submit approval decision', error)
       toast.error(message)
       setErrorMessage(message)
-      if (activeApproval) {
-        challengeCacheRef.current.delete(activeApproval.id)
-      }
+      setTxHash(null)
     } finally {
       setSubmitting(null)
     }
@@ -391,6 +449,24 @@ export default function ApproverApprovalDetailPage() {
 
           <section className="card space-y-3 p-5">
             <h2 className="text-base font-semibold text-slate-900">Decision</h2>
+            {expectedWalletLoading && (
+              <p className="text-xs text-slate-500">Resolving your registered signing wallet…</p>
+            )}
+            {expectedWalletError && (
+              <p className="text-xs text-rose-600">{expectedWalletError}</p>
+            )}
+            {expectedWalletAddress && (
+              <p className="text-xs text-slate-500">
+                Registered wallet:{' '}
+                <span className="font-mono">{expectedWalletAddress.slice(0, 6)}...{expectedWalletAddress.slice(-4)}</span>
+              </p>
+            )}
+            {walletMismatch && (
+              <p className="text-xs text-rose-600">
+                Connected wallet{' '}
+                <span className="font-mono">{connectedAddress?.slice(0, 6)}...{connectedAddress?.slice(-4)}</span> does not match the registered wallet. Switch accounts to continue.
+              </p>
+            )}
             {!activeApproval && (
               <p className="text-sm text-slate-500">
                 We were unable to find an approval entry assigned to you.
@@ -435,6 +511,13 @@ export default function ApproverApprovalDetailPage() {
                     {submitting === 'APPROVED' ? 'Approving…' : 'Approve request'}
                   </button>
                 </div>
+
+                {txHash && (
+                  <p className="text-xs text-slate-500">
+                    Latest relay tx:{' '}
+                    <span className="font-mono text-slate-600">{formatSignaturePreview(txHash)}</span>
+                  </p>
+                )}
 
                 {!canAct && (
                   <p className="text-xs text-slate-500">
@@ -482,29 +565,13 @@ function formatSignaturePreview(value: string) {
   return `${value.slice(0, 10)}…${value.slice(-8)}`
 }
 
-function isChallengeExpired(
-  challenge: ApprovalChallengeResponse<'Decision'>,
-  graceMs = 5000,
-): boolean {
-  const expiryMs = normalizeEpochMs(challenge.expiresAt)
-  if (expiryMs === null) return false
-  return expiryMs <= Date.now() + graceMs
-}
-
-function normalizeEpochMs(input: unknown): number | null {
-  if (typeof input === 'number') {
-    if (!Number.isFinite(input)) return null
-    return input < 1e12 ? input * 1000 : input
-  }
-  if (typeof input === 'string') {
-    const trimmed = input.trim()
-    if (!trimmed) return null
-    const numeric = Number(trimmed)
-    if (Number.isFinite(numeric)) {
-      return numeric < 1e12 ? numeric * 1000 : numeric
-    }
-    const parsed = Date.parse(trimmed)
-    return Number.isFinite(parsed) ? parsed : null
-  }
+function resolveMultisigRole(level?: string | null): number | null {
+  if (!level) return null
+  const normalized = level.trim().toLowerCase()
+  if (!normalized) return null
+  if (normalized.includes('super')) return 1
+  if (normalized.includes('chief')) return 2
+  if (normalized.includes('hr')) return 3
+  if (normalized.includes('none')) return 0
   return null
 }

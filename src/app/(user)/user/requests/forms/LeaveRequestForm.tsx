@@ -6,7 +6,13 @@ import { toast } from 'sonner'
 import { ChevronDown } from 'lucide-react'
 import DateRangePicker from '@/components/DateRangePicker'
 import type { DateRange } from 'react-day-picker'
-import { createLeaveRequest, type LeaveType } from '@/lib/api/leaveRequests'
+import { useAccount } from 'wagmi'
+import {
+  createLeaveRequest,
+  prepareLeaveRequestMeta,
+  submitLeaveRequestMeta,
+  type LeaveType,
+} from '@/lib/api/leaveRequests'
 import {
   formatAttachmentSize,
   isSupportedAttachmentType,
@@ -15,7 +21,16 @@ import {
   type AttachmentInfo,
 } from '@/lib/api/attachments'
 import { useAuth } from '@/lib/state/auth'
+import { useChainConfig, isChainConfigReady } from '@/lib/state/chain'
 import { useRequests } from '@/lib/state/requests'
+import { usePrimaryWalletAddress } from '@/lib/hooks/usePrimaryWalletAddress'
+import { ensureChain } from '@/lib/web3/network'
+import {
+  EthereumProviderUnavailableError,
+  UserRejectedRequestError,
+  signForwardRequest,
+} from '@/lib/web3/signing'
+import { keccak256, stringToBytes, recoverTypedDataAddress } from 'viem'
 
 /* ---- Helpers ---- */
 function toISODate(d?: Date) {
@@ -136,8 +151,20 @@ export type LeaveKind = (typeof LEAVE_TYPE_OPTIONS)[number]['value']
 export function LeaveRequestForm({ onSubmitted }: { onSubmitted?: () => void }) {
   const router = useRouter()
   const { user } = useAuth()
+  const { address: connectedAddress } = useAccount()
+  const chainConfig = useChainConfig((state) => state.config)
+  const {
+    address: expectedWalletAddress,
+    loading: expectedWalletLoading,
+    error: expectedWalletError,
+  } = usePrimaryWalletAddress({ employeeId: user?.id, fallbackAddress: user?.address ?? null })
+  const walletMismatch = useMemo(() => {
+    if (!expectedWalletAddress || !connectedAddress) return false
+    return expectedWalletAddress.toLowerCase() !== connectedAddress.toLowerCase()
+  }, [expectedWalletAddress, connectedAddress])
   const upsertRequest = useRequests((s) => s.upsertFromApi)
   const [submitting, setSubmitting] = useState(false)
+  const [submitStep, setSubmitStep] = useState<'upload' | 'create' | 'prepare' | 'sign' | 'relay' | null>(null)
   const [uploadingAttachment, setUploadingAttachment] = useState(false)
   const [attachmentMeta, setAttachmentMeta] = useState<AttachmentInfo | null>(null)
   const [attachmentError, setAttachmentError] = useState<string | null>(null)
@@ -156,6 +183,19 @@ export function LeaveRequestForm({ onSubmitted }: { onSubmitted?: () => void }) 
   })
 
   const fileRef = useRef<HTMLInputElement | null>(null)
+  const submitLabel = uploadingAttachment
+    ? 'Uploading attachment...'
+    : submitting
+    ? submitStep === 'create'
+      ? 'Saving request...'
+      : submitStep === 'prepare'
+      ? 'Preparing transaction...'
+      : submitStep === 'sign'
+      ? 'Awaiting signature...'
+      : submitStep === 'relay'
+      ? 'Relaying transaction...'
+      : 'Submitting...'
+    : 'Submit Leave Request'
 
   const dateRange = useMemo<DateRange>(() => ({
     from: fromISODate(form.startDate),
@@ -211,6 +251,7 @@ export function LeaveRequestForm({ onSubmitted }: { onSubmitted?: () => void }) 
   }
 
   async function submit() {
+    let currentStep: typeof submitStep = null
     if (!valid) return
     if (!user?.id) {
       toast.error('Unable to determine the requester. Please sign in again.')
@@ -220,22 +261,48 @@ export function LeaveRequestForm({ onSubmitted }: { onSubmitted?: () => void }) 
       toast.error('Please select an attachment before submitting.')
       return
     }
+    if (!expectedWalletAddress) {
+      toast.error('No registered wallet found for this account. Please contact the administrator.')
+      return
+    }
+    if (!connectedAddress) {
+      toast.error('Connect a wallet before submitting the request.')
+      return
+    }
+    if (walletMismatch) {
+      toast.error('Connected wallet does not match your registered company wallet. Please switch accounts in your wallet extension.')
+      return
+    }
+    if (!chainConfig || !isChainConfigReady(chainConfig)) {
+      toast.error('Chain configuration is incomplete. Please contact the administrator.')
+      return
+    }
     if (uploadingAttachment) {
       toast.error('Please wait until the attachment upload finishes.')
       return
     }
+
     setSubmitting(true)
+    currentStep = 'upload'
+    setSubmitStep('upload')
     setUploadingAttachment(true)
     setAttachmentError(null)
+
+    let uploaded: AttachmentInfo | null = null
     try {
       const file = form.attachment
-      const uploaded = await uploadAttachment(file, user.id, {
+      const fileBuffer = await file.arrayBuffer()
+      const fileHash = keccak256(new Uint8Array(fileBuffer)) as `0x${string}`
+
+      uploaded = await uploadAttachment(file, user.id, {
         requesterId: user.id,
         requestType: 'LEAVE',
       })
       setAttachmentMeta(uploaded)
       setUploadingAttachment(false)
 
+      currentStep = 'create'
+      setSubmitStep('create')
       const created = await createLeaveRequest({
         type: 'LEAVE',
         requesterId: user.id,
@@ -247,15 +314,84 @@ export function LeaveRequestForm({ onSubmitted }: { onSubmitted?: () => void }) 
         attachmentIds: [uploaded.id],
         approvals: [],
       })
+
+      if (!uploaded) {
+        throw new Error('Attachment upload did not complete. Please retry.')
+      }
+
       upsertRequest({
         ...created,
         overtimeDate: null,
         overtimeStartTime: null,
         overtimeEndTime: null,
         overtimeHours: null,
-        overtimeReason: null
+        overtimeReason: null,
       })
-      toast.success('Leave request submitted')
+
+      try {
+        await ensureChain(chainConfig, {
+          allowAdd: true,
+          chainName: chainConfig.name,
+          nativeCurrency: chainConfig.nativeCurrency,
+        })
+      } catch (networkError) {
+        throw new Error(
+          networkError instanceof Error ? networkError.message : 'Please switch your wallet to the configured network.',
+        )
+      }
+
+      currentStep = 'prepare'
+      setSubmitStep('prepare')
+      const deadline = BigInt(Math.floor(Date.now() / 1000) + 60 * 60 * 24)
+      const docHash =
+        uploaded?.cid && uploaded.cid.trim().length > 0
+          ? (keccak256(stringToBytes(uploaded.cid.trim())) as `0x${string}`)
+          : fileHash
+      const signerAddress = expectedWalletAddress as `0x${string}`
+      const requestId = keccak256(stringToBytes(`${created.id}:${signerAddress}`)) as `0x${string}`
+
+      console.debug('[leave-meta] preparing request for wallet', signerAddress)
+      const prepareResponse = await prepareLeaveRequestMeta({
+        requester: signerAddress,
+        requestId,
+        docHash,
+        deadline,
+      })
+
+      currentStep = 'sign'
+      const signature = await signForwardRequest(signerAddress, prepareResponse)
+
+      try {
+        const recovered = await recoverTypedDataAddress({
+          domain: prepareResponse.domain,
+          types: prepareResponse.types,
+          primaryType: (prepareResponse.primaryType ?? 'ForwardRequest') as 'ForwardRequest',
+          message: prepareResponse.message,
+          signature,
+        })
+        console.debug('[leave-meta] signature recovered as', recovered)
+        if (recovered.toLowerCase() !== signerAddress.toLowerCase()) {
+          throw new Error(
+            `Wallet ${recovered} produced the signature but ${signerAddress} is required. Please switch accounts and try again.`,
+          )
+        }
+      } catch (recoveryError) {
+        if (recoveryError instanceof Error && recoveryError.message.includes('Wallet')) {
+          throw recoveryError
+        }
+        console.warn('[leave-meta] Unable to recover signer locally', recoveryError)
+      }
+
+      currentStep = 'relay'
+      const relayResponse = await submitLeaveRequestMeta({
+        request: prepareResponse.request,
+        signature,
+      })
+
+      toast.success('Leave request relayed', {
+        description: relayResponse.txHash ? `Tx: ${relayResponse.txHash}` : undefined,
+      })
+
       setForm({
         leaveType: LEAVE_TYPE_OPTIONS[0].value,
         startDate: '',
@@ -269,21 +405,49 @@ export function LeaveRequestForm({ onSubmitted }: { onSubmitted?: () => void }) 
       onSubmitted?.()
       router.push(`/user/inbox/${created.id}`)
     } catch (error) {
+      let message =
+        error instanceof UserRejectedRequestError
+          ? 'Signature request was rejected.'
+          : error instanceof EthereumProviderUnavailableError
+          ? 'No Ethereum provider detected. Please install MetaMask or a compatible wallet.'
+          : error instanceof Error
+          ? error.message
+          : 'Failed to submit leave request'
+
       const status = (error as any)?.status
       const detail = (error as any)?.details
-      let message = detail || (error instanceof Error ? error.message : 'Failed to submit leave request')
+      if (detail) message = detail
+
+      const serverMessage = message
+      const relayError = currentStep === 'relay'
+      const prepareError = currentStep === 'prepare'
+
       if (status === 400) {
-        message = 'Attachment is too large or a required field is missing.'
+        message = relayError
+          ? serverMessage ?? 'Signature validation failed. Please retry the signing step.'
+          : 'Attachment is too large or a required field is missing.'
       } else if (status === 404) {
         message = 'Requester not found. Please sign in again.'
-      } else if (status === 403 || status === 409) {
+      } else if (status === 403) {
+        message = prepareError
+          ? 'Please use your verified company wallet (primary & verified) to submit this request.'
+          : 'Attachment could not be linked. Please re-upload and try again.'
+      } else if (status === 409) {
         message = 'Attachment could not be linked. Please re-upload and try again.'
       } else if (status === 415) {
         message = 'File type not supported. Please upload a PDF or image.'
       }
-      setAttachmentError(message)
+
+      if (relayError) {
+        setAttachmentError(null)
+      } else {
+        setAttachmentError(message)
+      }
+
       toast.error(message)
     } finally {
+      currentStep = null
+      setSubmitStep(null)
       setUploadingAttachment(false)
       setSubmitting(false)
     }
@@ -370,6 +534,25 @@ export function LeaveRequestForm({ onSubmitted }: { onSubmitted?: () => void }) 
         {uploadingAttachment && (
           <div className="mt-2 text-xs text-gray-500">Uploading attachment…</div>
         )}
+        {expectedWalletLoading && (
+          <div className="mt-2 text-xs text-gray-500">Resolving your registered wallet…</div>
+        )}
+        {expectedWalletError && (
+          <div className="mt-2 text-sm text-rose-600">{expectedWalletError}</div>
+        )}
+        {expectedWalletAddress && (
+          <div className="mt-2 text-xs text-gray-500">
+            Signing wallet on file:{' '}
+            <span className="font-mono">{expectedWalletAddress.slice(0, 6)}...{expectedWalletAddress.slice(-4)}</span>
+          </div>
+        )}
+        {walletMismatch && (
+          <div className="mt-2 text-sm text-rose-600">
+            Connected wallet{' '}
+            <span className="font-mono">{connectedAddress?.slice(0, 6)}...{connectedAddress?.slice(-4)}</span> does not match the registered wallet{' '}
+            <span className="font-mono">{expectedWalletAddress?.slice(0, 6)}...{expectedWalletAddress?.slice(-4)}</span>. Switch accounts to continue.
+          </div>
+        )}
         {attachmentError && (
           <div className="mt-2 text-sm text-rose-600">{attachmentError}</div>
         )}
@@ -393,11 +576,11 @@ export function LeaveRequestForm({ onSubmitted }: { onSubmitted?: () => void }) 
 
       <button
         type="submit"
-        disabled={!valid || submitting || uploadingAttachment || !user}
+        disabled={!valid || submitting || uploadingAttachment || !user || walletMismatch || !expectedWalletAddress}
         className="w-full inline-flex items-center justify-center rounded-xl px-4 py-3 text-white font-semibold shadow-md transition disabled:cursor-not-allowed disabled:bg-slate-400"
         style={{ background: '#00156B' }}
       >
-        {uploadingAttachment ? 'Uploading attachment...' : submitting ? 'Submitting...' : 'Submit Leave Request'}
+        {submitLabel}
       </button>
     </form>
   )
