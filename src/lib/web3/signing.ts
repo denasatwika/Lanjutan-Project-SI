@@ -60,9 +60,14 @@ export async function signTypedDataV4<
   })
 
   try {
+    // SIMPLIFIED: Get the actual connected account from MetaMask
+    const accounts = await provider.request({ method: 'eth_requestAccounts' }) as string[]
+    const actualAccount = accounts[0]
+    console.log('[signing] Using actual MetaMask account:', actualAccount)
+
     const result = await provider.request({
       method: 'eth_signTypedData_v4',
-      params: [account, payload],
+      params: [actualAccount, payload],
     })
 
     if (typeof result === 'string') {

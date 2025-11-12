@@ -58,8 +58,11 @@ export type LeaveRequestQuery = {
 export type LeaveMetaPreparePayload = {
   requester: `0x${string}`
   requestId: `0x${string}`
-  docHash: `0x${string}`
-  gasLimit?: bigint | number | string
+  leaveType: string
+  startDate: string
+  endDate: string
+  leaveDays: number
+  reason: string
   deadline?: bigint | number | string
 }
 
@@ -210,8 +213,11 @@ export async function prepareLeaveRequestMeta<
     body: JSON.stringify({
       requester: payload.requester,
       requestId: payload.requestId,
-      docHash: payload.docHash,
-      gasLimit: payload.gasLimit !== undefined ? normalizeQuantity(payload.gasLimit) : undefined,
+      leaveType: payload.leaveType,
+      startDate: payload.startDate,
+      endDate: payload.endDate,
+      leaveDays: payload.leaveDays,
+      reason: payload.reason,
       deadline: payload.deadline !== undefined ? normalizeQuantity(payload.deadline) : undefined,
     }),
   })

@@ -42,6 +42,16 @@ import {
   UserRejectedRequestError,
   signForwardRequest,
 } from '@/lib/web3/signing'
+type EthereumProvider = {
+  request: (args: { method: string; params?: unknown[] }) => Promise<unknown>
+  on?: (event: string, handler: (...args: any[]) => void) => void
+  removeListener?: (event: string, handler: (...args: any[]) => void) => void
+}
+
+function getEthereumProvider(): EthereumProvider | undefined {
+  if (typeof window === 'undefined') return undefined
+  return (window as typeof window & { ethereum?: EthereumProvider }).ethereum
+}
 
 export default function ApproverApprovalDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -61,6 +71,8 @@ export default function ApproverApprovalDetailPage() {
     return expectedWalletAddress.toLowerCase() !== connectedAddress.toLowerCase()
   }, [connectedAddress, expectedWalletAddress])
 
+  const [walletSwitching, setWalletSwitching] = useState(false)
+  const [accountChanged, setAccountChanged] = useState(false)
   const request = useRequests((state) => (id ? state.byId(id) : undefined))
   const upsertRequest = useRequests((state) => state.upsertFromApi)
 
@@ -122,6 +134,28 @@ export default function ApproverApprovalDetailPage() {
     setTxHash(null)
   }, [activeApproval?.id])
 
+  useEffect(() => {
+    const provider = getEthereumProvider()
+    if (!provider?.on) return
+    const handler = () => {
+      setAccountChanged(true)
+      setSubmitting(null)
+    }
+    provider.on('accountsChanged', handler)
+    return () => provider.removeListener?.('accountsChanged', handler)
+  }, [])
+
+  useEffect(() => {
+    if (
+      accountChanged &&
+      expectedWalletAddress &&
+      connectedAddress &&
+      expectedWalletAddress.toLowerCase() === connectedAddress.toLowerCase()
+    ) {
+      setAccountChanged(false)
+    }
+  }, [accountChanged, expectedWalletAddress, connectedAddress])
+
   const canAct = Boolean(
     activeApproval &&
       activeApproval.status === 'PENDING' &&
@@ -151,6 +185,38 @@ export default function ApproverApprovalDetailPage() {
   const attachmentPreviewSrc =
     normalizedAttachmentUrl && isImageAttachment ? normalizedAttachmentUrl : null
 
+  async function requestWalletAlignment() {
+    const provider = getEthereumProvider()
+    if (!provider) {
+      toast.error('No Ethereum provider detected. Please install MetaMask or a compatible wallet.')
+      return
+    }
+    setWalletSwitching(true)
+    try {
+      await provider.request({
+        method: 'wallet_requestPermissions',
+        params: [{ eth_accounts: {} }],
+      })
+      await provider.request({ method: 'wallet_requestAccounts' })
+      if (chainConfig?.chainHexId) {
+        try {
+          await provider.request({
+            method: 'wallet_switchEthereumChain',
+            params: [{ chainId: chainConfig.chainHexId }],
+          })
+        } catch (error) {
+          console.warn('wallet_switchEthereumChain failed, relying on ensureChain()', error)
+        }
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Unable to request wallet permissions. Please switch manually.'
+      toast.error(message)
+    } finally {
+      setWalletSwitching(false)
+    }
+  }
+
   async function handleDecision(decision: 'APPROVED' | 'REJECTED') {
     if (!id || !activeApproval) return
     if (!expectedWalletAddress) {
@@ -163,6 +229,10 @@ export default function ApproverApprovalDetailPage() {
     }
     if (walletMismatch) {
       toast.error('Switch your wallet to the registered approver account before signing.')
+      return
+    }
+    if (accountChanged) {
+      toast.error('Your wallet changed recently. Please realign before submitting a decision.')
       return
     }
     if (!chainConfig || !isChainConfigReady(chainConfig)) {
@@ -226,6 +296,15 @@ export default function ApproverApprovalDetailPage() {
 
       console.debug('[approver-meta] preparing decision for wallet', signerAddress)
       const prepareResponse = await prepareApprovalMeta(forwardRequest)
+      const provider = getEthereumProvider()
+      if (provider) {
+        try {
+          const currentAccounts = (await provider.request({ method: 'eth_accounts' })) as string[] | undefined
+          console.debug('[approver-meta] eth_accounts before signing', currentAccounts)
+        } catch (error) {
+          console.warn('[approver-meta] Unable to read eth_accounts before signing', error)
+        }
+      }
       const signature = await signForwardRequest(signerAddress, prepareResponse)
       const relayResponse = await submitApprovalMeta({
         request: prepareResponse.request,
@@ -461,10 +540,29 @@ export default function ApproverApprovalDetailPage() {
                 <span className="font-mono">{expectedWalletAddress.slice(0, 6)}...{expectedWalletAddress.slice(-4)}</span>
               </p>
             )}
+            {connectedAddress && (
+              <p className="text-xs text-slate-500">
+                MetaMask wallet:{' '}
+                <span className="font-mono">{connectedAddress.slice(0, 6)}...{connectedAddress.slice(-4)}</span>
+              </p>
+            )}
+            {accountChanged && (
+              <p className="text-xs text-amber-600">
+                Wallet changed in MetaMask. Restart the decision flow after switching to the registered account.
+              </p>
+            )}
             {walletMismatch && (
               <p className="text-xs text-rose-600">
                 Connected wallet{' '}
                 <span className="font-mono">{connectedAddress?.slice(0, 6)}...{connectedAddress?.slice(-4)}</span> does not match the registered wallet. Switch accounts to continue.
+                <button
+                  type="button"
+                  onClick={requestWalletAlignment}
+                  className="ml-2 inline-flex items-center rounded-lg border border-rose-200 px-2 py-0.5 text-[11px] font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-60"
+                  disabled={walletSwitching}
+                >
+                  {walletSwitching ? 'Requesting…' : 'Switch wallet'}
+                </button>
               </p>
             )}
             {!activeApproval && (

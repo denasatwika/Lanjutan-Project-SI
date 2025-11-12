@@ -12,7 +12,7 @@ import { CalendarDays, Clock, TrendingUp, Zap, Info, Check, Files } from 'lucide
 import { toast } from 'sonner'
 import { BottomSheet } from '@/components/ui/bottomSheet'
 import { useRouter } from 'next/navigation'
-import { mandalaTestnet } from '@/lib/web3/wagmiConfig'
+import { anvilLocal } from '@/lib/web3/wagmiConfig'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE
 
@@ -52,7 +52,7 @@ export default function Page() {
   useEffect(() => {
     if (!walletAddress) {
       setFormattedKpgBalance('—')
-      setTokenSymbol(mandalaTestnet.nativeCurrency.symbol)
+      setTokenSymbol(anvilLocal.nativeCurrency.symbol)
       return
     }
     const controller = new AbortController()
@@ -296,6 +296,7 @@ export default function Page() {
             />
           ))}
         </div>
+        {/* Here is my button */}
         <button
           onClick={() => setShowCheckIn(true)}
           className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm hover:bg-white/95"
@@ -334,6 +335,8 @@ export default function Page() {
         <CheckInSheet
           open={showCheckIn}
           onClose={() => setShowCheckIn(false)}
+          employeeId={user.id}
+          mode={isWorking ? 'out' : 'in'}
           onStored={(p) => {
             const api = (useAttendance as any).getState?.()
             if (api?.add) {
