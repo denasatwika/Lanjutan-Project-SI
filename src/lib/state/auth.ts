@@ -23,7 +23,11 @@ export const useAuth = create<AuthState>()((set) => ({
         return undefined
       }
 
-      const address = session.user.address as `0x${string}`
+      const rawAddress = session.user.address
+      if (!rawAddress || typeof rawAddress !== 'string' || rawAddress.trim().length === 0) {
+        throw new Error('No verified company wallet is associated with this account. Please contact the administrator.')
+      }
+      const address = rawAddress as `0x${string}`
       const fallbackName = `${address.slice(0, 6)}...${address.slice(-4)}`
       const resolvedName = session.user.name?.trim()
 

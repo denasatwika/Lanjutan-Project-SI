@@ -3,7 +3,9 @@ import { cookieStorage, createStorage } from 'wagmi'
 import { http } from 'viem'
 import { mainnet, polygon, sepolia } from 'wagmi/chains'
 import { mandalaTestnet } from './mandalaChain'
+import { anvilLocal } from './anvilChain'
 export { mandalaTestnet } from './mandalaChain'
+export { anvilLocal } from './anvilChain'
 
 const projectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID
 
@@ -20,8 +22,9 @@ export const wagmiConfig = getDefaultConfig({
   appName: 'MyBaliola',
   projectId: projectId ?? '00000000000000000000000000000000',
   ssr: true,
-  chains: [mandalaTestnet, sepolia, polygon, mainnet],
+  chains: [anvilLocal, mandalaTestnet, sepolia, polygon, mainnet],
   transports: {
+    [anvilLocal.id]: http('http://127.0.0.1:8545'),
     [mandalaTestnet.id]: http('https://rpc1.paseo.mandalachain.io'),
     [sepolia.id]: http(),
     [polygon.id]: http(),

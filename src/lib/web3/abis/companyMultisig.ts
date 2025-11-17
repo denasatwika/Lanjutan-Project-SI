@@ -1,5 +1,5 @@
 import { parseAbi } from 'viem'
 
 export const companyMultisigAbi = parseAbi([
-  'function collectApproval(uint256 requestId, address approver, uint32 stage, bool decision, string comments, bytes signature)',
+  'function collectApproval(bytes32 requestId, address signer, uint8 role)',
 ])

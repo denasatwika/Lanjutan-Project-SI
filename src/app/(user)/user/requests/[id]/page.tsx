@@ -1,6 +1,7 @@
 'use client'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
+import { keccak256, stringToBytes } from 'viem'
 import {
   buildAttachmentDownloadUrl,
   formatAttachmentSize,
@@ -11,12 +12,16 @@ import { formatWhen } from '@/lib/utils/date'
 import { LeaveRequest, OvertimeRequest } from '@/lib/types'
 import { resolveLeaveTypeLabel } from '@/lib/utils/requestDisplay'
 import { getRequest } from '@/lib/api/requests'
+import { getApprovalState, type ApprovalState } from '@/lib/api/multisig'
+import { ApprovalStatus } from '@/components/ApprovalStatus'
 import { toast } from 'sonner'
 
 export default function Page(){
   const { id } = useParams<{id:string}>()
   const request = useRequests(s=>s.byId(id))
   const upsert = useRequests(s=>s.upsertFromApi)
+  const [approvalState, setApprovalState] = useState<ApprovalState | null>(null)
+  const [loadingApprovals, setLoadingApprovals] = useState(false)
 
   useEffect(() => {
     if (!id || request) return
@@ -27,6 +32,26 @@ export default function Page(){
         toast.error(message)
       })
   }, [id, request, upsert])
+
+  useEffect(() => {
+    if (!request || request.type !== 'leave') return
+
+    async function loadApprovalState() {
+      try {
+        setLoadingApprovals(true)
+        // Generate requestId based on the leave request
+        const requestId = keccak256(stringToBytes(`${request.id}:${request.requesterId}`)) as `0x${string}`
+        const state = await getApprovalState(requestId)
+        setApprovalState(state)
+      } catch (error) {
+        console.error('Failed to load approval state', error)
+      } finally {
+        setLoadingApprovals(false)
+      }
+    }
+
+    loadApprovalState()
+  }, [request])
 
   if(!request) return <div className="text-sm text-gray-600">Request not found</div>
   const isLeave = request.type === 'leave'
@@ -82,6 +107,12 @@ export default function Page(){
           </div>
         )}
       </div>
+
+      {isLeave && (
+        <div className="mt-4">
+          <ApprovalStatus state={approvalState} loading={loadingApprovals} />
+        </div>
+      )}
     </div>
   )
 }
