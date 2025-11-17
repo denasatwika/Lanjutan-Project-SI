@@ -9,8 +9,6 @@ import type { DateRange } from 'react-day-picker'
 import { useAccount } from 'wagmi'
 import {
   createLeaveRequest,
-  prepareLeaveRequestMeta,
-  submitLeaveRequestMeta,
   type LeaveType,
 } from '@/lib/api/leaveRequests'
 import {
@@ -20,6 +18,8 @@ import {
   uploadAttachment,
   type AttachmentInfo,
 } from '@/lib/api/attachments'
+import { prepareForwardRequest, submitForwardRequest } from '@/lib/api/forwarder'
+import { encodeCreateRequest } from '@/lib/web3/contracts'
 import { useAuth } from '@/lib/state/auth'
 import { useChainConfig, isChainConfigReady } from '@/lib/state/chain'
 import { useRequests } from '@/lib/state/requests'
@@ -30,7 +30,7 @@ import {
   UserRejectedRequestError,
   signForwardRequest,
 } from '@/lib/web3/signing'
-import { keccak256, stringToBytes, recoverTypedDataAddress } from 'viem'
+import { keccak256, stringToBytes } from 'viem'
 type EthereumProvider = {
   request: (args: { method: string; params?: unknown[] }) => Promise<unknown>
   on?: (event: string, handler: (...args: any[]) => void) => void
@@ -378,19 +378,31 @@ export function LeaveRequestForm({ onSubmitted }: { onSubmitted?: () => void }) 
 
       currentStep = 'prepare'
       setSubmitStep('prepare')
-      const deadline = BigInt(Math.floor(Date.now() / 1000) + 60 * 60 * 24)
+
+      // Generate requestId based on the database record ID
       const signerAddress = expectedWalletAddress as `0x${string}`
       const requestId = keccak256(stringToBytes(`${created.id}:${signerAddress}`)) as `0x${string}`
+      const docHash = `0x${'00'.repeat(32)}` as `0x${string}` // Zero hash for now
 
-      console.debug('[leave-meta] preparing request for wallet', signerAddress)
-      const prepareResponse = await prepareLeaveRequestMeta({
-        requester: signerAddress,
+      console.debug('[gasless-forwarder] Preparing leave request')
+      console.debug('  Request ID:', requestId)
+      console.debug('  Signer:', signerAddress)
+      console.debug('  LeaveCore:', chainConfig.leaveCoreAddress)
+
+      // Encode createRequest call for LeaveCore
+      const callData = encodeCreateRequest({
         requestId,
-        leaveType: form.leaveType,
-        startDate: form.startDate,
-        endDate: form.endDate,
-        leaveDays: days,
-        reason: form.reason.trim(),
+        docHash,
+      })
+
+      // Prepare ForwardRequest
+      const deadline = BigInt(Math.floor(Date.now() / 1000) + 60 * 60) // 1 hour deadline
+      const prepareResponse = await prepareForwardRequest({
+        from: signerAddress,
+        to: chainConfig.leaveCoreAddress!,
+        gas: 500000n,
+        value: 0n,
+        data: callData,
         deadline,
       })
 
@@ -398,28 +410,32 @@ export function LeaveRequestForm({ onSubmitted }: { onSubmitted?: () => void }) 
       if (provider) {
         try {
           const currentAccounts = (await provider.request({ method: 'eth_accounts' })) as string[] | undefined
-          console.debug('[leave-meta] eth_accounts before signing', currentAccounts)
+          console.debug('[gasless-forwarder] eth_accounts before signing', currentAccounts)
         } catch (error) {
-          console.warn('[leave-meta] Unable to read eth_accounts before signing', error)
+          console.warn('[gasless-forwarder] Unable to read eth_accounts before signing', error)
         }
       }
+
       currentStep = 'sign'
+      setSubmitStep('sign')
+      console.debug('[gasless-forwarder] Requesting signature...')
       const signature = await signForwardRequest(signerAddress, prepareResponse)
 
-      // SIMPLIFIED: Skip frontend signature verification, backend will handle it
-      console.debug('[leave-meta] Signature obtained, sending to backend')
+      console.debug('[gasless-forwarder] Signature obtained, submitting to relayer')
 
       currentStep = 'relay'
       setSubmitStep('relay')
 
-      // The backend expects { id, signature }, not { request, signature }
-      const relayResponse = await submitLeaveRequestMeta({
-        id: (prepareResponse as any).id,
+      // Submit ForwardRequest to backend relayer
+      const relayResponse = await submitForwardRequest({
+        request: prepareResponse.request,
         signature,
       })
 
-      toast.success('Leave request relayed', {
-        description: relayResponse.txHash ? `Tx: ${relayResponse.txHash}` : undefined,
+      toast.success('Leave request created on-chain', {
+        description: relayResponse.txHash
+          ? `Transaction: ${relayResponse.txHash.slice(0, 10)}... - Awaiting approvals (3 required)`
+          : 'Awaiting approvals from Supervisor, Chief, and HR',
       })
 
       setForm({

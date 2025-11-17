@@ -4,6 +4,7 @@ import Image from 'next/image'
 
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
+import { keccak256, stringToBytes } from 'viem'
 import { PageHeader } from '@/components/PageHeader'
 import { useAuth } from '@/lib/state/auth'
 import { useRequests } from '@/lib/state/requests'
@@ -11,6 +12,8 @@ import type { LeaveRequest, OvertimeRequest, Request } from '@/lib/types'
 import { resolveLeaveTypeLabel } from '@/lib/utils/requestDisplay'
 import { buildAttachmentDownloadUrl, formatAttachmentSize, normalizeAttachmentUrl } from '@/lib/api/attachments'
 import { getRequest, listApprovals, type ApprovalResponse } from '@/lib/api/requests'
+import { getApprovalState, type ApprovalState } from '@/lib/api/multisig'
+import { ApprovalStatus } from '@/components/ApprovalStatus'
 import { StatusPill, formatDateOnly, formatDateTime } from '../utils'
 import { useInboxRead } from '../useInboxRead'
 import { toast } from 'sonner'
@@ -28,6 +31,8 @@ export default function InboxDetailPage() {
   const [error, setError] = useState<string | null>(null)
   const [approvals, setApprovals] = useState<ApprovalResponse[]>([])
   const [approvalsError, setApprovalsError] = useState<string | null>(null)
+  const [approvalState, setApprovalState] = useState<ApprovalState | null>(null)
+  const [loadingApprovalState, setLoadingApprovalState] = useState(false)
   useEffect(() => {
     if (!requestId) return
     let cancelled = false
@@ -87,6 +92,26 @@ export default function InboxDetailPage() {
       cancelled = true
     }
   }, [requestId, byId, upsertFromApi, markRead])
+
+  useEffect(() => {
+    if (!request || request.type !== 'leave') return
+
+    async function loadOnChainApprovalState() {
+      try {
+        setLoadingApprovalState(true)
+        // Generate requestId based on the leave request
+        const onChainRequestId = keccak256(stringToBytes(`${request.id}:${request.requesterId}`)) as `0x${string}`
+        const state = await getApprovalState(onChainRequestId)
+        setApprovalState(state)
+      } catch (error) {
+        console.error('Failed to load on-chain approval state', error)
+      } finally {
+        setLoadingApprovalState(false)
+      }
+    }
+
+    loadOnChainApprovalState()
+  }, [request])
 
   const attachmentUrl = normalizeAttachmentUrl(request?.attachmentUrl, request?.attachmentCid)
   const isImageAttachment = Boolean(request?.attachmentMimeType?.startsWith('image/'))
@@ -250,6 +275,13 @@ export default function InboxDetailPage() {
               <div className="mt-2 text-sm text-gray-500">Tidak ada lampiran</div>
             )}
           </div>
+
+          {isLeave && (
+            <div className="mb-4">
+              <div className="text-gray-500 mb-2">Status Persetujuan On-Chain</div>
+              <ApprovalStatus state={approvalState} loading={loadingApprovalState} />
+            </div>
+          )}
 
           <div>
             <div className="text-gray-500">Riwayat Persetujuan</div>
