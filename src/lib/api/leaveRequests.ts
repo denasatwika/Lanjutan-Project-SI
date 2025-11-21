@@ -32,6 +32,8 @@ export type LeaveRequestPayload = {
 export type LeaveRequestResponse = {
   id: string
   requesterId: string
+  requesterWalletAddress?: string | null
+  onChainRequestId?: string | null
   type: 'LEAVE'
   status: RequestStatus
   docHash?: string | null
@@ -56,14 +58,7 @@ export type LeaveRequestQuery = {
 }
 
 export type LeaveMetaPreparePayload = {
-  requester: `0x${string}`
-  requestId: `0x${string}`
-  leaveType: string
-  startDate: string
-  endDate: string
-  leaveDays: number
-  reason: string
-  deadline?: bigint | number | string
+  leaveRequestId: string
 }
 
 export type MetaTransactionPreparePayload = {
@@ -103,6 +98,7 @@ export type MetaTransactionTypedDataResponse<
 export type MetaTransactionSubmitPayload = {
   request: MetaTransactionRequest
   signature: `0x${string}`
+  approvalId?: string
   metadata?: Record<string, unknown>
 }
 
@@ -211,14 +207,7 @@ export async function prepareLeaveRequestMeta<
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      requester: payload.requester,
-      requestId: payload.requestId,
-      leaveType: payload.leaveType,
-      startDate: payload.startDate,
-      endDate: payload.endDate,
-      leaveDays: payload.leaveDays,
-      reason: payload.reason,
-      deadline: payload.deadline !== undefined ? normalizeQuantity(payload.deadline) : undefined,
+      leaveRequestId: payload.leaveRequestId,
     }),
   })
 

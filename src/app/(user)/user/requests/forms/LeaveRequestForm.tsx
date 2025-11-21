@@ -9,6 +9,8 @@ import type { DateRange } from 'react-day-picker'
 import { useAccount } from 'wagmi'
 import {
   createLeaveRequest,
+  prepareLeaveRequestMeta,
+  submitLeaveRequestMeta,
   type LeaveType,
 } from '@/lib/api/leaveRequests'
 import {
@@ -18,8 +20,6 @@ import {
   uploadAttachment,
   type AttachmentInfo,
 } from '@/lib/api/attachments'
-import { prepareForwardRequest, submitForwardRequest } from '@/lib/api/forwarder'
-import { encodeCreateRequest } from '@/lib/web3/contracts'
 import { useAuth } from '@/lib/state/auth'
 import { useChainConfig, isChainConfigReady } from '@/lib/state/chain'
 import { useRequests } from '@/lib/state/requests'
@@ -28,9 +28,8 @@ import { ensureChain } from '@/lib/web3/network'
 import {
   EthereumProviderUnavailableError,
   UserRejectedRequestError,
-  signForwardRequest,
 } from '@/lib/web3/signing'
-import { keccak256, stringToBytes } from 'viem'
+import { keccak256, stringToBytes, createWalletClient, custom, type WalletClient } from 'viem'
 type EthereumProvider = {
   request: (args: { method: string; params?: unknown[] }) => Promise<unknown>
   on?: (event: string, handler: (...args: any[]) => void) => void
@@ -379,55 +378,58 @@ export function LeaveRequestForm({ onSubmitted }: { onSubmitted?: () => void }) 
       currentStep = 'prepare'
       setSubmitStep('prepare')
 
-      // Generate requestId based on the database record ID
       const signerAddress = expectedWalletAddress as `0x${string}`
-      const requestId = keccak256(stringToBytes(`${created.id}:${signerAddress}`)) as `0x${string}`
-      const docHash = `0x${'00'.repeat(32)}` as `0x${string}` // Zero hash for now
 
-      console.debug('[gasless-forwarder] Preparing leave request')
-      console.debug('  Request ID:', requestId)
+      console.debug('[leave-request-meta] Preparing leave request')
+      console.debug('  Database ID:', created.id)
       console.debug('  Signer:', signerAddress)
       console.debug('  LeaveCore:', chainConfig.leaveCoreAddress)
 
-      // Encode createRequest call for LeaveCore
-      const callData = encodeCreateRequest({
-        requestId,
-        docHash,
-      })
-
-      // Prepare ForwardRequest
-      const deadline = BigInt(Math.floor(Date.now() / 1000) + 60 * 60) // 1 hour deadline
-      const prepareResponse = await prepareForwardRequest({
-        from: signerAddress,
-        to: chainConfig.leaveCoreAddress!,
-        gas: 500000n,
-        value: 0n,
-        data: callData,
-        deadline,
+      // Prepare leave request meta-transaction (uses /leave-requests/meta/prepare)
+      const prepareResponse = await prepareLeaveRequestMeta({
+        leaveRequestId: created.id,
       })
 
       const provider = getEthereumProvider()
       if (provider) {
         try {
           const currentAccounts = (await provider.request({ method: 'eth_accounts' })) as string[] | undefined
-          console.debug('[gasless-forwarder] eth_accounts before signing', currentAccounts)
+          console.debug('[leave-request-meta] eth_accounts before signing', currentAccounts)
         } catch (error) {
-          console.warn('[gasless-forwarder] Unable to read eth_accounts before signing', error)
+          console.warn('[leave-request-meta] Unable to read eth_accounts before signing', error)
         }
       }
 
       currentStep = 'sign'
       setSubmitStep('sign')
-      console.debug('[gasless-forwarder] Requesting signature...')
-      const signature = await signForwardRequest(signerAddress, prepareResponse)
+      console.debug('[leave-request-meta] Requesting signature...')
 
-      console.debug('[gasless-forwarder] Signature obtained, submitting to relayer')
+      // Create wallet client from Ethereum provider
+      if (!provider) {
+        throw new EthereumProviderUnavailableError()
+      }
+
+      const walletClient = createWalletClient({
+        account: signerAddress,
+        transport: custom(provider),
+      })
+
+      // Sign the typed data using EIP-712
+      const signature = await walletClient.signTypedData({
+        account: signerAddress,
+        domain: prepareResponse.domain,
+        types: prepareResponse.types,
+        primaryType: prepareResponse.primaryType,
+        message: prepareResponse.message,
+      })
+
+      console.debug('[leave-request-meta] Signature obtained, submitting to relayer')
 
       currentStep = 'relay'
       setSubmitStep('relay')
 
-      // Submit ForwardRequest to backend relayer
-      const relayResponse = await submitForwardRequest({
+      // Submit to /leave-requests/meta/submit endpoint
+      const relayResponse = await submitLeaveRequestMeta({
         request: prepareResponse.request,
         signature,
       })

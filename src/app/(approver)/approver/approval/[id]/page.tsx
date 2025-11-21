@@ -301,6 +301,7 @@ export default function ApproverApprovalDetailPage() {
       const relayResponse = await submitApprovalMeta({
         request: prepareResponse.request,
         signature,
+        approvalId: activeApproval.id,
       })
 
       setTxHash(relayResponse.txHash ?? null)
