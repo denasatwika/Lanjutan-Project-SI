@@ -15,12 +15,14 @@ import { StatusPill, formatDateTime } from './utils'
 import { useInboxRead } from './useInboxRead'
 
 const BRAND = '#00156B'
+const PAGE_SIZE = 5
 export default function InboxPage() {
   const router = useRouter()
   const user = useAuth((state) => state.user)
   const all = useRequests((state) => (user ? state.forEmployee(user.id) : []))
   const loadRequests = useRequests((state) => state.load)
   const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all')
+  const [currentPage, setCurrentPage] = useState(1)
 
   useEffect(() => {
     if (!user?.id) return
@@ -37,10 +39,25 @@ export default function InboxPage() {
   }, [all])
 
   const filtered = updates.filter((request) => (filter === 'all' ? true : request.status === filter))
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const safePage = Math.min(currentPage, totalPages)
+  const start = (safePage - 1) * PAGE_SIZE
+  const pageItems = filtered.slice(start, start + PAGE_SIZE)
 
   const read = useInboxRead((state) => state.read)
   const markRead = useInboxRead((state) => state.markRead)
   const markAll = useInboxRead((state) => state.markAll)
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [filter])
+
+  useEffect(() => {
+    const maxPage = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+    if (currentPage > maxPage) {
+      setCurrentPage(maxPage)
+    }
+  }, [filtered.length, currentPage])
 
   function handleViewDetail(id: string) {
     markRead(id)
@@ -84,7 +101,7 @@ export default function InboxPage() {
           </div>
 
           <div className="space-y-3">
-            {filtered.map((request) => {
+            {pageItems.map((request) => {
               const isRead = !!read[request.id]
               const isLeave = request.type === 'leave'
               const icon =
@@ -171,6 +188,35 @@ export default function InboxPage() {
                   <Bell className="text-gray-400" size={18} />
                 </div>
                 No notifications found
+              </div>
+            )}
+
+            {filtered.length > 0 && (
+              <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-gray-600 pt-2">
+                <span>
+                  Menampilkan {start + 1}
+                  {'–'}
+                  {Math.min(start + PAGE_SIZE, filtered.length)} dari {filtered.length}
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    disabled={safePage <= 1}
+                    onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                    className="px-3 py-1.5 rounded-xl border text-xs font-semibold disabled:opacity-40"
+                  >
+                    Sebelumnya
+                  </button>
+                  <span className="text-xs">
+                    Hal. {safePage} / {totalPages}
+                  </span>
+                  <button
+                    disabled={safePage >= totalPages}
+                    onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                    className="px-3 py-1.5 rounded-xl border text-xs font-semibold disabled:opacity-40"
+                  >
+                    Berikutnya
+                  </button>
+                </div>
               </div>
             )}
           </div>

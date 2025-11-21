@@ -29,7 +29,7 @@ import {
   EthereumProviderUnavailableError,
   UserRejectedRequestError,
 } from '@/lib/web3/signing'
-import { keccak256, stringToBytes, createWalletClient, custom, type WalletClient } from 'viem'
+import { createWalletClient, custom, type WalletClient } from 'viem'
 type EthereumProvider = {
   request: (args: { method: string; params?: unknown[] }) => Promise<unknown>
   on?: (event: string, handler: (...args: any[]) => void) => void
