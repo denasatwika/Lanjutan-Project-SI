@@ -20,6 +20,8 @@ export const DEFAULT_FORWARD_GAS = BigInt(500_000)
 export type LeaveRequestCalldataParams = {
   requestId: string
   docHash?: string | null
+  leaveType: 1 | 2 | 3
+  leaveDays: number
 }
 
 export type CollectApprovalCalldataParams = {
@@ -42,6 +44,8 @@ export type ForwardRequestInit = {
 export function buildLeaveCoreCalldata({
   requestId,
   docHash,
+  leaveType,
+  leaveDays,
 }: LeaveRequestCalldataParams): Hex {
   const normalizedRequestId = toBytes32(requestId)
   const normalizedDocHash = toBytes32(docHash ?? requestId)
@@ -49,7 +53,7 @@ export function buildLeaveCoreCalldata({
   return encodeFunctionData({
     abi: leaveCoreAbi,
     functionName: 'createRequest',
-    args: [normalizedRequestId, normalizedDocHash],
+    args: [normalizedRequestId, normalizedDocHash, leaveType, leaveDays],
   })
 }
 

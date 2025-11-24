@@ -374,7 +374,7 @@ export default function ApproverApprovalDetailPage() {
         backHref="/approver/approval"
         fullBleed
         bleedMobileOnly
-        pullUpPx={24}
+        pullUpPx={36}
       />
 
       {loading && <p className="mt-8 text-center text-sm text-slate-500">Loading request…</p>}

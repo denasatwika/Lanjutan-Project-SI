@@ -10,6 +10,8 @@ const LEAVE_CORE_ABI = [
     inputs: [
       { name: 'requestId', type: 'bytes32' },
       { name: 'docHash', type: 'bytes32' },
+      { name: 'leaveType', type: 'uint8' },
+      { name: 'leaveDays', type: 'uint32' },
     ],
     outputs: [],
     stateMutability: 'nonpayable',
@@ -34,6 +36,8 @@ const COMPANY_MULTISIG_ABI = [
 export type EncodeCreateRequestInput = {
   requestId: Hex
   docHash: Hex
+  leaveType: 1 | 2 | 3 // CUTI = 1, SAKIT = 2, IZIN = 3
+  leaveDays: number
 }
 
 export type EncodeCollectApprovalInput = {
@@ -49,7 +53,7 @@ export function encodeCreateRequest(input: EncodeCreateRequestInput): Hex {
   return encodeFunctionData({
     abi: LEAVE_CORE_ABI,
     functionName: 'createRequest',
-    args: [input.requestId, input.docHash],
+    args: [input.requestId, input.docHash, input.leaveType, input.leaveDays],
   })
 }
 
@@ -78,4 +82,40 @@ export function multisigRoleToNumber(role: 'SUPERVISOR' | 'CHIEF' | 'HR'): 1 | 2
     default:
       throw new Error(`Invalid role: ${role}`)
   }
+}
+
+/**
+ * Converts leave type string to enum number
+ */
+export function leaveTypeToNumber(leaveType: string): 1 | 2 | 3 {
+  const normalized = leaveType.toLowerCase()
+  switch (normalized) {
+    case 'cuti':
+      return 1
+    case 'sakit':
+      return 2
+    case 'izin':
+      return 3
+    default:
+      throw new Error(`Invalid leave type: ${leaveType}`)
+  }
+}
+
+/**
+ * Calculates the number of days between two dates (inclusive)
+ */
+export function calculateLeaveDays(startDate: Date, endDate: Date): number {
+  const start = new Date(startDate)
+  const end = new Date(endDate)
+
+  // Reset time to start of day for accurate date comparison
+  start.setHours(0, 0, 0, 0)
+  end.setHours(0, 0, 0, 0)
+
+  // Calculate difference in milliseconds and convert to days
+  const diffTime = end.getTime() - start.getTime()
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+
+  // Add 1 to include both start and end dates
+  return diffDays + 1
 }

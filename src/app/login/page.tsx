@@ -118,7 +118,7 @@ export default function LoginPage() {
             />
             <h1 className="text-2xl font-bold text-gray-900">Welcome to MyBaliola</h1>
             <p className="text-sm text-gray-600 text-center">
-              Use your Mandala Wallet to login to this app.
+              Use your wallet to login to this app.
             </p>
             {isConnected && address ? (
               <p className="mt-2 text-xs text-gray-600">

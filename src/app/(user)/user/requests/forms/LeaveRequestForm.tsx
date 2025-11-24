@@ -175,6 +175,9 @@ export function LeaveRequestForm({ onSubmitted }: { onSubmitted?: () => void }) 
   const [attachmentError, setAttachmentError] = useState<string | null>(null)
   const [accountChanged, setAccountChanged] = useState(false)
   const [walletSwitching, setWalletSwitching] = useState(false)
+  const [cutiBalance, setCutiBalance] = useState<number | null>(null)
+  const [cutiBalanceLoading, setCutiBalanceLoading] = useState(false)
+  const [cutiBalanceError, setCutiBalanceError] = useState<string | null>(null)
   const [form, setForm] = useState<{
     leaveType: LeaveKind
     startDate: string
@@ -222,12 +225,19 @@ export function LeaveRequestForm({ onSubmitted }: { onSubmitted?: () => void }) 
     form.endDate &&
     new Date(form.startDate) > new Date(form.endDate)
 
+  const insufficientCutiBalance =
+    form.leaveType === 'Cuti' &&
+    cutiBalance !== null &&
+    days > 0 &&
+    cutiBalance < days
+
   const valid =
     !!form.startDate &&
     !!form.endDate &&
     !hasDateOrderIssue &&
     days > 0 &&
-    form.reason.trim().length > 0
+    form.reason.trim().length > 0 &&
+    !insufficientCutiBalance
 
   function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0]
@@ -317,6 +327,10 @@ export function LeaveRequestForm({ onSubmitted }: { onSubmitted?: () => void }) 
     }
     if (accountChanged) {
       toast.error('Your wallet changed recently. Please ensure it matches the registered account before submitting.')
+      return
+    }
+    if (insufficientCutiBalance) {
+      toast.error(`Insufficient CUTI balance. You need ${days} days but only have ${cutiBalance} days.`)
       return
     }
 
@@ -535,6 +549,36 @@ export function LeaveRequestForm({ onSubmitted }: { onSubmitted?: () => void }) 
     }
   }, [accountChanged, expectedWalletAddress, connectedAddress])
 
+  // Fetch CUTI balance when address changes
+  useEffect(() => {
+    async function fetchCutiBalance() {
+      if (!connectedAddress) {
+        setCutiBalance(null)
+        return
+      }
+
+      setCutiBalanceLoading(true)
+      setCutiBalanceError(null)
+
+      try {
+        const response = await fetch(`/api/wallet/balance?address=${connectedAddress}`)
+        if (!response.ok) {
+          throw new Error('Failed to fetch CUTI balance')
+        }
+        const data = await response.json()
+        setCutiBalance(Number(data.formatted))
+      } catch (error) {
+        console.error('Failed to fetch CUTI balance:', error)
+        setCutiBalanceError('Unable to check CUTI balance')
+        setCutiBalance(null)
+      } finally {
+        setCutiBalanceLoading(false)
+      }
+    }
+
+    fetchCutiBalance()
+  }, [connectedAddress])
+
   const isImg = !!previewUrl
 
   return (
@@ -567,6 +611,27 @@ export function LeaveRequestForm({ onSubmitted }: { onSubmitted?: () => void }) 
       <div className="rounded-xl border px-3 py-2 text-gray-600" style={{ borderColor: '#00156B20' }}>
         Total: <span className="font-semibold text-gray-800">{days}</span> days
       </div>
+
+      {form.leaveType === 'Cuti' && connectedAddress && (
+        <div className="rounded-xl border px-3 py-2" style={{ borderColor: '#00156B20' }}>
+          {cutiBalanceLoading ? (
+            <div className="text-sm text-gray-500">Checking CUTI balance...</div>
+          ) : cutiBalanceError ? (
+            <div className="text-sm text-rose-600">{cutiBalanceError}</div>
+          ) : cutiBalance !== null ? (
+            <div>
+              <div className="text-sm text-gray-600">
+                Available CUTI: <span className="font-semibold text-gray-800">{cutiBalance}</span> days
+              </div>
+              {insufficientCutiBalance && (
+                <div className="text-sm text-rose-600 mt-1">
+                  Insufficient CUTI balance. You need {days} days but only have {cutiBalance} days.
+                </div>
+              )}
+            </div>
+          ) : null}
+        </div>
+      )}
 
       <label className="block">
         <span className="text-sm text-gray-700">Leave reason</span>

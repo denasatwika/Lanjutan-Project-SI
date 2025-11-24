@@ -1,16 +1,16 @@
 import clsx from 'clsx'
 import { format } from 'date-fns'
-import { id as idLocale } from 'date-fns/locale/id'
+import { enUS as enLocale } from 'date-fns/locale'
 import type { Request } from '@/lib/types'
 
 export function formatDateTime(iso: string | undefined) {
   if (!iso) return '-'
-  return format(new Date(iso), 'd MMM yyyy • HH:mm', { locale: idLocale })
+  return format(new Date(iso), 'd MMM yyyy • HH:mm', { locale: enLocale })
 }
 
 export function formatDateOnly(iso?: string | null) {
   if (!iso) return '-'
-  return format(new Date(iso), 'd MMM yyyy', { locale: idLocale })
+  return format(new Date(iso), 'd MMM yyyy', { locale: enLocale })
 }
 
 export function StatusPill({ status }: { status: Request['status'] }) {
@@ -22,7 +22,7 @@ export function StatusPill({ status }: { status: Request['status'] }) {
   }
   const label =
     status === 'pending'
-      ? 'Menunggu'
+      ? 'Pending'
       : status === 'approved'
       ? 'Approved'
       : status === 'rejected'

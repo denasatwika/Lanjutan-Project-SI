@@ -79,6 +79,7 @@ export type ApprovalResponse = {
   requesterDepartment?: string | null
   requesterWalletAddress?: string | null
   onChainRequestId?: string | null
+  blockchainTxHash?: string | null
 }
 
 export type ApprovalListQuery = {
