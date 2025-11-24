@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import { useAccount } from 'wagmi'
 import { toast } from 'sonner'
-import { keccak256, stringToBytes } from 'viem'
 import { signForwardRequest } from '@/lib/web3/signing'
 import { getAllApprovers, getApprovalState, recordApproval, type ApprovalState, type MultisigRole } from '@/lib/api/multisig'
 import { listLeaveRequests, type LeaveRequestResponse } from '@/lib/api/leaveRequests'
@@ -50,8 +49,12 @@ export default function ApprovalsPage() {
       const states = new Map<string, ApprovalState>()
       for (const req of requests) {
         try {
-          const requestId = keccak256(stringToBytes(`${req.id}:${req.requesterId}`)) as `0x${string}`
-          const state = await getApprovalState(requestId)
+          // Use onChainRequestId from backend if available, otherwise skip
+          if (!req.onChainRequestId) {
+            console.warn(`Request ${req.id} has no onChainRequestId, skipping approval state`)
+            continue
+          }
+          const state = await getApprovalState(req.onChainRequestId as `0x${string}`)
           states.set(req.id, state)
         } catch (err) {
           console.error(`Failed to load approval state for ${req.id}`, err)
@@ -80,8 +83,12 @@ export default function ApprovalsPage() {
     try {
       setProcessingId(request.id)
 
-      // Generate requestId
-      const requestId = keccak256(stringToBytes(`${request.id}:${request.requesterId}`)) as `0x${string}`
+      // Use onChainRequestId from backend
+      if (!request.onChainRequestId) {
+        toast.error('Request has no on-chain ID')
+        return
+      }
+      const requestId = request.onChainRequestId as `0x${string}`
 
       // Check if already approved
       const state = approvalStates.get(request.id)

@@ -77,6 +77,8 @@ export type ApprovalResponse = {
   requesterId?: string | null
   requesterName?: string | null
   requesterDepartment?: string | null
+  requesterWalletAddress?: string | null
+  onChainRequestId?: string | null
 }
 
 export type ApprovalListQuery = {
@@ -250,17 +252,36 @@ export async function updateApproval(id: string, payload: ApprovalDecisionPayloa
   return parseJson<ApprovalResponse>(response)
 }
 
+export type ApprovalMetaPreparePayload = {
+  approver: string
+  requestId: string
+  role: 'SUPERVISOR' | 'CHIEF' | 'HR'
+  multisigAddress?: string
+  gasLimit?: bigint | number | string
+  deadline?: bigint | number | string
+}
+
+function normalizeQuantity(value: bigint | number | string): string {
+  if (typeof value === 'bigint') return value.toString()
+  if (typeof value === 'number') return value.toString()
+  return value
+}
+
 export async function prepareApprovalMeta<
   PrimaryType extends string = string,
   Message extends TypedData = TypedData,
 >(
-  payload: MetaTransactionPreparePayload,
+  payload: ApprovalMetaPreparePayload,
 ): Promise<MetaTransactionTypedDataResponse<PrimaryType, Message>> {
   const response = await fetch(buildUrl('/approvals/meta/prepare'), {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(buildMetaPreparePayload(payload)),
+    body: JSON.stringify({
+      ...payload,
+      gasLimit: payload.gasLimit !== undefined ? normalizeQuantity(payload.gasLimit) : undefined,
+      deadline: payload.deadline !== undefined ? normalizeQuantity(payload.deadline) : undefined,
+    }),
   })
 
   return parseJson<MetaTransactionTypedDataResponse<PrimaryType, Message>>(response)

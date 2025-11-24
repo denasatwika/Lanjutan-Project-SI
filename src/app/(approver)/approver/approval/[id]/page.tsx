@@ -7,7 +7,6 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import clsx from 'clsx'
 import { toast } from 'sonner'
 import { useAccount } from 'wagmi'
-
 import { PageHeader } from '@/components/PageHeader'
 import {
   buildAttachmentDownloadUrl,
@@ -29,14 +28,11 @@ import type { LeaveRequest, OvertimeRequest } from '@/lib/types'
 import { useChainConfig, isChainConfigReady } from '@/lib/state/chain'
 import { usePrimaryWalletAddress } from '@/lib/hooks/usePrimaryWalletAddress'
 import {
-  buildCollectApprovalCalldata,
-  buildForwardRequestPayload,
   ensureCompanyMultisigAddress,
   ensureForwarderAddress,
   DEFAULT_FORWARD_GAS,
 } from '@/lib/web3/metaTx'
 import { ensureChain } from '@/lib/web3/network'
-import { getForwarderNonce } from '@/lib/web3/forwarder'
 import {
   EthereumProviderUnavailableError,
   UserRejectedRequestError,
@@ -265,37 +261,33 @@ export default function ApproverApprovalDetailPage() {
       }
 
       const signerAddress = expectedWalletAddress as `0x${string}`
-      const nonce = await getForwarderNonce(chainConfig, forwarderAddress, signerAddress)
       const deadline = BigInt(Math.floor(Date.now() / 1000) + 60 * 60 * 24)
       const comments = note.trim()
 
-      const calldata = buildCollectApprovalCalldata({
-        requestId: activeApproval.requestId ?? id,
-        signer: signerAddress,
-        role: roleValue,
-      })
+      // Use the on-chain requestId from the backend (already calculated when request was created)
+      if (!activeApproval.onChainRequestId) {
+        throw new Error('On-chain request ID is missing. This request may not have been submitted to the blockchain.')
+      }
+      const onChainRequestId = activeApproval.onChainRequestId as `0x${string}`
 
-      const metadata = {
-        approvalId: activeApproval.id,
-        requestId: activeApproval.requestId ?? id,
-        decision,
-        comments: comments.length > 0 ? comments : undefined,
-        signer: signerAddress,
+      // Determine role string from roleValue
+      const roleString = roleValue === 1 ? 'SUPERVISOR' : roleValue === 2 ? 'CHIEF' : roleValue === 3 ? 'HR' : null
+      if (!roleString) {
+        throw new Error('Invalid role value')
       }
 
-      const forwardRequest = buildForwardRequestPayload({
-        from: signerAddress,
-        to: multisigAddress,
-        data: calldata,
-        gas: DEFAULT_FORWARD_GAS,
-        value: 0,
-        nonce,
-        deadline,
-        metadata,
-      })
-
       console.debug('[approver-meta] preparing decision for wallet', signerAddress)
-      const prepareResponse = await prepareApprovalMeta(forwardRequest)
+      console.debug('[approver-meta] onChainRequestId:', onChainRequestId)
+      console.debug('[approver-meta] role:', roleString)
+
+      const prepareResponse = await prepareApprovalMeta({
+        approver: signerAddress,
+        requestId: onChainRequestId,
+        role: roleString,
+        multisigAddress: multisigAddress,
+        gasLimit: DEFAULT_FORWARD_GAS,
+        deadline: deadline.toString(),
+      })
       const provider = getEthereumProvider()
       if (provider) {
         try {
@@ -309,7 +301,7 @@ export default function ApproverApprovalDetailPage() {
       const relayResponse = await submitApprovalMeta({
         request: prepareResponse.request,
         signature,
-        metadata,
+        approvalId: activeApproval.id,
       })
 
       setTxHash(relayResponse.txHash ?? null)
