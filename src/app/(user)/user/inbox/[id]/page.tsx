@@ -283,6 +283,13 @@ export default function InboxDetailPage() {
           decidedAt: approval.decidedAt ?? onChain?.approvedAt ?? null,
           comments: approval.comments ?? null,
           signature: approval.signature ?? null,
+          blockchainTxHash:
+            approval.blockchainTxHash ??
+            onChain?.txHash ??
+            (onChain as any)?.transactionHash ??
+            (onChain as any)?.tx_hash ??
+            (onChain as any)?.transaction_hash ??
+            null,
           onChain,
         }
       })
@@ -294,6 +301,12 @@ export default function InboxDetailPage() {
         decidedAt: onChain.approvedAt,
         comments: null,
         signature: null,
+        blockchainTxHash:
+          onChain.txHash ??
+          (onChain as any)?.transactionHash ??
+          (onChain as any)?.tx_hash ??
+          (onChain as any)?.transaction_hash ??
+          null,
         onChain,
       }))
 
@@ -455,6 +468,7 @@ export default function InboxDetailPage() {
                     const awaitingDecision = approval.status !== 'APPROVED' && !decidedAt
                     const onChainTxHash =
                       approval.onChain?.txHash ||
+                      approval.blockchainTxHash ||
                       (approval.onChain as any)?.transactionHash ||
                       (approval.onChain as any)?.tx_hash ||
                       (approval.onChain as any)?.transaction_hash ||
@@ -488,7 +502,7 @@ export default function InboxDetailPage() {
                             Signature: {formatSignaturePreview(approval.signature)}
                           </div>
                         )}
-                        {approval.onChain && onChainTxHash && (
+                        {onChainTxHash && (
                           <div className="mt-2 space-y-1 rounded-lg bg-gray-50 p-3 text-[11px] text-gray-600">
                             <div className="text-xs font-semibold text-gray-800">On-chain Transaction</div>
                             <div className="flex flex-wrap items-center gap-2">
@@ -497,17 +511,19 @@ export default function InboxDetailPage() {
                                 {formatSignaturePreview(onChainTxHash)}
                               </span>
                             </div>
-                            <div
-                              className={`flex items-center gap-1 ${
-                                approval.onChain.onChainConfirmed ? 'text-green-700' : 'text-amber-700'
-                              }`}
-                            >
-                              <span>
-                                {approval.onChain.onChainConfirmed
-                                  ? '✓ Confirmed on-chain'
-                                  : 'Waiting for confirmation'}
-                              </span>
-                            </div>
+                            {approval.onChain && (
+                              <div
+                                className={`flex items-center gap-1 ${
+                                  approval.onChain.onChainConfirmed ? 'text-green-700' : 'text-amber-700'
+                                }`}
+                              >
+                                <span>
+                                  {approval.onChain.onChainConfirmed
+                                    ? '✓ Confirmed on-chain'
+                                    : 'Waiting for confirmation'}
+                                </span>
+                              </div>
+                            )}
                           </div>
                         )}
                       </li>
