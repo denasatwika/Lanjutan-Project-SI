@@ -374,7 +374,7 @@ export default function ApproverApprovalDetailPage() {
         backHref="/approver/approval"
         fullBleed
         bleedMobileOnly
-        pullUpPx={24}
+        pullUpPx={36}
       />
 
       {loading && <p className="mt-8 text-center text-sm text-slate-500">Loading request…</p>}
@@ -510,6 +510,14 @@ export default function ApproverApprovalDetailPage() {
                         title={item.signature}
                       >
                         Signature: {formatSignaturePreview(item.signature)}
+                      </div>
+                    )}
+                    {item.blockchainTxHash && (
+                      <div
+                        className="mt-2 text-[11px] font-mono text-slate-500 break-all"
+                        title={item.blockchainTxHash}
+                      >
+                        Blockchain TX: {formatSignaturePreview(item.blockchainTxHash)}
                       </div>
                     )}
                   </li>

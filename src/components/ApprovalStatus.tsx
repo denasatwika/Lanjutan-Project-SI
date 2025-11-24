@@ -40,6 +40,13 @@ export function ApprovalStatus({ state, loading, compact = false }: ApprovalStat
     return `${address.slice(0, 6)}...${address.slice(-4)}`
   }
 
+  const formatTxHash = (txHash: string, long = false) => {
+    if (long) {
+      return `${txHash.slice(0, 10)}...${txHash.slice(-8)}`
+    }
+    return `${txHash.slice(0, 6)}...${txHash.slice(-4)}`
+  }
+
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr)
     return date.toLocaleString('en-US', {
@@ -73,12 +80,21 @@ export function ApprovalStatus({ state, loading, compact = false }: ApprovalStat
           <div className="text-xs text-muted-foreground space-y-1">
             {state.approvals.map((approval, idx) => (
               <div key={idx} className="flex items-center gap-2">
-                <CheckCircle2 className="w-3 h-3 text-green-600" />
+                <CheckCircle2 className="w-3 h-3 text-green-600 flex-shrink-0" />
                 <span className="font-medium">{approval.approverRole}</span>
                 {approval.txHash && (
-                  <span className="text-xs text-blue-600 hover:underline cursor-pointer" onClick={() => copyToClipboard(approval.txHash!)}>
-                    {formatAddress(approval.txHash)}
-                  </span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-blue-600 font-mono text-xs">
+                      {formatTxHash(approval.txHash)}
+                    </span>
+                    <button
+                      onClick={() => copyToClipboard(approval.txHash!)}
+                      className="hover:text-blue-800"
+                      title="Copy transaction hash"
+                    >
+                      <Copy className="w-3 h-3" />
+                    </button>
+                  </div>
                 )}
               </div>
             ))}
@@ -146,31 +162,23 @@ export function ApprovalStatus({ state, loading, compact = false }: ApprovalStat
 
                   {hasApproved && approval && (
                     <div className="mt-1 space-y-1">
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span>By: {formatAddress(approval.approverAddress)}</span>
-                        <button
-                          onClick={() => copyToClipboard(approval.approverAddress)}
-                          className="hover:text-foreground"
-                        >
-                          <Copy className="w-3 h-3" />
-                        </button>
-                      </div>
-
                       {approval.txHash && (
-                        <div className="flex items-center gap-2 text-xs">
-                          <span className="text-muted-foreground">Tx:</span>
-                          <code className="text-blue-600 font-mono">{formatAddress(approval.txHash)}</code>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground">Transaction:</span>
+                          <code className="text-blue-600 font-mono text-sm font-semibold">{formatTxHash(approval.txHash, true)}</code>
                           <button
                             onClick={() => copyToClipboard(approval.txHash!)}
-                            className="hover:text-blue-800"
+                            className="hover:text-blue-800 transition-colors"
+                            title="Copy transaction hash"
                           >
                             <Copy className="w-3 h-3" />
                           </button>
                           <a
-                            href={`https://etherscan.io/tx/${approval.txHash}`}
+                            href={`http://localhost:8545/tx/${approval.txHash}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="hover:text-blue-800"
+                            className="hover:text-blue-800 transition-colors"
+                            title="View on block explorer"
                           >
                             <ExternalLink className="w-3 h-3" />
                           </a>
