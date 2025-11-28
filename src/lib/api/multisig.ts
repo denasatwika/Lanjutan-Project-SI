@@ -43,6 +43,16 @@ export type RecordApprovalPayload = {
   txHash?: `0x${string}`
 }
 
+export type RecordRejectionPayload = {
+  requestId: `0x${string}`
+  rejectorAddress: `0x${string}`
+  rejectorRole: MultisigRole
+  reason: string
+  signature?: `0x${string}`
+  leaveRequestId?: string
+  txHash?: `0x${string}`
+}
+
 async function parseJson<T>(response: Response): Promise<T> {
   const text = await response.text()
   const data = text ? safeParseJSON(text) : undefined
@@ -97,6 +107,16 @@ export async function getApprovalState(requestId: `0x${string}`): Promise<Approv
 
 export async function recordApproval(payload: RecordApprovalPayload): Promise<{ id: string; requestId: string }> {
   const response = await fetch(buildUrl('/multisig/approvals'), {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return parseJson<{ id: string; requestId: string }>(response)
+}
+
+export async function recordRejection(payload: RecordRejectionPayload): Promise<{ id: string; requestId: string }> {
+  const response = await fetch(buildUrl('/multisig/rejections'), {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },

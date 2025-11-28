@@ -31,6 +31,18 @@ const COMPANY_MULTISIG_ABI = [
     outputs: [],
     stateMutability: 'nonpayable',
   },
+  {
+    type: 'function',
+    name: 'collectRejection',
+    inputs: [
+      { name: 'requestId', type: 'bytes32' },
+      { name: 'signer', type: 'address' },
+      { name: 'role', type: 'uint8' },
+      { name: 'reason', type: 'string' },
+    ],
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
 ] as const
 
 export type EncodeCreateRequestInput = {
@@ -44,6 +56,13 @@ export type EncodeCollectApprovalInput = {
   requestId: Hex
   signer: Address
   role: 1 | 2 | 3 // SUPERVISOR = 1, CHIEF = 2, HR = 3
+}
+
+export type EncodeCollectRejectionInput = {
+  requestId: Hex
+  signer: Address
+  role: 1 | 2 | 3 // SUPERVISOR = 1, CHIEF = 2, HR = 3
+  reason: string
 }
 
 /**
@@ -65,6 +84,17 @@ export function encodeCollectApproval(input: EncodeCollectApprovalInput): Hex {
     abi: COMPANY_MULTISIG_ABI,
     functionName: 'collectApproval',
     args: [input.requestId, input.signer, input.role],
+  })
+}
+
+/**
+ * Encodes a collectRejection function call for CompanyMultisig
+ */
+export function encodeCollectRejection(input: EncodeCollectRejectionInput): Hex {
+  return encodeFunctionData({
+    abi: COMPANY_MULTISIG_ABI,
+    functionName: 'collectRejection',
+    args: [input.requestId, input.signer, input.role, input.reason],
   })
 }
 

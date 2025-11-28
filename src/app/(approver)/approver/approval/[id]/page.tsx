@@ -38,6 +38,9 @@ import {
   UserRejectedRequestError,
   signForwardRequest,
 } from '@/lib/web3/signing'
+import { encodeCollectRejection } from '@/lib/web3/contracts'
+import { prepareForwardRequest, submitForwardRequest } from '@/lib/api/forwarder'
+import { recordRejection } from '@/lib/api/multisig'
 type EthereumProvider = {
   request: (args: { method: string; params?: unknown[] }) => Promise<unknown>
   on?: (event: string, handler: (...args: any[]) => void) => void
@@ -79,6 +82,8 @@ export default function ApproverApprovalDetailPage() {
   const [submitting, setSubmitting] = useState<'APPROVED' | 'REJECTED' | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [txHash, setTxHash] = useState<string | null>(null)
+  const [rejectDialogOpen, setRejectDialogOpen] = useState(false)
+  const [rejectionReason, setRejectionReason] = useState('')
 
   useEffect(() => {
     if (!id) return
@@ -346,6 +351,161 @@ export default function ApproverApprovalDetailPage() {
     }
   }
 
+  async function handleRejection() {
+    if (!id || !activeApproval) return
+    if (!expectedWalletAddress) {
+      toast.error('No registered wallet on file for this approver. Please contact the administrator.')
+      return
+    }
+    if (!connectedAddress) {
+      toast.error('Connect your wallet to submit a rejection.')
+      return
+    }
+    if (walletMismatch) {
+      toast.error('Switch your wallet to the registered approver account before signing.')
+      return
+    }
+    if (accountChanged) {
+      toast.error('Your wallet changed recently. Please realign before submitting a rejection.')
+      return
+    }
+    if (!chainConfig || !isChainConfigReady(chainConfig)) {
+      toast.error('Chain configuration is incomplete. Please contact the administrator.')
+      return
+    }
+    if (!rejectionReason.trim()) {
+      toast.error('Please provide a rejection reason')
+      return
+    }
+    if (rejectionReason.length > 500) {
+      toast.error('Rejection reason too long (max 500 characters)')
+      return
+    }
+
+    const roleValue = resolveMultisigRole(activeApproval.approverLevel)
+    if (roleValue === null) {
+      toast.error('Unable to map your approval role to the on-chain role. Please contact support.')
+      return
+    }
+
+    setSubmitting('REJECTED')
+    setErrorMessage(null)
+    try {
+      const multisigAddress = ensureCompanyMultisigAddress(chainConfig)
+
+      try {
+        await ensureChain(chainConfig, {
+          allowAdd: true,
+          chainName: chainConfig.name,
+          nativeCurrency: chainConfig.nativeCurrency,
+        })
+      } catch (networkError) {
+        throw new Error(
+          networkError instanceof Error ? networkError.message : 'Please switch your wallet to the configured network.',
+        )
+      }
+
+      const signerAddress = expectedWalletAddress as `0x${string}`
+
+      if (!activeApproval.onChainRequestId) {
+        throw new Error('On-chain request ID is missing. This request may not have been submitted to the blockchain.')
+      }
+      const onChainRequestId = activeApproval.onChainRequestId as `0x${string}`
+
+      const roleString = roleValue === 1 ? 'SUPERVISOR' : roleValue === 2 ? 'CHIEF' : roleValue === 3 ? 'HR' : null
+      if (!roleString) {
+        throw new Error('Invalid role value')
+      }
+
+      console.debug('[approver-rejection] preparing rejection for wallet', signerAddress)
+      console.debug('[approver-rejection] onChainRequestId:', onChainRequestId)
+      console.debug('[approver-rejection] role:', roleString)
+      console.debug('[approver-rejection] reason:', rejectionReason.trim())
+
+      // Encode collectRejection function call
+      const data = encodeCollectRejection({
+        requestId: onChainRequestId,
+        signer: signerAddress,
+        role: roleValue,
+        reason: rejectionReason.trim(),
+      })
+
+      // Prepare ForwardRequest
+      const deadline = BigInt(Math.floor(Date.now() / 1000) + 60 * 60) // 1 hour
+      const prepared = await prepareForwardRequest({
+        from: signerAddress,
+        to: multisigAddress,
+        gas: DEFAULT_FORWARD_GAS,
+        value: 0n,
+        data,
+        deadline,
+      })
+
+      // Sign ForwardRequest
+      const signature = await signForwardRequest(signerAddress, prepared)
+
+      // Submit to blockchain via relayer
+      const result = await submitForwardRequest({
+        request: prepared.request,
+        signature,
+      })
+
+      // Record rejection in database
+      await recordRejection({
+        requestId: onChainRequestId,
+        rejectorAddress: signerAddress,
+        rejectorRole: roleString,
+        reason: rejectionReason.trim(),
+        signature,
+        leaveRequestId: id,
+        txHash: result.txHash,
+      })
+
+      setTxHash(result.txHash ?? null)
+      toast.success('Rejection submitted successfully', {
+        description: result.txHash ? `Tx: ${result.txHash}` : undefined,
+      })
+
+      // Close dialog and refresh
+      setRejectDialogOpen(false)
+      setRejectionReason('')
+
+      const refreshedApprovals = await listApprovals({ requestId: id })
+      setApprovals(refreshedApprovals)
+      const updatedActive =
+        refreshedApprovals.find((item) => item.id === activeApproval.id) ?? null
+      setActiveApproval(updatedActive)
+
+      const updatedRequest = await getRequest(id)
+      upsertRequest(updatedRequest)
+
+      router.push('/approver/approval')
+    } catch (error) {
+      const status = (error as any)?.status as number | undefined
+      let message =
+        error instanceof UserRejectedRequestError
+          ? 'Signature request was rejected.'
+          : error instanceof EthereumProviderUnavailableError
+          ? 'No Ethereum provider detected. Please install MetaMask or a compatible wallet.'
+          : error instanceof Error
+          ? error.message
+          : 'Failed to submit rejection'
+
+      if (status === 422) {
+        message = 'Signature invalid or wrong account. Please reconnect with the correct wallet.'
+      } else if (status === 403) {
+        message = 'Please use your verified company wallet to act on this approval.'
+      }
+
+      console.error('Failed to submit rejection', error)
+      toast.error(message)
+      setErrorMessage(message)
+      setTxHash(null)
+    } finally {
+      setSubmitting(null)
+    }
+  }
+
   const primaryApproval = activeApproval ?? approvals[0] ?? null
 
   const employeeName =
@@ -594,11 +754,14 @@ export default function ApproverApprovalDetailPage() {
                   </button>
                   <button
                     type="button"
-                    className="flex-1 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
-                    onClick={() => handleDecision('REJECTED')}
+                    className="flex-1 rounded-xl border border-rose-600 px-4 py-2 text-sm font-semibold text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    onClick={() => {
+                      setRejectionReason('')
+                      setRejectDialogOpen(true)
+                    }}
                     disabled={!canAct || submitting !== null}
                   >
-                    {submitting === 'REJECTED' ? 'Submitting…' : 'Request changes'}
+                    Reject request
                   </button>
                   <button
                     type="button"
@@ -625,6 +788,62 @@ export default function ApproverApprovalDetailPage() {
               </>
             )}
           </section>
+        </div>
+      )}
+
+      {/* Rejection Dialog */}
+      {rejectDialogOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md space-y-4 rounded-2xl bg-white p-6 shadow-xl">
+            <h2 className="text-xl font-bold text-slate-900">Reject Leave Request</h2>
+
+            {activeApproval && (
+              <div className="rounded-xl bg-slate-50 p-3">
+                <p className="text-sm font-semibold">
+                  Stage {activeApproval.stage}
+                  {activeApproval.approverLevel ? ` • ${activeApproval.approverLevel}` : ''}
+                </p>
+                <p className="text-xs text-slate-600">Request {id}</p>
+              </div>
+            )}
+
+            <div>
+              <label htmlFor="rejectionReason" className="mb-2 block text-sm font-medium text-slate-700">
+                Rejection Reason <span className="text-rose-600">*</span>
+              </label>
+              <textarea
+                id="rejectionReason"
+                value={rejectionReason}
+                onChange={(e) => setRejectionReason(e.target.value)}
+                placeholder="Please explain why you are rejecting this request..."
+                className="min-h-[120px] w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none transition focus:border-[#00156B] focus:ring-2 focus:ring-[#00156B]/20"
+                maxLength={500}
+              />
+              <p className="mt-1 text-xs text-slate-500">
+                {rejectionReason.length}/500 characters
+              </p>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  setRejectDialogOpen(false)
+                  setRejectionReason('')
+                }}
+                disabled={submitting !== null}
+                className="flex-1 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRejection}
+                disabled={!rejectionReason.trim() || submitting !== null}
+                className="flex-1 rounded-xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {submitting === 'REJECTED' ? 'Submitting…' : 'Submit Rejection'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </main>
