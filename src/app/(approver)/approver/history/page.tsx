@@ -18,6 +18,7 @@ import { enUS as enLocale } from 'date-fns/locale/en-US'
 import { toast } from 'sonner'
 
 import { PageHeader } from '@/components/PageHeader'
+import { Pagination } from '@/components/Pagination'
 import DateRangePicker, { type DateRangePickerHandle } from '@/components/DateRangePicker'
 import { useAuth } from '@/lib/state/auth'
 import { useRequests } from '@/lib/state/requests'
@@ -27,6 +28,7 @@ import { resolveLeaveTypeLabel } from '@/lib/utils/requestDisplay'
 
 /** Brand color */
 const BRAND = '#00156B'
+const PAGE_SIZE = 5
 
 type TypeFilter = 'all' | 'leave' | 'overtime'
 type StatusFilter = 'all' | 'pending' | 'approved' | 'rejected'
@@ -121,6 +123,7 @@ export default function ApproverHistoryPage() {
   const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined })
   const [selectedPreset, setSelectedPreset] = useState<DatePresetKey>('all')
   const [search, setSearch] = useState('')
+  const [currentPage, setCurrentPage] = useState(1)
 
   const loadHistory = useCallback(async () => {
     if (!user?.id) {
@@ -268,16 +271,31 @@ export default function ApproverHistoryPage() {
     [filtered],
   )
 
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const safePage = Math.min(currentPage, totalPages)
+  const start = (safePage - 1) * PAGE_SIZE
+  const pageItems = filtered.slice(start, start + PAGE_SIZE)
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [typeFilter, statusFilter, search, dateRange.from, dateRange.to])
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages)
+    }
+  }, [currentPage, totalPages])
+
   const groups = useMemo(() => {
     const map = new Map<string, HistoryRow[]>()
-    for (const row of filtered) {
+    for (const row of pageItems) {
       const key = (row.updatedAt ?? row.createdAt).slice(0, 10)
       const bucket = map.get(key)
       if (bucket) bucket.push(row)
       else map.set(key, [row])
     }
     return Array.from(map.entries()).sort(([a], [b]) => b.localeCompare(a))
-  }, [filtered])
+  }, [pageItems])
 
   return (
     <main className="mx-auto w-full max-w-[640px] p-3 pb-20">
@@ -444,6 +462,17 @@ export default function ApproverHistoryPage() {
         {!loading && groups.length === 0 && (
           <div className="rounded-2xl border border-dashed p-8 text-center text-slate-500">
             No history for this filter.
+          </div>
+        )}
+
+        {filtered.length > 0 && (
+          <div className="mt-4 flex justify-center">
+            <Pagination
+              totalItems={filtered.length}
+              pageSize={PAGE_SIZE}
+              currentPage={currentPage}
+              onPageChange={setCurrentPage}
+            />
           </div>
         )}
       </div>

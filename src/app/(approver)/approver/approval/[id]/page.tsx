@@ -5,6 +5,7 @@ import Image from 'next/image'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import clsx from 'clsx'
+import { ChevronDown } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAccount } from 'wagmi'
 import { PageHeader } from '@/components/PageHeader'
@@ -82,7 +83,9 @@ export default function ApproverApprovalDetailPage() {
   const [submitting, setSubmitting] = useState<'APPROVED' | 'REJECTED' | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [txHash, setTxHash] = useState<string | null>(null)
+  const [approveDialogOpen, setApproveDialogOpen] = useState(false)
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false)
+  const [chainOpen, setChainOpen] = useState(false)
   const [rejectionReason, setRejectionReason] = useState('')
 
   useEffect(() => {
@@ -171,6 +174,21 @@ export default function ApproverApprovalDetailPage() {
   const leaveRequest = isLeave ? (request as LeaveRequest) : undefined
   const overtimeRequest = !isLeave ? (request as OvertimeRequest) : undefined
   const leaveLabel = leaveRequest ? resolveLeaveTypeLabel(leaveRequest.leaveTypeId) : undefined
+  const headerSubtitle = leaveRequest
+    ? `${leaveLabel ?? leaveRequest.leaveTypeId}${
+        leaveRequest.startDate || leaveRequest.endDate
+          ? `: ${[leaveRequest.startDate, leaveRequest.endDate].filter(Boolean).join(' - ')}`
+          : ''
+      }`
+    : overtimeRequest
+    ? `Overtime${
+        overtimeRequest.workDate ? `: ${overtimeRequest.workDate}` : ''
+      }${
+        overtimeRequest.startTime || overtimeRequest.endTime
+          ? `: ${[overtimeRequest.startTime, overtimeRequest.endTime].filter(Boolean).join(' - ')}`
+          : ''
+      }`
+    : null
 
   const attachmentSize =
     typeof request?.attachmentSize === 'number' && request.attachmentSize > 0
@@ -324,6 +342,7 @@ export default function ApproverApprovalDetailPage() {
       const updatedRequest = await getRequest(id)
       upsertRequest(updatedRequest)
 
+      setApproveDialogOpen(false)
       router.push('/approver/approval')
     } catch (error) {
       const status = (error as any)?.status as number | undefined
@@ -547,24 +566,26 @@ export default function ApproverApprovalDetailPage() {
 
       {!loading && request && (
         <div className="space-y-6">
-          <section className="card space-y-3 p-5">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h1 className="text-xl font-bold text-slate-900">Request {request.id}</h1>
-                <p className="text-sm font-semibold text-slate-900">{employeeName}</p>
-                <p className="text-xs text-slate-500">{department}</p>
-                <p className="text-xs text-slate-500">
-                  Created {formatWhen(request.createdAt)} • Last updated {formatWhen(request.updatedAt)}
-                </p>
-              </div>
-              <span
-                className={clsx(
-                  'rounded-full px-3 py-1 text-xs font-semibold ring-1',
-                  statusTone,
+          <section className="card relative space-y-3 p-5">
+            <span
+              className={clsx(
+                'absolute right-4 top-4 rounded-full px-3 py-1 text-xs font-semibold ring-1',
+                statusTone,
+              )}
+            >
+              {formatRequestStatus(request.status)}
+            </span>
+            <div className="flex flex-wrap items-start gap-3 pr-24">
+              <div className="space-y-1">
+                <h1 className="text-xl font-bold text-slate-900">{employeeName}</h1>
+                {headerSubtitle && (
+                  <p className="text-sm font-semibold text-slate-900">{headerSubtitle}</p>
                 )}
-              >
-                {formatRequestStatus(request.status)}
-              </span>
+                <p className="text-xs">Department: {department}</p>
+                <div className="flex flex-wrap gap-2 text-[11px] text-slate-500">
+                  <span className="rounded-full bg-slate-100 px-2 py-1 font-semibold">ID: {request.id}</span>
+                </div>
+              </div>
             </div>
 
             <div className="grid gap-3 text-sm">
@@ -631,59 +652,81 @@ export default function ApproverApprovalDetailPage() {
           </section>
 
           <section className="card space-y-3 p-5">
-            <div className="flex items-center justify-between">
-              <h2 className="text-base font-semibold text-slate-900">Approval chain</h2>
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <h2 className="text-base font-semibold text-slate-900">Approval chain</h2>
+                
+              </div>
+              <button
+                type="button"
+                onClick={() => setChainOpen((prev) => !prev)}
+                className="inline-flex items-center gap-2 rounded-lg px-3 py-1 text-sm font-semibold text-[#00156B] transition hover:bg-[#00156B]/5"
+                aria-expanded={chainOpen}
+              >
+                {chainOpen ? 'Hide' : 'Show'}
+                <ChevronDown
+                  className={clsx('size-4 transition-transform', chainOpen && 'rotate-180')}
+                />
+              </button>
             </div>
 
-            {approvals.length === 0 ? (
-              <p className="text-sm text-slate-500">No approval records found for this request.</p>
-            ) : (
-              <ul className="space-y-2">
-                {approvals.map((item) => (
-                  <li
-                    key={item.id}
-                    className={clsx(
-                      'rounded-xl border p-3 text-sm',
-                      item.id === activeApproval?.id
-                        ? 'border-[#00156B] bg-[#00156B]/5'
-                        : 'border-slate-200 bg-white',
-                    )}
-                  >
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="font-semibold text-slate-900">
-                        Stage {item.stage}
-                        {item.approverLevel ? ` • ${item.approverLevel}` : ''}
+            <div
+              className={clsx(
+                'overflow-hidden transition-all duration-300',
+                chainOpen ? 'max-h-[2000px] opacity-100' : 'pointer-events-none max-h-0 opacity-0',
+              )}
+              aria-hidden={!chainOpen}
+            >
+              {approvals.length === 0 ? (
+                <p className="text-sm text-slate-500">No approval records found for this request.</p>
+              ) : (
+                <ul className="space-y-2 pt-2">
+                  {approvals.map((item) => (
+                    <li
+                      key={item.id}
+                      className={clsx(
+                        'rounded-xl border p-3 text-sm',
+                        item.id === activeApproval?.id
+                          ? 'border-[#00156B] bg-[#00156B]/5'
+                          : 'border-slate-200 bg-white',
+                      )}
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="font-semibold text-slate-900">
+                          Stage {item.stage}
+                          {item.approverLevel ? ` • ${item.approverLevel}` : ''}
+                        </div>
+                        <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                          {formatApprovalStatus(item.status)}
+                        </span>
                       </div>
-                      <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                        {formatApprovalStatus(item.status)}
-                      </span>
-                    </div>
-                    <div className="mt-1 text-xs text-slate-500">
-                      {item.decidedAt ? `Decided ${formatWhen(item.decidedAt)}` : 'Awaiting decision'}
-                    </div>
-                    {item.comments && (
-                      <p className="mt-2 text-sm text-slate-600">“{item.comments}”</p>
-                    )}
-                    {item.signature && (
-                      <div
-                        className="mt-2 text-[11px] font-mono text-slate-500 break-all"
-                        title={item.signature}
-                      >
-                        Signature: {formatSignaturePreview(item.signature)}
+                      <div className="mt-1 text-xs text-slate-500">
+                        {item.decidedAt ? `Decided ${formatWhen(item.decidedAt)}` : 'Awaiting decision'}
                       </div>
-                    )}
-                    {item.blockchainTxHash && (
-                      <div
-                        className="mt-2 text-[11px] font-mono text-slate-500 break-all"
-                        title={item.blockchainTxHash}
-                      >
-                        Blockchain TX: {formatSignaturePreview(item.blockchainTxHash)}
-                      </div>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
+                      {item.comments && (
+                        <p className="mt-2 text-sm text-slate-600">“{item.comments}”</p>
+                      )}
+                      {item.signature && (
+                        <div
+                          className="mt-2 text-[11px] font-mono text-slate-500 break-all"
+                          title={item.signature}
+                        >
+                          Signature: {formatSignaturePreview(item.signature)}
+                        </div>
+                      )}
+                      {item.blockchainTxHash && (
+                        <div
+                          className="mt-2 text-[11px] font-mono text-slate-500 break-all"
+                          title={item.blockchainTxHash}
+                        >
+                          Blockchain TX: {formatSignaturePreview(item.blockchainTxHash)}
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </section>
 
           <section className="card space-y-3 p-5">
@@ -694,7 +737,7 @@ export default function ApproverApprovalDetailPage() {
             {expectedWalletError && (
               <p className="text-xs text-rose-600">{expectedWalletError}</p>
             )}
-            {expectedWalletAddress && (
+            {/* {expectedWalletAddress && (
               <p className="text-xs text-slate-500">
                 Registered wallet:{' '}
                 <span className="font-mono">{expectedWalletAddress.slice(0, 6)}...{expectedWalletAddress.slice(-4)}</span>
@@ -705,7 +748,7 @@ export default function ApproverApprovalDetailPage() {
                 MetaMask wallet:{' '}
                 <span className="font-mono">{connectedAddress.slice(0, 6)}...{connectedAddress.slice(-4)}</span>
               </p>
-            )}
+            )} */}
             {accountChanged && (
               <p className="text-xs text-amber-600">
                 Wallet changed in MetaMask. Restart the decision flow after switching to the registered account.
@@ -733,25 +776,9 @@ export default function ApproverApprovalDetailPage() {
 
             {activeApproval && (
               <>
-                <textarea
-                  rows={4}
-                  value={note}
-                  onChange={(event) => setNote(event.target.value)}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-[#00156B] focus:ring-2 focus:ring-[#00156B]/20 disabled:bg-slate-100"
-                  placeholder="Add a note for the employee (optional)"
-                  disabled={!canAct || submitting !== null}
-                />
                 {errorMessage && <p className="text-xs text-rose-600">{errorMessage}</p>}
 
                 <div className="flex flex-col gap-2 sm:flex-row">
-                  <button
-                    type="button"
-                    className="flex-1 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
-                    onClick={() => router.push('/approver/approval')}
-                    disabled={submitting !== null}
-                  >
-                    Back to list
-                  </button>
                   <button
                     type="button"
                     className="flex-1 rounded-xl border border-rose-600 px-4 py-2 text-sm font-semibold text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
@@ -766,10 +793,10 @@ export default function ApproverApprovalDetailPage() {
                   <button
                     type="button"
                     className="flex-1 rounded-xl bg-[#00156B] px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
-                    onClick={() => handleDecision('APPROVED')}
+                    onClick={() => setApproveDialogOpen(true)}
                     disabled={!canAct || submitting !== null}
                   >
-                    {submitting === 'APPROVED' ? 'Approving…' : 'Approve request'}
+                    Approve request
                   </button>
                 </div>
 
@@ -788,6 +815,62 @@ export default function ApproverApprovalDetailPage() {
               </>
             )}
           </section>
+        </div>
+      )}
+
+      {/* Approval Dialog */}
+      {approveDialogOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md space-y-4 rounded-2xl bg-white p-6 shadow-xl">
+            <h2 className="text-xl font-bold text-slate-900">Approve Request</h2>
+
+            {activeApproval && (
+              <div className="rounded-xl bg-slate-50 p-3">
+                <p className="text-sm font-semibold">
+                  Stage {activeApproval.stage}
+                  {activeApproval.approverLevel ? ` • ${activeApproval.approverLevel}` : ''}
+                </p>
+                <p className="text-xs text-slate-600">Request {id}</p>
+              </div>
+            )}
+
+            <div>
+              <label htmlFor="approvalNote" className="mb-2 block text-sm font-medium text-slate-700">
+                Approval Note <span className="text-slate-500">(optional)</span>
+              </label>
+              <textarea
+                id="approvalNote"
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="Add a note for the employee (optional)…"
+                className="min-h-[120px] w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none transition focus:border-[#00156B] focus:ring-2 focus:ring-[#00156B]/20"
+                maxLength={500}
+              />
+              <p className="mt-1 text-xs text-slate-500">
+                {note.length}/500 characters
+              </p>
+              {errorMessage && (
+                <p className="mt-1 text-xs text-rose-600">{errorMessage}</p>
+              )}
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => setApproveDialogOpen(false)}
+                disabled={submitting !== null}
+                className="flex-1 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDecision('APPROVED')}
+                disabled={!canAct || submitting !== null}
+                className="flex-1 rounded-xl bg-[#00156B] px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {submitting === 'APPROVED' ? 'Submitting…' : 'Submit Approval'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

@@ -6,8 +6,9 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/state/auth'
 import { useRequests } from '@/lib/state/requests'
 import type { LeaveRequest } from '@/lib/types'
-import { Bell, CheckCircle2, ChevronLeft, ChevronRight, Clock3, XCircle } from 'lucide-react'
+import { Bell, CheckCircle2, Clock3, XCircle } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
+import { Pagination } from '@/components/Pagination'
 import clsx from 'clsx'
 import { resolveLeaveTypeLabel } from '@/lib/utils/requestDisplay'
 import { toast } from 'sonner'
@@ -192,39 +193,13 @@ export default function InboxPage() {
             )}
 
             {filtered.length > 0 && (
-              <div className="pt-4 flex flex-col items-center gap-2">
-                <div className="flex items-center gap-2">
-                  <button
-                    aria-label="Previous page"
-                    disabled={safePage <= 1}
-                    onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
-                    className="h-10 w-10 rounded-xl border border-gray-300 bg-white text-[color:var(--brand,_#00156B)] hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed grid place-items-center"
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </button>
-                  {Array.from({ length: totalPages }, (_, idx) => idx + 1).map((pageNumber) => (
-                    <button
-                      key={pageNumber}
-                      onClick={() => setCurrentPage(pageNumber)}
-                      className={clsx(
-                        'h-10 w-10 rounded-xl border text-sm font-semibold transition',
-                        safePage === pageNumber
-                          ? 'bg-[color:var(--brand,_#00156B)] text-white border-transparent shadow-sm'
-                          : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
-                      )}
-                    >
-                      {pageNumber}
-                    </button>
-                  ))}
-                  <button
-                    aria-label="Next page"
-                    disabled={safePage >= totalPages}
-                    onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
-                    className="h-10 w-10 rounded-xl border border-gray-300 bg-white text-[color:var(--brand,_#00156B)] hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed grid place-items-center"
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </button>
-                </div>
+              <div className="pt-4 flex justify-center">
+                <Pagination
+                  totalItems={filtered.length}
+                  pageSize={PAGE_SIZE}
+                  currentPage={currentPage}
+                  onPageChange={setCurrentPage}
+                />
               </div>
             )}
           </div>

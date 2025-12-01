@@ -12,6 +12,7 @@ import { id as idLocale } from 'date-fns/locale'
 import { toast } from 'sonner'
 
 import { PageHeader } from '@/components/PageHeader'
+import { Pagination } from '@/components/Pagination'
 import { useAuth } from '@/lib/state/auth'
 import {
   getRequest,
@@ -22,6 +23,7 @@ import {
 import { useRequests } from '@/lib/state/requests'
 
 type TypeFilter = 'all' | 'leave' | 'overtime'
+const PAGE_SIZE = 5
 
 export default function ApproverApprovalsPage() {
   const router = useRouter()
@@ -34,6 +36,7 @@ export default function ApproverApprovalsPage() {
   const [loaded, setLoaded] = useState(false)
   const [approvals, setApprovals] = useState<ApprovalResponse[]>([])
   const [requestsById, setRequestsById] = useState<Map<string, RequestResponse>>(new Map())
+  const [currentPage, setCurrentPage] = useState(1)
 
   const loadApprovals = useCallback(async () => {
     setLoading(true)
@@ -120,6 +123,22 @@ export default function ApproverApprovalsPage() {
     [approvals],
   )
 
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [type, search])
+
+  useEffect(() => {
+    const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages)
+    }
+  }, [filtered.length, currentPage])
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const safePage = Math.min(currentPage, totalPages)
+  const start = (safePage - 1) * PAGE_SIZE
+  const pageItems = filtered.slice(start, start + PAGE_SIZE)
+
   function handleOpen(item: ApprovalResponse) {
     router.push(`/approver/approval/${item.requestId}?approval=${item.id}`)
   }
@@ -178,7 +197,7 @@ export default function ApproverApprovalsPage() {
       )}
 
       <ul className="mt-3 space-y-2">
-        {filtered.map((approval) => {
+        {pageItems.map((approval) => {
           const request = requestsById.get(approval.requestId)
           const reason =
             request?.leaveReason ??
@@ -245,6 +264,17 @@ export default function ApproverApprovalsPage() {
           )
         })}
       </ul>
+
+      {filtered.length > 0 && (
+        <div className="mt-4 flex justify-center">
+          <Pagination
+            totalItems={filtered.length}
+            pageSize={PAGE_SIZE}
+            currentPage={currentPage}
+            onPageChange={setCurrentPage}
+          />
+        </div>
+      )}
     </main>
   )
 }

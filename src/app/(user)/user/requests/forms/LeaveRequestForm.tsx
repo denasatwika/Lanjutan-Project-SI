@@ -473,7 +473,7 @@ export function LeaveRequestForm({ onSubmitted }: { onSubmitted?: () => void }) 
       if (status === 400) {
         message = relayError
           ? serverMessage ?? 'Signature validation failed. Please retry the signing step.'
-          : 'Attachment is too large or a required field is missing.'
+          : serverMessage || 'Attachment is too large or a required field is missing.'
       } else if (status === 404) {
         message = 'Requester not found. Please sign in again.'
       } else if (status === 403) {
