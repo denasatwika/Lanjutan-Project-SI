@@ -4,12 +4,14 @@ import { useEffect, useState } from 'react'
 import { BottomSheet } from '@/components/ui/bottomSheet'
 import { CameraCapture } from '@/components/CameraCapture'
 import { Camera, RotateCw } from 'lucide-react'
+import * as attendanceApi from '@/lib/api/attendance'
 
 type Mode = 'in' | 'out'
 
 type Props = {
   open: boolean
   onClose: () => void
+  employeeId: string
   /** Called after a successful upload so you can write to your store */
   onStored?: (payload: { filename?: string; url?: string }) => void
   mode?: Mode // default: 'in'
@@ -24,7 +26,7 @@ function useNow() {
   return now
 }
 
-export default function CheckInSheet({ open, onClose, onStored, mode = 'in' }: Props) {
+export default function CheckInSheet({ open, onClose, employeeId, onStored, mode = 'in' }: Props) {
   const now = useNow()
   const [preview, setPreview] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -34,21 +36,23 @@ export default function CheckInSheet({ open, onClose, onStored, mode = 'in' }: P
     if (!preview) return
     setBusy(true)
     try {
-      const res = await fetch('/api/upload', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image: preview }),
-      })
-      const json = await res.json()
-      if (json?.ok) {
-        setStatus('Tersimpan')
-        onStored?.({ filename: json.filename, url: json.url })
-        onClose()
+      // Call the backend attendance API
+      if (mode === 'in') {
+        const result = await attendanceApi.checkIn(employeeId, preview)
+        console.log('[CheckInSheet] Check-in result:', result)
+        setStatus('Check-in berhasil')
+        onStored?.({ url: result.checkInPhoto || undefined })
       } else {
-        setStatus('Gagal menyimpan')
+        const result = await attendanceApi.checkOut(employeeId, preview)
+        console.log('[CheckInSheet] Check-out result:', result)
+        setStatus('Check-out berhasil')
+        onStored?.({ url: result.checkOutPhoto || undefined })
       }
-    } catch {
-      setStatus('Gagal menyimpan')
+      onClose()
+    } catch (error) {
+      console.error('[CheckInSheet] Error:', error)
+      const message = error instanceof Error ? error.message : 'Gagal menyimpan'
+      setStatus(message)
     } finally {
       setBusy(false)
     }

@@ -1,6 +1,6 @@
 'use client'
 import { create } from 'zustand'
-import { User } from '../types'
+import { User, Role } from '../types'
 import { getSession, postLogout } from '../api/auth'
 
 interface AuthState {
@@ -23,13 +23,18 @@ export const useAuth = create<AuthState>()((set) => ({
         return undefined
       }
 
-      const address = session.user.address as `0x${string}`
+      const rawAddress = session.user.address
+      if (!rawAddress || typeof rawAddress !== 'string' || rawAddress.trim().length === 0) {
+        throw new Error('No verified company wallet is associated with this account. Please contact the administrator.')
+      }
+      const address = rawAddress as `0x${string}`
       const fallbackName = `${address.slice(0, 6)}...${address.slice(-4)}`
       const resolvedName = session.user.name?.trim()
 
       const user: User = {
         id: session.user.id,
-        role: session.user.role,
+        roles: session.user.roles,
+        primaryRole: session.user.primaryRole,
         address,
         name: resolvedName && resolvedName.length > 0 ? resolvedName : fallbackName,
         department: session.user.department ?? undefined,
@@ -54,3 +59,8 @@ export const useAuth = create<AuthState>()((set) => ({
     }
   },
 }))
+
+export function userHasRole(user: User | undefined, role: Role) {
+  if (!user) return false
+  return user.roles.includes(role)
+}

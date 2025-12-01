@@ -1,11 +1,16 @@
 'use client'
 
-import { ReactNode } from 'react'
-import { buildAttachmentDownloadUrl, formatAttachmentSize, withImageOptimisation } from '@/lib/api/attachments'
+import { ReactNode, useEffect, useMemo, useState } from 'react'
+import {
+  buildAttachmentDownloadUrl,
+  formatAttachmentSize,
+  normalizeAttachmentUrl,
+} from '@/lib/api/attachments'
 import { DecoratedRequest, formatLeavePeriod, formatOvertimePeriod } from '@/lib/utils/requestDisplay'
 import { LeaveRequest, OvertimeRequest } from '@/lib/types'
 import { X, FileText, Clock, CalendarDays } from 'lucide-react'
 import clsx from 'clsx'
+import type { ApprovalResponse } from '@/lib/api/requests'
 
 const BRAND = '#00156B'
 
@@ -13,23 +18,26 @@ export function RequestDetailDrawer({
   request,
   onClose,
   role,
+  approval,
+  onDecision,
 }: {
   request: DecoratedRequest | null
   onClose: () => void
   role?: 'approver'
+  approval?: ApprovalResponse
+  onDecision?: (decision: 'APPROVED' | 'REJECTED', comments: string) => Promise<void>
 }) {
   if (!request) return null
 
   const isLeave = request.type === 'leave'
   const leave = isLeave ? (request as LeaveRequest) : undefined
   const overtime = !isLeave ? (request as OvertimeRequest) : undefined
-  const baseAttachmentHref = request.attachmentUrl ?? (request.attachmentId
-    ? buildAttachmentDownloadUrl(request.attachmentId, request.attachmentDownloadPath)
-    : null)
+  const normalizedAttachmentUrl = normalizeAttachmentUrl(request.attachmentUrl, request.attachmentCid)
   const attachmentHref =
-    baseAttachmentHref && request.attachmentMimeType?.startsWith('image/')
-      ? withImageOptimisation(baseAttachmentHref)
-      : baseAttachmentHref
+    normalizedAttachmentUrl ??
+    (request.attachmentId
+      ? buildAttachmentDownloadUrl(request.attachmentId, request.attachmentDownloadPath)
+      : null)
   const attachmentLink = attachmentHref ? (
     <a
       href={attachmentHref}
@@ -45,6 +53,49 @@ export function RequestDetailDrawer({
       )}
     </a>
   ) : '—'
+
+  const [comments, setComments] = useState('')
+  const [submitting, setSubmitting] = useState<'APPROVED' | 'REJECTED' | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
+  const approvalIsPending = approval?.status === 'PENDING'
+  const canDecide =
+    role === 'approver' &&
+    request.status === 'pending' &&
+    Boolean(onDecision) &&
+    approvalIsPending
+
+  useEffect(() => {
+    setComments('')
+    setSubmitting(null)
+    setActionError(null)
+  }, [request.id])
+
+  const approvalStageLabel = useMemo(() => {
+    if (!approval) return undefined
+    const parts = [`Stage ${approval.stage}`]
+    if (approval.approverLevel) parts.push(approval.approverLevel)
+    return parts.join(' • ')
+  }, [approval])
+  const approvalStatusLabel = useMemo(() => {
+    if (!approval) return undefined
+    return formatApprovalStatus(approval.status)
+  }, [approval])
+
+  async function handleDecision(decision: 'APPROVED' | 'REJECTED') {
+    if (!onDecision) return
+    const note = comments.trim()
+    setSubmitting(decision)
+    setActionError(null)
+    try {
+      await onDecision(decision, note)
+      setComments('')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to submit decision'
+      setActionError(message)
+    } finally {
+      setSubmitting(null)
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-50">
@@ -75,6 +126,11 @@ export function RequestDetailDrawer({
             value={isLeave ? String(leave?.days ?? '-') : String(overtime?.hours ?? '-')}
           />
           <DetailRow label="Status" value={formatStatus(request.status)} />
+          {approvalStatusLabel && <DetailRow label="Approval status" value={approvalStatusLabel} />}
+          {approvalStageLabel && <DetailRow label="Approval stage" value={approvalStageLabel} />}
+          {approval?.decidedAt && (
+            <DetailRow label="Decided" value={new Date(approval.decidedAt).toLocaleString()} />
+          )}
           <DetailRow label="Created" value={new Date(request.createdAt).toLocaleString()} />
           {request.updatedAt && request.updatedAt !== request.createdAt && (
             <DetailRow label="Updated" value={new Date(request.updatedAt).toLocaleString()} />
@@ -93,26 +149,37 @@ export function RequestDetailDrawer({
               rows={3}
               placeholder="Add a note for the employee (optional)"
               className="w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-[color:var(--brand,_#00156B)] focus:ring-2 focus:ring-[color:var(--brand,_#00156B)]/20"
+              value={comments}
+              onChange={(e) => setComments(e.target.value)}
+              disabled={submitting !== null || !canDecide}
             />
+            {actionError && (
+              <p className="text-xs text-rose-600">
+                {actionError}
+              </p>
+            )}
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:gap-3">
               <button
                 className="flex-1 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm transition hover:bg-white"
                 onClick={onClose}
+                disabled={submitting !== null}
               >
                 Dismiss
               </button>
               <button
                 className="flex-1 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm transition hover:bg-white"
-                onClick={onClose}
+                onClick={() => handleDecision('REJECTED')}
+                disabled={!canDecide || submitting !== null}
               >
-                Request Changes
+                {submitting === 'REJECTED' ? 'Submitting...' : 'Request Changes'}
               </button>
               <button
                 className="flex-1 rounded-xl bg-[color:var(--brand,_#00156B)] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-110"
                 style={{ ['--brand' as any]: BRAND }}
-                onClick={onClose}
+                onClick={() => handleDecision('APPROVED')}
+                disabled={!canDecide || submitting !== null}
               >
-                Approve Request
+                {submitting === 'APPROVED' ? 'Approving...' : 'Approve Request'}
               </button>
             </div>
           </div>
@@ -151,4 +218,13 @@ function formatStatus(status: string) {
   if (status === 'rejected') return 'Rejected'
   if (status === 'pending') return 'Pending'
   return 'Draft'
+}
+
+function formatApprovalStatus(status: ApprovalResponse['status']) {
+  if (status === 'APPROVED') return 'Approved'
+  if (status === 'REJECTED') return 'Rejected'
+  if (status === 'BLOCKED') return 'Blocked'
+  if (status === 'CANCELLED') return 'Cancelled'
+  if (status === 'DRAFT') return 'Draft'
+  return 'Pending'
 }

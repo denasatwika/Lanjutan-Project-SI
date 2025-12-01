@@ -24,40 +24,14 @@ function safeParseJSON(input: string) {
   }
 }
 
-export type NonceResponse = {
-  address: string
-  nonce: string
-  expiresAt: string
-}
+type Role = 'user' | 'approver' | 'admin'
 
-export async function requestNonce(address: string): Promise<NonceResponse> {
-  const url = new URL('/auth/nonce', API_BASE)
-  url.searchParams.set('address', address)
-
-  const response = await fetch(url.toString(), {
-    method: 'GET',
-    credentials: 'include',
-  })
-
-  return parseJson<NonceResponse>(response)
-}
-
-export async function postLogin(address: string, signature: string): Promise<void> {
-  const response = await fetch(`${API_BASE}/auth/login`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ address, signature }),
-  })
-
-  await parseJson<{ ok: true }>(response)
-}
-
-type SessionResponse = {
+type SessionPayload = {
   user: {
     id: string
     address: string
-    role: 'requester' | 'approver'
+    roles: Role[]
+    primaryRole: Role
     name?: string
     department?: string
     departmentId?: string
@@ -67,7 +41,44 @@ type SessionResponse = {
   }
 }
 
-export async function getSession(): Promise<SessionResponse | null> {
+export type LoginChallengeResponse = {
+  stage: 'CHALLENGE'
+  address: string
+  nonce: string
+  message: string
+  expiresAt: string
+}
+
+export type LoginSessionResponse = SessionPayload & {
+  stage: 'SESSION'
+}
+
+type LoginResponse = LoginChallengeResponse | LoginSessionResponse
+
+type LoginChallengeRequest = {
+  address: string
+}
+
+type LoginVerifyRequest = {
+  address: string
+  nonce: string
+  signature: string
+}
+
+type LoginRequestPayload = LoginChallengeRequest | LoginVerifyRequest
+
+export async function postLogin(payload: LoginRequestPayload): Promise<LoginResponse> {
+  const response = await fetch(`${API_BASE}/auth/login`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+
+  return parseJson<LoginResponse>(response)
+}
+
+export async function getSession(): Promise<SessionPayload | null> {
   const response = await fetch(`${API_BASE}/auth/me`, {
     method: 'GET',
     credentials: 'include',
@@ -77,7 +88,7 @@ export async function getSession(): Promise<SessionResponse | null> {
     return null
   }
 
-  return parseJson<SessionResponse>(response)
+  return parseJson<SessionPayload>(response)
 }
 
 export async function postLogout(): Promise<void> {

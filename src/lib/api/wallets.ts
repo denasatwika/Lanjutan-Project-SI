@@ -39,10 +39,18 @@ export type EmployeeWallet = {
 
 type GetWalletsOptions = {
   signal?: AbortSignal
+  employeeId?: string
+}
+
+function buildWalletsUrl(options?: GetWalletsOptions) {
+  if (!options?.employeeId) return `${API_BASE}/wallets`
+  const url = new URL(`${API_BASE}/wallets`)
+  url.searchParams.set('employeeId', options.employeeId)
+  return url.toString()
 }
 
 export async function getWallets(options?: GetWalletsOptions): Promise<EmployeeWallet[]> {
-  const response = await fetch(`${API_BASE}/wallets`, {
+  const response = await fetch(buildWalletsUrl(options), {
     method: 'GET',
     credentials: 'include',
     signal: options?.signal,

@@ -8,6 +8,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { WagmiProvider } from 'wagmi'
 import { wagmiConfig } from '@/lib/web3/wagmiConfig'
 import { useAuth } from '@/lib/state/auth'
+import { useChainConfig } from '@/lib/state/chain'
 
 const queryClient = new QueryClient()
 
@@ -20,6 +21,7 @@ export function Providers({ children }: { children: ReactNode }) {
           theme={lightTheme({ accentColor: '#00156B', borderRadius: 'medium' })}
         >
           <AuthHydrator />
+          <ChainConfigHydrator />
           {children}
         </RainbowKitProvider>
       </QueryClientProvider>
@@ -36,6 +38,23 @@ function AuthHydrator() {
       fetchSession().catch(() => undefined)
     }
   }, [hydrated, fetchSession])
+
+  return null
+}
+
+function ChainConfigHydrator() {
+  const hydrated = useChainConfig((state) => state.hydrated)
+  const load = useChainConfig((state) => state.load)
+
+  useEffect(() => {
+    if (!hydrated) {
+      load().catch((error) => {
+        if (process.env.NODE_ENV !== 'production') {
+          console.error('Failed to hydrate chain config', error)
+        }
+      })
+    }
+  }, [hydrated, load])
 
   return null
 }

@@ -1,9 +1,10 @@
-export type Role = 'requester' | 'approver'
-export const roles: Role[] = ['requester', 'approver']
+export type Role = 'user' | 'approver' | 'admin'
+export const roles: Role[] = ['user', 'approver', 'admin']
 
 export type User = {
   id: string
-  role: Role
+  roles: Role[]
+  primaryRole: Role
   address: `0x${string}`
   name?: string
   email?: string
