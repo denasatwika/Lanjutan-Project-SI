@@ -175,9 +175,6 @@ export function LeaveRequestForm({ onSubmitted }: { onSubmitted?: () => void }) 
   const [attachmentError, setAttachmentError] = useState<string | null>(null)
   const [accountChanged, setAccountChanged] = useState(false)
   const [walletSwitching, setWalletSwitching] = useState(false)
-  const [cutiBalance, setCutiBalance] = useState<number | null>(null)
-  const [cutiBalanceLoading, setCutiBalanceLoading] = useState(false)
-  const [cutiBalanceError, setCutiBalanceError] = useState<string | null>(null)
   const [form, setForm] = useState<{
     leaveType: LeaveKind
     startDate: string
@@ -225,19 +222,12 @@ export function LeaveRequestForm({ onSubmitted }: { onSubmitted?: () => void }) 
     form.endDate &&
     new Date(form.startDate) > new Date(form.endDate)
 
-  const insufficientCutiBalance =
-    form.leaveType === 'Cuti' &&
-    cutiBalance !== null &&
-    days > 0 &&
-    cutiBalance < days
-
   const valid =
     !!form.startDate &&
     !!form.endDate &&
     !hasDateOrderIssue &&
     days > 0 &&
-    form.reason.trim().length > 0 &&
-    !insufficientCutiBalance
+    form.reason.trim().length > 0
 
   function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0]
@@ -327,10 +317,6 @@ export function LeaveRequestForm({ onSubmitted }: { onSubmitted?: () => void }) 
     }
     if (accountChanged) {
       toast.error('Your wallet changed recently. Please ensure it matches the registered account before submitting.')
-      return
-    }
-    if (insufficientCutiBalance) {
-      toast.error(`Insufficient CUTI balance. You need ${days} days but only have ${cutiBalance} days.`)
       return
     }
 
@@ -487,7 +473,7 @@ export function LeaveRequestForm({ onSubmitted }: { onSubmitted?: () => void }) 
       if (status === 400) {
         message = relayError
           ? serverMessage ?? 'Signature validation failed. Please retry the signing step.'
-          : 'Attachment is too large or a required field is missing.'
+          : serverMessage || 'Attachment is too large or a required field is missing.'
       } else if (status === 404) {
         message = 'Requester not found. Please sign in again.'
       } else if (status === 403) {
@@ -549,36 +535,6 @@ export function LeaveRequestForm({ onSubmitted }: { onSubmitted?: () => void }) 
     }
   }, [accountChanged, expectedWalletAddress, connectedAddress])
 
-  // Fetch CUTI balance when address changes
-  useEffect(() => {
-    async function fetchCutiBalance() {
-      if (!connectedAddress) {
-        setCutiBalance(null)
-        return
-      }
-
-      setCutiBalanceLoading(true)
-      setCutiBalanceError(null)
-
-      try {
-        const response = await fetch(`/api/wallet/balance?address=${connectedAddress}`)
-        if (!response.ok) {
-          throw new Error('Failed to fetch CUTI balance')
-        }
-        const data = await response.json()
-        setCutiBalance(Number(data.formatted))
-      } catch (error) {
-        console.error('Failed to fetch CUTI balance:', error)
-        setCutiBalanceError('Unable to check CUTI balance')
-        setCutiBalance(null)
-      } finally {
-        setCutiBalanceLoading(false)
-      }
-    }
-
-    fetchCutiBalance()
-  }, [connectedAddress])
-
   const isImg = !!previewUrl
 
   return (
@@ -611,27 +567,6 @@ export function LeaveRequestForm({ onSubmitted }: { onSubmitted?: () => void }) 
       <div className="rounded-xl border px-3 py-2 text-gray-600" style={{ borderColor: '#00156B20' }}>
         Total: <span className="font-semibold text-gray-800">{days}</span> days
       </div>
-
-      {form.leaveType === 'Cuti' && connectedAddress && (
-        <div className="rounded-xl border px-3 py-2" style={{ borderColor: '#00156B20' }}>
-          {cutiBalanceLoading ? (
-            <div className="text-sm text-gray-500">Checking CUTI balance...</div>
-          ) : cutiBalanceError ? (
-            <div className="text-sm text-rose-600">{cutiBalanceError}</div>
-          ) : cutiBalance !== null ? (
-            <div>
-              <div className="text-sm text-gray-600">
-                Available CUTI: <span className="font-semibold text-gray-800">{cutiBalance}</span> days
-              </div>
-              {insufficientCutiBalance && (
-                <div className="text-sm text-rose-600 mt-1">
-                  Insufficient CUTI balance. You need {days} days but only have {cutiBalance} days.
-                </div>
-              )}
-            </div>
-          ) : null}
-        </div>
-      )}
 
       <label className="block">
         <span className="text-sm text-gray-700">Leave reason</span>
@@ -671,46 +606,6 @@ export function LeaveRequestForm({ onSubmitted }: { onSubmitted?: () => void }) 
         {uploadingAttachment && (
           <div className="mt-2 text-xs text-gray-500">Uploading attachment…</div>
         )}
-        {expectedWalletLoading && (
-          <div className="mt-2 text-xs text-gray-500">Resolving your registered wallet…</div>
-        )}
-        {expectedWalletError && (
-          <div className="mt-2 text-sm text-rose-600">{expectedWalletError}</div>
-        )}
-        {expectedWalletAddress && (
-          <div className="mt-2 text-xs text-gray-500">
-            Signing wallet on file:{' '}
-            <span className="font-mono">{expectedWalletAddress.slice(0, 6)}...{expectedWalletAddress.slice(-4)}</span>
-          </div>
-        )}
-        {connectedAddress && (
-          <div className="mt-1 text-xs text-gray-500">
-            MetaMask wallet:{' '}
-            <span className="font-mono">{connectedAddress.slice(0, 6)}...{connectedAddress.slice(-4)}</span>
-          </div>
-        )}
-        {accountChanged && (
-          <div className="mt-2 text-xs text-amber-600">
-            Wallet changed in MetaMask. Please realign and restart the submission flow.
-          </div>
-        )}
-        {walletMismatch && (
-          <div className="mt-2 space-y-2 text-sm text-rose-600">
-            <p>
-              Connected wallet{' '}
-              <span className="font-mono">{connectedAddress?.slice(0, 6)}...{connectedAddress?.slice(-4)}</span> does not match the registered wallet{' '}
-              <span className="font-mono">{expectedWalletAddress?.slice(0, 6)}...{expectedWalletAddress?.slice(-4)}</span>.
-            </p>
-            <button
-              type="button"
-              onClick={requestWalletAlignment}
-              className="inline-flex items-center rounded-lg border border-rose-200 px-3 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-60"
-              disabled={walletSwitching}
-            >
-              {walletSwitching ? 'Requesting wallet switch…' : 'Switch to registered wallet'}
-            </button>
-          </div>
-        )}
         {attachmentError && (
           <div className="mt-2 text-sm text-rose-600">{attachmentError}</div>
         )}
@@ -740,9 +635,6 @@ export function LeaveRequestForm({ onSubmitted }: { onSubmitted?: () => void }) 
       >
         {submitLabel}
       </button>
-      <p className="text-xs text-gray-500 text-center">
-        On-chain step records this request via <span className="font-mono">recordLeave</span> on SimpleLeaveBook contract.
-      </p>
     </form>
   )
 }

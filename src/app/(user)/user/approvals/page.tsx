@@ -4,11 +4,11 @@ import { useEffect, useState } from 'react'
 import { useAccount } from 'wagmi'
 import { toast } from 'sonner'
 import { signForwardRequest } from '@/lib/web3/signing'
-import { getAllApprovers, getApprovalState, recordApproval, type ApprovalState, type MultisigRole } from '@/lib/api/multisig'
+import { getAllApprovers, getApprovalState, recordApproval, recordRejection, type ApprovalState, type MultisigRole } from '@/lib/api/multisig'
 import { listLeaveRequests, type LeaveRequestResponse } from '@/lib/api/leaveRequests'
 import { getChainConfig } from '@/lib/api/chain'
 import { prepareForwardRequest, submitForwardRequest } from '@/lib/api/forwarder'
-import { encodeCollectApproval, multisigRoleToNumber } from '@/lib/web3/contracts'
+import { encodeCollectApproval, encodeCollectRejection, multisigRoleToNumber } from '@/lib/web3/contracts'
 import { ApprovalStatus } from '@/components/ApprovalStatus'
 
 export default function ApprovalsPage() {
@@ -19,6 +19,9 @@ export default function ApprovalsPage() {
   const [loading, setLoading] = useState(true)
   const [processingId, setProcessingId] = useState<string | null>(null)
   const [chainConfig, setChainConfig] = useState<any>(null)
+  const [rejectDialogOpen, setRejectDialogOpen] = useState(false)
+  const [rejectingRequest, setRejectingRequest] = useState<LeaveRequestResponse | null>(null)
+  const [rejectionReason, setRejectionReason] = useState('')
 
   useEffect(() => {
     loadData()
@@ -152,6 +155,112 @@ export default function ApprovalsPage() {
     }
   }
 
+  function openRejectDialog(request: LeaveRequestResponse) {
+    if (!connectedAddress || myRole === 'NONE') {
+      toast.error('You are not authorized to reject requests')
+      return
+    }
+
+    const state = approvalStates.get(request.id)
+    if (state?.approvals.some((a) => a.approverAddress.toLowerCase() === connectedAddress.toLowerCase())) {
+      toast.error('You have already approved this request')
+      return
+    }
+
+    setRejectingRequest(request)
+    setRejectionReason('')
+    setRejectDialogOpen(true)
+  }
+
+  async function handleReject() {
+    if (!rejectingRequest || !connectedAddress || myRole === 'NONE') {
+      return
+    }
+
+    if (!chainConfig?.companyMultisigAddress) {
+      toast.error('Multisig contract address not configured')
+      return
+    }
+
+    if (!rejectionReason.trim()) {
+      toast.error('Please provide a rejection reason')
+      return
+    }
+
+    if (rejectionReason.length > 500) {
+      toast.error('Rejection reason too long (max 500 characters)')
+      return
+    }
+
+    try {
+      setProcessingId(rejectingRequest.id)
+
+      // Use onChainRequestId from backend
+      if (!rejectingRequest.onChainRequestId) {
+        toast.error('Request has no on-chain ID')
+        return
+      }
+      const requestId = rejectingRequest.onChainRequestId as `0x${string}`
+
+      // Encode collectRejection function call
+      const roleNumber = multisigRoleToNumber(myRole as 'SUPERVISOR' | 'CHIEF' | 'HR')
+      const data = encodeCollectRejection({
+        requestId,
+        signer: connectedAddress,
+        role: roleNumber,
+        reason: rejectionReason.trim(),
+      })
+
+      // Prepare ForwardRequest
+      toast.info('Preparing rejection transaction...')
+      const deadline = BigInt(Math.floor(Date.now() / 1000) + 60 * 60) // 1 hour
+      const prepared = await prepareForwardRequest({
+        from: connectedAddress,
+        to: chainConfig.companyMultisigAddress,
+        gas: 500000n,
+        value: 0n,
+        data,
+        deadline,
+      })
+
+      // Sign ForwardRequest
+      toast.info('Please sign the rejection in your wallet...')
+      const signature = await signForwardRequest(connectedAddress, prepared)
+
+      // Record rejection in database BEFORE blockchain transaction
+      await recordRejection({
+        requestId,
+        rejectorAddress: connectedAddress,
+        rejectorRole: myRole,
+        reason: rejectionReason.trim(),
+        signature,
+        leaveRequestId: rejectingRequest.id,
+      })
+
+      // Submit to blockchain via relayer
+      toast.info('Submitting rejection...')
+      const result = await submitForwardRequest({
+        request: prepared.request,
+        signature,
+      })
+
+      toast.success('Rejection submitted successfully', {
+        description: `Tx: ${result.txHash}`,
+      })
+
+      // Close dialog and reload data
+      setRejectDialogOpen(false)
+      setRejectingRequest(null)
+      setRejectionReason('')
+      await loadData()
+    } catch (error) {
+      console.error('Failed to reject request', error)
+      toast.error(error instanceof Error ? error.message : 'Failed to reject request')
+    } finally {
+      setProcessingId(null)
+    }
+  }
+
   if (loading) {
     return (
       <div className="container py-8">
@@ -206,20 +315,85 @@ export default function ApprovalsPage() {
                   <ApprovalStatus state={state ?? null} compact />
                 </div>
 
-                <button
-                  onClick={() => handleApprove(request)}
-                  disabled={hasApproved || processingId === request.id}
-                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm"
-                >
-                  {processingId === request.id
-                    ? 'Processing...'
-                    : hasApproved
-                    ? 'Already Approved'
-                    : 'Approve'}
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleApprove(request)}
+                    disabled={hasApproved || processingId === request.id}
+                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm"
+                  >
+                    {processingId === request.id
+                      ? 'Processing...'
+                      : hasApproved
+                      ? 'Already Approved'
+                      : 'Approve'}
+                  </button>
+                  <button
+                    onClick={() => openRejectDialog(request)}
+                    disabled={hasApproved || processingId === request.id}
+                    className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm"
+                  >
+                    Reject
+                  </button>
+                </div>
               </div>
             )
           })}
+        </div>
+      )}
+
+      {/* Rejection Dialog */}
+      {rejectDialogOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <h2 className="text-xl font-bold mb-4">Reject Leave Request</h2>
+
+            {rejectingRequest && (
+              <div className="mb-4 p-3 bg-gray-50 rounded">
+                <p className="text-sm font-semibold">{rejectingRequest.leaveType}</p>
+                <p className="text-xs text-gray-600">
+                  {rejectingRequest.leaveStartDate} to {rejectingRequest.leaveEndDate}
+                </p>
+              </div>
+            )}
+
+            <div className="mb-4">
+              <label htmlFor="rejectionReason" className="block text-sm font-medium mb-2">
+                Rejection Reason <span className="text-red-600">*</span>
+              </label>
+              <textarea
+                id="rejectionReason"
+                value={rejectionReason}
+                onChange={(e) => setRejectionReason(e.target.value)}
+                placeholder="Please explain why you are rejecting this request..."
+                className="w-full border rounded p-2 text-sm min-h-[100px]"
+                maxLength={500}
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                {rejectionReason.length}/500 characters
+              </p>
+            </div>
+
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => {
+                  setRejectDialogOpen(false)
+                  setRejectingRequest(null)
+                  setRejectionReason('')
+                }}
+                disabled={processingId !== null}
+                className="px-4 py-2 border rounded hover:bg-gray-50 disabled:cursor-not-allowed text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleReject}
+                disabled={!rejectionReason.trim() || processingId !== null}
+                className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm"
+              >
+                {processingId ? 'Processing...' : 'Submit Rejection'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
