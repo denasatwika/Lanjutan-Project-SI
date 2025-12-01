@@ -227,14 +227,7 @@ export default function ApprovalsPage() {
       toast.info('Please sign the rejection in your wallet...')
       const signature = await signForwardRequest(connectedAddress, prepared)
 
-      // Submit to blockchain via relayer
-      toast.info('Submitting rejection...')
-      const result = await submitForwardRequest({
-        request: prepared.request,
-        signature,
-      })
-
-      // Record rejection in database with transaction hash
+      // Record rejection in database BEFORE blockchain transaction
       await recordRejection({
         requestId,
         rejectorAddress: connectedAddress,
@@ -242,7 +235,13 @@ export default function ApprovalsPage() {
         reason: rejectionReason.trim(),
         signature,
         leaveRequestId: rejectingRequest.id,
-        txHash: result.txHash,
+      })
+
+      // Submit to blockchain via relayer
+      toast.info('Submitting rejection...')
+      const result = await submitForwardRequest({
+        request: prepared.request,
+        signature,
       })
 
       toast.success('Rejection submitted successfully', {
