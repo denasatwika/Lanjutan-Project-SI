@@ -252,6 +252,15 @@ export default function ApproverApprovalsPage() {
                 </p>
               )}
 
+              {approval.blockchainTxHash && (
+                <p
+                  className="mt-2 text-[11px] font-mono text-slate-500 break-all"
+                  title={approval.blockchainTxHash}
+                >
+                  Tx: {truncate(approval.blockchainTxHash, 28)}
+                </p>
+              )}
+
               <div className="mt-3 flex justify-end">
                 <button
                   onClick={() => handleOpen(approval)}
