@@ -101,7 +101,7 @@ export default function ApprovalsPage() {
       }
 
       // Check if user is the requester (prevent self-approval UI)
-      if ((request as any).requesterAddress?.toLowerCase() === connectedAddress.toLowerCase()) {
+      if (request.requesterWalletAddress?.toLowerCase() === connectedAddress.toLowerCase()) {
         toast.error('You cannot approve your own request')
         return
       }
@@ -173,11 +173,11 @@ export default function ApprovalsPage() {
       return
     }
 
-    // Prevent self-rejection
-    if ((request as any).requesterAddress?.toLowerCase() === connectedAddress.toLowerCase()) {
-      toast.error('You cannot reject your own request')
-      return
-    }
+      // Prevent self-rejection
+      if (request.requesterWalletAddress?.toLowerCase() === connectedAddress.toLowerCase()) {
+        toast.error('You cannot reject your own request')
+        return
+      }
 
     setRejectingRequest(request)
     setRejectionReason('')
@@ -328,7 +328,7 @@ export default function ApprovalsPage() {
                 </div>
 
                 <div className="flex gap-2">
-                  {(request as any).requesterAddress?.toLowerCase() !== connectedAddress?.toLowerCase() ? (
+                    {request.requesterWalletAddress?.toLowerCase() !== connectedAddress?.toLowerCase() ? (
                     <>
                       <button
                         onClick={() => handleApprove(request)}
