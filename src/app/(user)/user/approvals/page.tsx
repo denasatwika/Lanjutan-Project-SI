@@ -100,6 +100,12 @@ export default function ApprovalsPage() {
         return
       }
 
+      // Check if user is the requester (prevent self-approval UI)
+      if ((request as any).requesterAddress?.toLowerCase() === connectedAddress.toLowerCase()) {
+        toast.error('You cannot approve your own request')
+        return
+      }
+
       // Encode collectApproval function call
       const roleNumber = multisigRoleToNumber(myRole as 'SUPERVISOR' | 'CHIEF' | 'HR')
       const data = encodeCollectApproval({
@@ -164,6 +170,12 @@ export default function ApprovalsPage() {
     const state = approvalStates.get(request.id)
     if (state?.approvals.some((a) => a.approverAddress.toLowerCase() === connectedAddress.toLowerCase())) {
       toast.error('You have already approved this request')
+      return
+    }
+
+    // Prevent self-rejection
+    if ((request as any).requesterAddress?.toLowerCase() === connectedAddress.toLowerCase()) {
+      toast.error('You cannot reject your own request')
       return
     }
 
@@ -316,24 +328,32 @@ export default function ApprovalsPage() {
                 </div>
 
                 <div className="flex gap-2">
-                  <button
-                    onClick={() => handleApprove(request)}
-                    disabled={hasApproved || processingId === request.id}
-                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm"
-                  >
-                    {processingId === request.id
-                      ? 'Processing...'
-                      : hasApproved
-                      ? 'Already Approved'
-                      : 'Approve'}
-                  </button>
-                  <button
-                    onClick={() => openRejectDialog(request)}
-                    disabled={hasApproved || processingId === request.id}
-                    className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm"
-                  >
-                    Reject
-                  </button>
+                  {(request as any).requesterAddress?.toLowerCase() !== connectedAddress?.toLowerCase() ? (
+                    <>
+                      <button
+                        onClick={() => handleApprove(request)}
+                        disabled={hasApproved || processingId === request.id}
+                        className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm"
+                      >
+                        {processingId === request.id
+                          ? 'Processing...'
+                          : hasApproved
+                          ? 'Already Approved'
+                          : 'Approve'}
+                      </button>
+                      <button
+                        onClick={() => openRejectDialog(request)}
+                        disabled={hasApproved || processingId === request.id}
+                        className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm"
+                      >
+                        Reject
+                      </button>
+                    </>
+                  ) : (
+                    <div className="text-sm text-muted-foreground italic">
+                      You cannot approve your own request
+                    </div>
+                  )}
                 </div>
               </div>
             )
