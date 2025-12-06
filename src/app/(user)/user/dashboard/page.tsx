@@ -12,7 +12,7 @@ import { CalendarDays, Clock, TrendingUp, Zap, Info, Check, Files } from 'lucide
 import { toast } from 'sonner'
 import { BottomSheet } from '@/components/ui/bottomSheet'
 import { useRouter } from 'next/navigation'
-import { mandalaTestnet } from '@/lib/web3/wagmiConfig'
+import { anvilLocal } from '@/lib/web3/wagmiConfig'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE
 
@@ -45,18 +45,18 @@ export default function Page() {
   const initial = firstName.charAt(0).toUpperCase()
   const walletAddress = user?.address
   const walletDisplay = walletAddress ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}` : '—'
-  const [formattedKpgBalance, setFormattedKpgBalance] = useState<string>('—')
-  const [tokenSymbol, setTokenSymbol] = useState<string>('KPGT')
+  const [formattedCutiBalance, setFormattedCutiBalance] = useState<string>('—')
+  const [tokenSymbol, setTokenSymbol] = useState<string>('CUTI')
   const lastBalanceErrorMessage = useRef<string | null>(null)
 
   useEffect(() => {
     if (!walletAddress) {
-      setFormattedKpgBalance('—')
-      setTokenSymbol(mandalaTestnet.nativeCurrency.symbol)
+      setFormattedCutiBalance('—')
+      setTokenSymbol('CUTI')
       return
     }
     const controller = new AbortController()
-    setFormattedKpgBalance('…')
+    setFormattedCutiBalance('…')
 
     const url = new URL('/wallet/balance', API_BASE)
     url.searchParams.set('address', walletAddress)
@@ -86,29 +86,29 @@ export default function Page() {
           : new Intl.NumberFormat('en-US', {
             maximumFractionDigits: numeric < 1 ? 6 : 2,
           }).format(numeric)
-        setFormattedKpgBalance(display)
+        setFormattedCutiBalance(display)
         setTokenSymbol(data.symbol)
         lastBalanceErrorMessage.current = null
       })
       .catch((error) => {
         if (controller.signal.aborted) return
-        const message = error instanceof Error ? error.message : 'Gagal memuat saldo wallet'
+        const message = error instanceof Error ? error.message : 'Gagal memuat saldo CUTI'
         console.error('[wallet balance]', message)
         if (lastBalanceErrorMessage.current !== message) {
           lastBalanceErrorMessage.current = message
-          toast.error('Gagal memuat saldo wallet')
+          toast.error('Gagal memuat saldo CUTI')
         }
-        setFormattedKpgBalance('—')
+        setFormattedCutiBalance('—')
       })
 
     return () => controller.abort()
   }, [walletAddress])
 
   const tokenTiles = useMemo(() => [{
-    label: tokenSymbol || 'KPGT',
-    value: formattedKpgBalance,
+    label: tokenSymbol || 'CUTI',
+    value: formattedCutiBalance,
     color: 'var(--B-500)',
-  }], [tokenSymbol, formattedKpgBalance])
+  }], [tokenSymbol, formattedCutiBalance])
 
   function dayISO(d: Date) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x.toISOString() }
   const descKey = (userId: string, iso: string) => `desc:${userId}:${iso}`
@@ -296,6 +296,7 @@ export default function Page() {
             />
           ))}
         </div>
+        {/* Here is my button */}
         <button
           onClick={() => setShowCheckIn(true)}
           className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm hover:bg-white/95"
@@ -334,6 +335,8 @@ export default function Page() {
         <CheckInSheet
           open={showCheckIn}
           onClose={() => setShowCheckIn(false)}
+          employeeId={user.id}
+          mode={isWorking ? 'out' : 'in'}
           onStored={(p) => {
             const api = (useAttendance as any).getState?.()
             if (api?.add) {

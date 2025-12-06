@@ -1,11 +1,11 @@
 'use client'
 
 import Image from 'next/image'
-
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useEffect, useState, type ReactNode } from 'react'
+import { useParams } from 'next/navigation'
 import clsx from 'clsx'
 import { toast } from 'sonner'
+import { Paperclip, Download, ChevronRight } from 'lucide-react'
 
 import { PageHeader } from '@/components/PageHeader'
 import {
@@ -17,88 +17,47 @@ import { getRequest } from '@/lib/api/requests'
 import { useRequests } from '@/lib/state/requests'
 import { formatWhen } from '@/lib/utils/date'
 import { resolveLeaveTypeLabel } from '@/lib/utils/requestDisplay'
-import type { LeaveRequest, OvertimeRequest, Request } from '@/lib/types'
-
-type DecisionState = 'idle' | 'loading'
+import type { LeaveRequest, OvertimeRequest } from '@/lib/types'
 
 export default function ApproverHistoryDetailPage() {
-  const router = useRouter()
   const { id } = useParams<{ id: string }>()
-
   const request = useRequests((state) => (id ? state.byId(id) : undefined))
   const upsertRequest = useRequests((state) => state.upsertFromApi)
-
-  const [loading, setLoading] = useState<DecisionState>('idle')
+  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    if (!id) return
+    if (!id || request) return
     let cancelled = false
 
-    async function loadMissingRequest() {
-      if (request) return
-
-      setLoading('loading')
+    const load = async () => {
+      setLoading(true)
       try {
         const fetched = await getRequest(id)
-        if (cancelled) return
-        upsertRequest(fetched)
-      } catch (error) {
-        if (cancelled) return
-        const message = error instanceof Error ? error.message : 'Failed to load history detail'
-        toast.error(message)
+        if (!cancelled) upsertRequest(fetched)
+      } catch (e) {
+        if (!cancelled) toast.error('Failed to load request')
       } finally {
-        if (!cancelled) {
-          setLoading('idle')
-        }
+        if (!cancelled) setLoading(false)
       }
     }
-
-    loadMissingRequest()
-    return () => {
-      cancelled = true
-    }
+    load()
+    return () => { cancelled = true }
   }, [id, request, upsertRequest])
 
+  // --- Derived Data ---
   const isLeave = request?.type === 'leave'
-  const leaveRequest = isLeave ? (request as LeaveRequest) : undefined
-  const overtimeRequest = request?.type === 'overtime' ? (request as OvertimeRequest) : undefined
-  const leaveLabel = leaveRequest
-    ? leaveRequest.leaveTypeName ?? resolveLeaveTypeLabel(leaveRequest.leaveTypeId)
-    : undefined
+  const leaveData = isLeave ? (request as LeaveRequest) : undefined
+  const overtimeData = request?.type === 'overtime' ? (request as OvertimeRequest) : undefined
+  
+  const attachmentUrl = normalizeAttachmentUrl(request?.attachmentUrl, request?.attachmentCid)
+  const isImage = request?.attachmentMimeType?.startsWith('image/')
+  const downloadUrl = attachmentUrl ?? (request?.attachmentId ? buildAttachmentDownloadUrl(request.attachmentId, request.attachmentDownloadPath) : null)
 
-  const attachmentSize =
-    typeof request?.attachmentSize === 'number' && request.attachmentSize > 0
-      ? formatAttachmentSize(request.attachmentSize)
-      : null
-  const normalizedAttachmentUrl = normalizeAttachmentUrl(request?.attachmentUrl, request?.attachmentCid)
-  const isImageAttachment = Boolean(request?.attachmentMimeType?.startsWith('image/'))
-  const attachmentDownloadHref =
-    normalizedAttachmentUrl ??
-    (request?.attachmentId
-      ? buildAttachmentDownloadUrl(request.attachmentId, request.attachmentDownloadPath)
-      : null)
-  const attachmentPreviewSrc =
-    normalizedAttachmentUrl && isImageAttachment ? normalizedAttachmentUrl : null
-
-  const employeeName = request?.employeeName ?? request?.employeeId ?? 'Unknown employee'
+  const employeeName = request?.employeeName ?? request?.employeeId ?? 'Unknown'
   const department = request?.employeeDepartment ?? '—'
 
-  const statusTone = request?.status === 'approved'
-    ? 'bg-green-50 text-green-700 ring-green-200'
-    : request?.status === 'rejected'
-    ? 'bg-rose-50 text-rose-700 ring-rose-200'
-    : request?.status === 'pending'
-    ? 'bg-amber-50 text-amber-700 ring-amber-200'
-    : 'bg-slate-100 text-slate-600 ring-slate-200'
-
-  const heading = useMemo(() => {
-    if (!request) return `Request ${id}`
-    const type = request.type === 'leave' ? 'Leave' : request.type === 'overtime' ? 'Overtime' : 'Request'
-    return `${type}`
-  }, [request])
-
   return (
-    <main className="mx-auto w-full max-w-3xl p-4 pb-28">
+    <main className="mx-auto w-full max-w-2xl p-4 pb-20">
       <PageHeader
         title="History Detail"
         backHref="/approver/history"
@@ -107,120 +66,159 @@ export default function ApproverHistoryDetailPage() {
         pullUpPx={32}
       />
 
-      {loading === 'loading' && (
-        <p className="mt-8 text-center text-sm text-slate-500">Loading history detail…</p>
-      )}
-
-      {!request && loading === 'idle' && (
-        <p className="mt-8 text-center text-sm text-slate-500">
-          Request data unavailable. It may have been removed.
-        </p>
+      {loading && !request && (
+        <div className="mt-12 text-center text-sm text-slate-400">Loading details...</div>
       )}
 
       {request && (
-        <div className="space-y-6">
-          <section className="card space-y-3 p-5">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h1 className="text-xl font-semibold text-slate-900">{employeeName}</h1>
-                <p className="text-md font-bold text-slate-900">Requested {heading}</p>
-                <p className="text-xs text-slate-500">{department}</p>
-                <p className="text-xs text-slate-500">
-                  Created {formatWhen(request.createdAt)} • Last updated {formatWhen(request.updatedAt)}
-                </p>
-              </div>
-              <span
-                className={clsx(
-                  'rounded-full px-3 py-1 text-xs font-semibold ring-1',
-                  statusTone,
-                )}
-              >
-                {formatRequestStatus(request.status)}
-              </span>
+        <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+          
+          {/* 1. Header Section: Identity & Status */}
+          <div className="flex items-start justify-between border-b border-slate-100 p-6">
+            <div>
+              <h1 className="text-lg font-semibold text-slate-900">{employeeName}</h1>
+              <p className="text-sm text-slate-500">{department}</p>
+              <p className="mt-1 text-xs text-slate-400">
+                Applied on {formatWhen(request.createdAt)}
+              </p>
             </div>
+            <StatusPill status={request.status} />
+          </div>
 
-            <div className="grid gap-3 text-sm">
-              <DetailRow label="Type">
-                <span className="capitalize font-semibold">{request.type}</span>
-              </DetailRow>
-              {leaveRequest ? (
-                <>
-                  <DetailRow label="Leave type">{leaveLabel ?? leaveRequest.leaveTypeId}</DetailRow>
-                  <DetailRow label="Start">{leaveRequest.startDate}</DetailRow>
-                  <DetailRow label="End">{leaveRequest.endDate}</DetailRow>
-                  <DetailRow label="Duration">{leaveRequest.days} day(s)</DetailRow>
-                </>
-              ) : overtimeRequest ? (
-                <>
-                  <DetailRow label="Work date">{overtimeRequest.workDate}</DetailRow>
-                  <DetailRow label="From">{overtimeRequest.startTime}</DetailRow>
-                  <DetailRow label="To">{overtimeRequest.endTime}</DetailRow>
-                  <DetailRow label="Hours">{overtimeRequest.hours}</DetailRow>
-                </>
-              ) : null}
-              <DetailRow label="Reason">{request.reason ?? '—'}</DetailRow>
-              <DetailRow label="Notes">{request.notes ?? '—'}</DetailRow>
-              <DetailRow label="Attachment">
-                {request?.attachmentId || request?.attachmentUrl ? (
-                  <div className="space-y-2">
-                    <div className="text-sm font-medium text-slate-700">
-                      {request.attachmentName ?? 'Attachment'}
-                      {attachmentSize ? ` (${attachmentSize})` : ''}
-                    </div>
-                    {attachmentPreviewSrc ? (
-                      <a
-                        href={attachmentDownloadHref ?? attachmentPreviewSrc}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="block overflow-hidden rounded-xl border"
-                      >
-                        <Image
-                          src={attachmentPreviewSrc}
-                          alt={request.attachmentName ?? 'Attachment preview'}
-                          width={960}
-                          height={600}
-                          className="h-auto max-h-72 w-full object-contain bg-slate-100"
-                        />
-                      </a>
-                    ) : attachmentDownloadHref ? (
-                      <a
-                        href={attachmentDownloadHref}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center text-sm font-semibold text-[#00156B] hover:underline"
-                      >
-                        Download attachment
-                      </a>
-                    ) : (
-                      <span className="text-xs text-slate-500">Attachment unavailable.</span>
-                    )}
+          {/* 2. Key Metrics Grid (Simplified) */}
+          <div className="grid grid-cols-2 gap-y-6 border-b border-slate-100 p-6 sm:grid-cols-4">
+            <Metric label="Type" value={<span className="capitalize">{request.type}</span>} />
+            
+            {leaveData && (
+              <>
+                <Metric label="Category" value={leaveData.leaveTypeName ?? resolveLeaveTypeLabel(leaveData.leaveTypeId)} />
+                <Metric label="Duration" value={`${leaveData.days} Days`} />
+                <Metric label="Dates" value={
+                  <div className="flex flex-col text-xs sm:text-sm">
+                    <span>{leaveData.startDate}</span>
+                    <span className="text-slate-400">to</span>
+                    <span>{leaveData.endDate}</span>
                   </div>
-                ) : (
-                  <span className="text-xs text-slate-500">No attachment</span>
-                )}
-              </DetailRow>
+                } />
+              </>
+            )}
+
+            {overtimeData && (
+              <>
+                <Metric label="Date" value={overtimeData.workDate} />
+                <Metric label="Hours" value={`${overtimeData.hours} hrs`} />
+                <Metric label="Time" value={`${overtimeData.startTime} - ${overtimeData.endTime}`} />
+              </>
+            )}
+          </div>
+
+          {/* 3. Reason & Notes (Text Content) */}
+          <div className="space-y-6 p-6">
+            <div>
+              <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-slate-500">Reason</h3>
+              <p className="text-sm leading-relaxed text-slate-700">
+                {request.reason || '—'}
+              </p>
             </div>
-          </section>
+            
+            {request.notes && (
+              <div>
+                <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-slate-500">Notes</h3>
+                <p className="text-sm leading-relaxed text-slate-600">{request.notes}</p>
+              </div>
+            )}
+          </div>
+
+          {/* 4. Attachment (Compact) */}
+          {(request.attachmentId || request.attachmentUrl) && (
+            <div className="bg-slate-50 p-4">
+              <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white p-3">
+                {/* Preview Thumbnail or Icon */}
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-slate-100 text-slate-400">
+                  {attachmentUrl && isImage ? (
+                    <div className="relative h-full w-full overflow-hidden rounded">
+                      <Image src={attachmentUrl} alt="Preview" fill className="object-cover" />
+                    </div>
+                  ) : (
+                    <Paperclip className="h-5 w-5" />
+                  )}
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-slate-700">
+                    {request.attachmentName || 'Attachment'}
+                  </p>
+                  <p className="text-xs text-slate-400">
+                    {request.attachmentSize ? formatAttachmentSize(request.attachmentSize) : 'File'}
+                  </p>
+                </div>
+
+                <a
+                  href={downloadUrl ?? '#'}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group flex h-8 w-8 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-blue-600"
+                  title="Download"
+                >
+                  <Download className="h-4 w-4" />
+                </a>
+              </div>
+              
+              {/* Optional: Large Image Expand */}
+              {attachmentUrl && isImage && (
+                <div className="mt-3">
+                   <details className="group">
+                      <summary className="flex cursor-pointer items-center text-xs font-medium text-slate-500 hover:text-slate-700">
+                        <ChevronRight className="mr-1 h-3 w-3 transition-transform group-open:rotate-90" />
+                        View Full Image
+                      </summary>
+                      <div className="mt-2 overflow-hidden rounded-lg border border-slate-200">
+                        <Image
+                          src={attachmentUrl}
+                          alt="Attachment Full"
+                          width={600}
+                          height={400}
+                          className="w-full bg-slate-100 object-contain"
+                        />
+                      </div>
+                   </details>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </main>
   )
 }
 
-function DetailRow({ label, children }: { label: string; children: ReactNode }) {
+// --- Simplified Components ---
+
+function Metric({ label, value }: { label: string, value: ReactNode }) {
   return (
-    <div className="grid grid-cols-[120px,1fr] gap-3 items-start">
-      <span className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</span>
-      <div className="text-sm text-slate-700">{children}</div>
+    <div className="flex flex-col">
+      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">{label}</span>
+      <span className="text-sm font-medium text-slate-900">{value}</span>
     </div>
   )
 }
 
-function formatRequestStatus(status: string | undefined | null) {
-  if (!status) return 'Unknown'
-  if (status === 'approved') return 'Approved'
-  if (status === 'rejected') return 'Rejected'
-  if (status === 'pending') return 'Pending'
-  if (status === 'draft') return 'Draft'
-  return status
+function StatusPill({ status }: { status: string | undefined | null }) {
+  const s = status || 'unknown'
+  const colors = {
+    approved: 'bg-green-100 text-green-700',
+    rejected: 'bg-red-100 text-red-700',
+    pending: 'bg-amber-100 text-amber-700',
+    draft: 'bg-slate-100 text-slate-600',
+    unknown: 'bg-slate-100 text-slate-600',
+  }
+  
+  return (
+    <span className={clsx(
+      'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize',
+      colors[s as keyof typeof colors] || colors.unknown
+    )}>
+      {s}
+    </span>
+  )
 }

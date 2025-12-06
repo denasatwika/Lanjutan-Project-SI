@@ -1,15 +1,22 @@
 // components/DateRangePicker.tsx
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useImperativeHandle, forwardRef } from 'react';
 import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
 import type { DateRange } from 'react-day-picker';
 
-interface DateRangePickerProps {
+export type DateRangePickerHandle = {
+  open: () => void
+  close: () => void
+}
+
+export interface DateRangePickerProps {
   label?: string;
   range: DateRange;
   onChange: (range: DateRange) => void;
   className?: string;
+  valueLabel?: string;
+  disabled?: boolean;
 }
 
 interface DayInfo {
@@ -23,12 +30,14 @@ interface LocalRange {
   end: Date | null;
 }
 
-const DateRangePicker: React.FC<DateRangePickerProps> = ({ 
+const DateRangePicker = forwardRef<DateRangePickerHandle, DateRangePickerProps>(({
   label = "Date range",
   range,
   onChange,
-  className = ''
-}) => {
+  className = '',
+  valueLabel,
+  disabled = false,
+}, ref) => {
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [localRange, setLocalRange] = useState<LocalRange>({
@@ -36,6 +45,11 @@ const DateRangePicker: React.FC<DateRangePickerProps> = ({
     end: range.to || null
   });
   const [hoverDate, setHoverDate] = useState<Date | null>(null);
+
+  useImperativeHandle(ref, () => ({
+    open: () => setIsOpen(true),
+    close: () => setIsOpen(false),
+  }), []);
 
   useEffect(() => {
     setLocalRange({
@@ -169,6 +183,7 @@ const DateRangePicker: React.FC<DateRangePickerProps> = ({
   };
 
   const formatRangeDisplay = (): string => {
+    if (valueLabel) return valueLabel;
     if (!range.from) return 'Select a date range';
     if (!range.to) return range.from.toLocaleDateString('en-US');
     if (range.from.getTime() === range.to.getTime()) {
@@ -179,14 +194,19 @@ const DateRangePicker: React.FC<DateRangePickerProps> = ({
 
   const days: DayInfo[] = getDaysInMonth(currentDate);
 
+  const containerClassName = ['relative', className].filter(Boolean).join(' ')
+
   return (
-    <div className={className}>
-      <label className="block text-xs text-gray-600">{label}</label>
+    <div className={containerClassName}>
+      {label ? <label className="block text-xs text-gray-600">{label}</label> : null}
       
       <button
         type="button"
-        onClick={() => setIsOpen(true)}
-        className="mt-1 w-full rounded-xl border bg-white px-3 py-3 text-left shadow-sm flex items-center justify-between"
+        onClick={() => {
+          if (!disabled) setIsOpen(true)
+        }}
+        disabled={disabled}
+        className="mt-1 w-full rounded-xl border bg-white px-3 py-3 text-left shadow-sm flex items-center justify-between disabled:cursor-not-allowed disabled:opacity-60"
         style={{ borderColor: '#00156B20', boxShadow: '0 1px 2px rgba(0,0,0,.06)' }}
       >
         <span className="truncate text-sm">
@@ -195,107 +215,110 @@ const DateRangePicker: React.FC<DateRangePickerProps> = ({
         <Calendar className="size-4 opacity-70" />
       </button>
 
-      {isOpen && (
+      {isOpen && !disabled && (
         <>
-          <div 
-            className="fixed inset-0 bg-black bg-opacity-50 z-40"
+          <button
+            type="button"
+            aria-hidden="true"
+            tabIndex={-1}
+            className="fixed inset-0 z-40 cursor-default bg-transparent"
             onClick={() => setIsOpen(false)}
           />
           
-          <div className="fixed inset-0 flex items-start justify-center overflow-y-auto z-50 p-4 pt-24 sm:pt-32 pointer-events-none">
-            <div className="bg-white rounded-2xl p-6 w-full max-w-sm pointer-events-auto">
-              <div className="flex items-center justify-between mb-6">
-                <button 
-                  onClick={() => navigateMonth(-1)}
-                  className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
-                  type="button"
-                >
-                  <ChevronLeft className="w-5 h-5 text-slate-700" />
-                </button>
-                
-                <h2 className="text-slate-900 text-lg font-medium">
-                  {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
-                </h2>
-                
-                <button 
-                  onClick={() => navigateMonth(1)}
-                  className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
-                  type="button"
-                >
-                  <ChevronRight className="w-5 h-5 text-slate-700" />
-                </button>
-              </div>
+          <div className="absolute left-0 right-0 z-50 mt-3 origin-top rounded-2xl border bg-white p-6 shadow-xl ring-1 ring-black/5">
+            <div className="flex items-center justify-between mb-6">
+              <button 
+                onClick={() => navigateMonth(-1)}
+                className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                type="button"
+              >
+                <ChevronLeft className="w-5 h-5 text-slate-700" />
+              </button>
+              
+              <h2 className="text-slate-900 text-lg font-medium">
+                {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
+              </h2>
+              
+              <button 
+                onClick={() => navigateMonth(1)}
+                className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                type="button"
+              >
+                <ChevronRight className="w-5 h-5 text-slate-700" />
+              </button>
+            </div>
 
-              <div className="mb-4 min-h-[1.5rem]">
-                {localRange.start && (
-                  <div className="text-center text-sm text-slate-600">
-                    {localRange.end ? (
-                      <>
-                        <span className="font-medium">{localRange.start.toLocaleDateString('en-US')}</span>
-                        <span className="mx-2">→</span>
-                        <span className="font-medium">{localRange.end.toLocaleDateString('en-US')}</span>
-                      </>
-                    ) : (
-                      <span className="text-[#00156B]">Select end date</span>
-                    )}
-                  </div>
-                )}
-              </div>
+            <div className="mb-4 min-h-[1.5rem]">
+              {localRange.start && (
+                <div className="text-center text-sm text-slate-600">
+                  {localRange.end ? (
+                    <>
+                      <span className="font-medium">{localRange.start.toLocaleDateString('en-US')}</span>
+                      <span className="mx-2">→</span>
+                      <span className="font-medium">{localRange.end.toLocaleDateString('en-US')}</span>
+                    </>
+                  ) : (
+                    <span className="text-[#00156B]">Select end date</span>
+                  )}
+                </div>
+              )}
+            </div>
 
-              <div className="grid grid-cols-7 gap-1 mb-2">
-                {daysOfWeek.map((day: string, index: number) => (
-                  <div key={index} className="text-center text-sm text-slate-500 font-medium py-2">
-                    {day}
-                  </div>
-                ))}
-              </div>
+            <div className="grid grid-cols-7 gap-1 mb-2">
+              {daysOfWeek.map((day: string, index: number) => (
+                <div key={index} className="text-center text-sm text-slate-500 font-medium py-2">
+                  {day}
+                </div>
+              ))}
+            </div>
 
-              <div className="grid grid-cols-7 gap-1 mb-6">
-                {days.map((dayInfo: DayInfo, index: number) => (
-                  <button
-                    key={index}
-                    onClick={() => dayInfo.isCurrentMonth && selectDate(dayInfo.date)}
-                    onMouseEnter={() => dayInfo.isCurrentMonth && setHoverDate(dayInfo.date)}
-                    onMouseLeave={() => setHoverDate(null)}
-                    className={`
-                      h-10 w-10 rounded-lg text-sm font-medium
-                      ${getDayClassName(dayInfo)}
-                    `}
-                    disabled={!dayInfo.isCurrentMonth}
-                    type="button"
-                  >
-                    {dayInfo.day}
-                  </button>
-                ))}
-              </div>
-
-              <div className="flex gap-3">
+            <div className="grid grid-cols-7 gap-1 mb-6">
+              {days.map((dayInfo: DayInfo, index: number) => (
                 <button
-                  onClick={clearRange}
-                  className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-3 px-4 rounded-xl transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                  disabled={!localRange.start}
+                  key={index}
+                  onClick={() => dayInfo.isCurrentMonth && selectDate(dayInfo.date)}
+                  onMouseEnter={() => dayInfo.isCurrentMonth && setHoverDate(dayInfo.date)}
+                  onMouseLeave={() => setHoverDate(null)}
+                  className={`
+                    h-10 w-10 rounded-lg text-sm font-medium
+                    ${getDayClassName(dayInfo)}
+                  `}
+                  disabled={!dayInfo.isCurrentMonth}
                   type="button"
                 >
-                  Clear
+                  {dayInfo.day}
                 </button>
-                <button
-                  onClick={handleApply}
-                  disabled={!localRange.start}
-                  className="flex-1 bg-[#00156B] hover:bg-[#00156B]/90 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-medium py-3 px-4 rounded-xl transition-colors duration-200 flex items-center justify-center gap-2"
-                  type="button"
-                >
-                  Apply
-                  <div className="w-4 h-4 bg-white bg-opacity-20 rounded-sm flex items-center justify-center">
-                    <div className="w-2 h-2 border-r border-b border-white transform rotate-45 -translate-x-0.5 -translate-y-0.5"></div>
-                  </div>
-                </button>
-              </div>
+              ))}
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={clearRange}
+                className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-3 px-4 rounded-xl transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={!localRange.start}
+                type="button"
+              >
+                Clear
+              </button>
+              <button
+                onClick={handleApply}
+                disabled={!localRange.start}
+                className="flex-1 bg-[#00156B] hover:bg-[#00156B]/90 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-medium py-3 px-4 rounded-xl transition-colors duration-200 flex items-center justify-center gap-2"
+                type="button"
+              >
+                Apply
+                <div className="w-4 h-4 bg-white bg-opacity-20 rounded-sm flex items-center justify-center">
+                  <div className="w-2 h-2 border-r border-b border-white transform rotate-45 -translate-x-0.5 -translate-y-0.5"></div>
+                </div>
+              </button>
             </div>
           </div>
         </>
       )}
     </div>
   );
-};
+});
+
+DateRangePicker.displayName = 'DateRangePicker';
 
 export default DateRangePicker;

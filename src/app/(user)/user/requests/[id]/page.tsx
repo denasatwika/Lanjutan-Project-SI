@@ -1,6 +1,7 @@
 'use client'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
+import { encodeAbiParameters, getAddress, keccak256 } from 'viem'
 import {
   buildAttachmentDownloadUrl,
   formatAttachmentSize,
@@ -11,12 +12,19 @@ import { formatWhen } from '@/lib/utils/date'
 import { LeaveRequest, OvertimeRequest } from '@/lib/types'
 import { resolveLeaveTypeLabel } from '@/lib/utils/requestDisplay'
 import { getRequest } from '@/lib/api/requests'
+import { getLeaveRequest } from '@/lib/api/leaveRequests'
+import { getApprovalState, type ApprovalState } from '@/lib/api/multisig'
+import { ApprovalStatus } from '@/components/ApprovalStatus'
 import { toast } from 'sonner'
 
 export default function Page(){
   const { id } = useParams<{id:string}>()
   const request = useRequests(s=>s.byId(id))
   const upsert = useRequests(s=>s.upsertFromApi)
+  const [approvalState, setApprovalState] = useState<ApprovalState | null>(null)
+  const [loadingApprovals, setLoadingApprovals] = useState(false)
+  const [onChainRequestId, setOnChainRequestId] = useState<`0x${string}` | null>(null)
+  const [requesterWallet, setRequesterWallet] = useState<`0x${string}` | null>(null)
 
   useEffect(() => {
     if (!id || request) return
@@ -27,6 +35,92 @@ export default function Page(){
         toast.error(message)
       })
   }, [id, request, upsert])
+
+  useEffect(() => {
+    if (!request || request.type !== 'leave') {
+      setOnChainRequestId(null)
+      setRequesterWallet(null)
+      return
+    }
+
+    let cancelled = false
+
+    async function loadChainMeta() {
+      try {
+        const leaveDetail = await getLeaveRequest(request.id)
+        if (cancelled) return
+
+        if (leaveDetail.onChainRequestId) {
+          setOnChainRequestId((prev) => prev ?? (leaveDetail.onChainRequestId as `0x${string}`))
+        }
+
+        if (leaveDetail.requesterWalletAddress) {
+          setRequesterWallet((prev) => prev ?? getAddress(leaveDetail.requesterWalletAddress as `0x${string}`))
+        }
+      } catch (error) {
+        console.warn('Failed to load leave chain metadata', error)
+      }
+    }
+
+    loadChainMeta()
+
+    return () => {
+      cancelled = true
+    }
+  }, [request?.id, request?.type])
+
+  useEffect(() => {
+    if (!request || request.type !== 'leave') {
+      setApprovalState(null)
+      return
+    }
+
+    if (!onChainRequestId && !requesterWallet) return
+
+    let cancelled = false
+
+    async function loadApprovalState() {
+      try {
+        setLoadingApprovals(true)
+        const derivedRequestId =
+          onChainRequestId ??
+          (requesterWallet
+            ? (keccak256(
+                encodeAbiParameters(
+                  [
+                    { name: 'dbId', type: 'string' },
+                    { name: 'address', type: 'address' },
+                  ],
+                  [request.id, requesterWallet],
+                ),
+              ) as `0x${string}`)
+            : null)
+
+        if (!derivedRequestId) {
+          console.warn('Missing on-chain requestId, skipping approval state fetch')
+          setApprovalState(null)
+          return
+        }
+
+        const state = await getApprovalState(derivedRequestId)
+        if (!cancelled) {
+          setApprovalState(state)
+        }
+      } catch (error) {
+        console.error('Failed to load approval state', error)
+      } finally {
+        if (!cancelled) {
+          setLoadingApprovals(false)
+        }
+      }
+    }
+
+    loadApprovalState()
+
+    return () => {
+      cancelled = true
+    }
+  }, [request, onChainRequestId, requesterWallet])
 
   if(!request) return <div className="text-sm text-gray-600">Request not found</div>
   const isLeave = request.type === 'leave'
@@ -82,6 +176,12 @@ export default function Page(){
           </div>
         )}
       </div>
+
+      {isLeave && (
+        <div className="mt-4">
+          <ApprovalStatus state={approvalState} loading={loadingApprovals} />
+        </div>
+      )}
     </div>
   )
 }

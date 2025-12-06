@@ -1,16 +1,25 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import { useRouter } from 'next/navigation'
 import { Search, User2, ChevronDown } from 'lucide-react'
 import type { DateRange } from 'react-day-picker'
-import { format, parseISO } from 'date-fns'
+import {
+  format,
+  parseISO,
+  startOfToday,
+  startOfWeek,
+  endOfWeek,
+  subDays,
+  startOfDay,
+} from 'date-fns'
 import { enUS as enLocale } from 'date-fns/locale/en-US'
 import { toast } from 'sonner'
 
 import { PageHeader } from '@/components/PageHeader'
-import DateRangePicker from '@/components/DateRangePicker'
+import { Pagination } from '@/components/Pagination'
+import DateRangePicker, { type DateRangePickerHandle } from '@/components/DateRangePicker'
 import { useAuth } from '@/lib/state/auth'
 import { useRequests } from '@/lib/state/requests'
 import { listApprovals, getRequest, type ApprovalResponse } from '@/lib/api/requests'
@@ -19,6 +28,7 @@ import { resolveLeaveTypeLabel } from '@/lib/utils/requestDisplay'
 
 /** Brand color */
 const BRAND = '#00156B'
+const PAGE_SIZE = 5
 
 type TypeFilter = 'all' | 'leave' | 'overtime'
 type StatusFilter = 'all' | 'pending' | 'approved' | 'rejected'
@@ -35,12 +45,67 @@ type HistoryRow = {
 }
 
 type DropdownOption<T extends string> = { value: T; label: string }
+type DatePresetKey = 'all' | 'today' | 'this-week' | 'last-30' | 'custom'
+type DatePreset = {
+  key: DatePresetKey
+  label: string
+  compute?: () => DateRange
+}
+
+const PRESET_OPTIONS: DatePreset[] = [
+  {
+    key: 'all',
+    label: 'All time',
+    compute: () => ({ from: undefined, to: undefined }),
+  },
+  {
+    key: 'today',
+    label: 'Today',
+    compute: () => {
+      const start = startOfToday()
+      return { from: start, to: start }
+    },
+  },
+  {
+    key: 'this-week',
+    label: 'This week',
+    compute: () => {
+      const now = new Date()
+      return {
+        from: startOfWeek(now, { weekStartsOn: 1 }),
+        to: startOfDay(endOfWeek(now, { weekStartsOn: 1 })),
+      }
+    },
+  },
+  {
+    key: 'last-30',
+    label: 'Last 30 days',
+    compute: () => {
+      const today = new Date()
+      return {
+        from: startOfDay(subDays(today, 29)),
+        to: startOfDay(today),
+      }
+    },
+  },
+]
+
+function datesEqual(a?: Date, b?: Date) {
+  if (!a && !b) return true
+  if (!a || !b) return false
+  return a.getTime() === b.getTime()
+}
+
+function rangesEqual(a: DateRange, b: DateRange) {
+  return datesEqual(a.from, b.from) && datesEqual(a.to, b.to)
+}
 
 export default function ApproverHistoryPage() {
   const router = useRouter()
   const user = useAuth((state) => state.user)
   const upsertRequest = useRequests((state) => state.upsertFromApi)
   const requests = useRequests((state) => state.items)
+  const datePickerRef = useRef<DateRangePickerHandle | null>(null)
 
   const requestMap = useMemo(() => {
     const map = new Map<string, Request>()
@@ -56,7 +121,9 @@ export default function ApproverHistoryPage() {
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined })
+  const [selectedPreset, setSelectedPreset] = useState<DatePresetKey>('all')
   const [search, setSearch] = useState('')
+  const [currentPage, setCurrentPage] = useState(1)
 
   const loadHistory = useCallback(async () => {
     if (!user?.id) {
@@ -123,6 +190,33 @@ export default function ApproverHistoryPage() {
     })
   }, [approvals, requestMap])
 
+  const applyPreset = useCallback((key: DatePresetKey) => {
+    const preset = PRESET_OPTIONS.find((option) => option.key === key)
+    setSelectedPreset(key)
+    if (preset?.compute) {
+      setDateRange(preset.compute())
+    }
+    if (key === 'custom') {
+      datePickerRef.current?.open()
+    }
+  }, [])
+
+  const handleDateRangeChange = useCallback((next: DateRange) => {
+    setDateRange(next)
+    const matchedPreset = PRESET_OPTIONS.find((option) => {
+      if (!option.compute) return false
+      const presetRange = option.compute()
+      return rangesEqual(next, presetRange)
+    })
+    if (matchedPreset) {
+      setSelectedPreset(matchedPreset.key)
+    } else if (!next.from && !next.to) {
+      setSelectedPreset('all')
+    } else {
+      setSelectedPreset('custom')
+    }
+  }, [])
+
   const rangeWindow = useMemo(() => {
     const start = dateRange.from ? new Date(dateRange.from) : undefined
     if (start) start.setHours(0, 0, 0, 0)
@@ -130,6 +224,12 @@ export default function ApproverHistoryPage() {
     if (end) end.setHours(23, 59, 59, 999)
     return { start, end }
   }, [dateRange])
+
+  const activePreset = useMemo(
+    () => PRESET_OPTIONS.find((option) => option.key === selectedPreset),
+    [selectedPreset],
+  )
+  const dateRangeLabel = selectedPreset === 'custom' ? undefined : activePreset?.label
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase()
@@ -171,16 +271,31 @@ export default function ApproverHistoryPage() {
     [filtered],
   )
 
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const safePage = Math.min(currentPage, totalPages)
+  const start = (safePage - 1) * PAGE_SIZE
+  const pageItems = filtered.slice(start, start + PAGE_SIZE)
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [typeFilter, statusFilter, search, dateRange.from, dateRange.to])
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages)
+    }
+  }, [currentPage, totalPages])
+
   const groups = useMemo(() => {
     const map = new Map<string, HistoryRow[]>()
-    for (const row of filtered) {
+    for (const row of pageItems) {
       const key = (row.updatedAt ?? row.createdAt).slice(0, 10)
       const bucket = map.get(key)
       if (bucket) bucket.push(row)
       else map.set(key, [row])
     }
     return Array.from(map.entries()).sort(([a], [b]) => b.localeCompare(a))
-  }, [filtered])
+  }, [pageItems])
 
   return (
     <main className="mx-auto w-full max-w-[640px] p-3 pb-20">
@@ -216,12 +331,31 @@ export default function ApproverHistoryPage() {
             ]}
           />
         </div>
-        <DateRangePicker
-          label="Date range"
-          range={dateRange}
-          onChange={setDateRange}
-          className="mt-3 sm:col-span-2"
-        />
+        <div className="mt-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs text-gray-600">Date range</span>
+          </div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {PRESET_OPTIONS.map((preset) => {
+              const active = preset.key === selectedPreset
+              return (
+                <button
+                  key={preset.key}
+                  type="button"
+                  onClick={() => applyPreset(preset.key)}
+                  className={clsx(
+                    'rounded-full border px-3 py-1.5 text-xs font-medium transition sm:text-sm',
+                    active
+                      ? 'border-[#00156B] bg-[#00156B] text-white shadow-sm'
+                      : 'border-gray-200 text-slate-600 hover:border-[#00156B]/40 hover:text-[#00156B]',
+                  )}
+                >
+                  {preset.label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
         <div className="relative mt-3 ml-auto min-w-[160px]">
           <input
             value={search}
@@ -330,6 +464,17 @@ export default function ApproverHistoryPage() {
             No history for this filter.
           </div>
         )}
+
+        {filtered.length > 0 && (
+          <div className="mt-4 flex justify-center">
+            <Pagination
+              totalItems={filtered.length}
+              pageSize={PAGE_SIZE}
+              currentPage={currentPage}
+              onPageChange={setCurrentPage}
+            />
+          </div>
+        )}
       </div>
     </main>
   )
@@ -364,16 +509,22 @@ function SimpleDropdown<T extends string>({
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-40 sm:bg-transparent" onClick={() => setOpen(false)} />
+        <button
+          type="button"
+          aria-hidden="true"
+          tabIndex={-1}
+          className="fixed inset-0 z-40 cursor-default bg-transparent"
+          onClick={() => setOpen(false)}
+        />
       )}
 
       {open && (
         <div
-          className="z-50 mt-2 rounded-2xl border bg-white shadow-lg sm:absolute sm:left-0 sm:right-0 sm:max-h-72 sm:overflow-auto sm:[box-shadow:0_10px_30px_rgba(0,0,0,.08)]"
+          className="absolute left-0 right-0 z-50 mt-2 origin-top rounded-2xl border bg-white shadow-xl ring-1 ring-black/5"
           style={{ borderColor: '#00156B20' }}
           role="listbox"
         >
-          <ul className="py-1">
+          <ul className="max-h-64 overflow-auto py-1">
             {options.map((opt) => {
               const active = opt.value === value
               return (

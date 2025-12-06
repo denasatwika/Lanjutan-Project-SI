@@ -249,7 +249,7 @@ export default function HRDashboard() {
               disabled={!isConnected}
               className="w-full rounded-xl bg-[var(--B-900)] px-4 py-3 text-sm font-semibold text-white shadow-sm transition-transform duration-300 ease-in-out hover:scale-105 disabled:cursor-not-allowed disabled:bg-gray-300"
             >
-              Transfer KPGT
+              Transfer CUTI
             </button>
             {!isConnected && (
               <p className="text-center text-sm text-gray-500">
@@ -288,13 +288,13 @@ export default function HRDashboard() {
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-700">
-                    Jumlah Token (KPGT)
+                    Jumlah Token (CUTI)
                   </label>
                   <input
                     type="text"
                     value={amount}
                     onChange={(event) => setAmount(event.target.value)}
-                    placeholder="Contoh: 1.5"
+                    placeholder="Contoh: 12"
                     className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[var(--B-600)] focus:outline-none focus:ring-2 focus:ring-[var(--B-200)]"
                   />
                 </div>

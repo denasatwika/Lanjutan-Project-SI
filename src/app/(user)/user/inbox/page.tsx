@@ -1,4 +1,4 @@
-// app/(employee)/employee/inbox/page.tsx
+// app/(user)/user/inbox/page.tsx
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
@@ -8,19 +8,22 @@ import { useRequests } from '@/lib/state/requests'
 import type { LeaveRequest } from '@/lib/types'
 import { Bell, CheckCircle2, Clock3, XCircle } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
+import { Pagination } from '@/components/Pagination'
 import clsx from 'clsx'
 import { resolveLeaveTypeLabel } from '@/lib/utils/requestDisplay'
 import { toast } from 'sonner'
-import { StatusPill, formatDateTime } from './utils'
+import { StatusPill, formatDateOnly } from './utils'
 import { useInboxRead } from './useInboxRead'
 
 const BRAND = '#00156B'
+const PAGE_SIZE = 5
 export default function InboxPage() {
   const router = useRouter()
   const user = useAuth((state) => state.user)
   const all = useRequests((state) => (user ? state.forEmployee(user.id) : []))
   const loadRequests = useRequests((state) => state.load)
   const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all')
+  const [currentPage, setCurrentPage] = useState(1)
 
   useEffect(() => {
     if (!user?.id) return
@@ -37,10 +40,24 @@ export default function InboxPage() {
   }, [all])
 
   const filtered = updates.filter((request) => (filter === 'all' ? true : request.status === filter))
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const safePage = Math.min(currentPage, totalPages)
+  const start = (safePage - 1) * PAGE_SIZE
+  const pageItems = filtered.slice(start, start + PAGE_SIZE)
 
   const read = useInboxRead((state) => state.read)
   const markRead = useInboxRead((state) => state.markRead)
-  const markAll = useInboxRead((state) => state.markAll)
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [filter])
+
+  useEffect(() => {
+    const maxPage = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+    if (currentPage > maxPage) {
+      setCurrentPage(maxPage)
+    }
+  }, [filtered.length, currentPage])
 
   function handleViewDetail(id: string) {
     markRead(id)
@@ -58,7 +75,7 @@ export default function InboxPage() {
       />
 
       {!user ? (
-        <section className="card p-5 text-sm text-gray-600">Please Login</section>
+        <section className="card p-5 text-sm text-gray-600">Please login</section>
       ) : (
         <>
           <div className="flex items-center gap-2">
@@ -72,9 +89,9 @@ export default function InboxPage() {
                 key={option.key}
                 onClick={() => setFilter(option.key as typeof filter)}
                 className={clsx(
-                  'px-3 py-1.5 rounded-full text-sm font-medium border',
+                  'px-3 py-1.5 rounded-full text-sm font-medium border transition',
                   filter === option.key
-                    ? 'bg-[#00156B] text-white border-[var(--B-200)]'
+                    ? 'bg-[#00156B] text-white border-[var(--B-200)] shadow-sm'
                     : 'text-gray-700 hover:bg-gray-50 border-gray-200'
                 )}
               >
@@ -84,7 +101,7 @@ export default function InboxPage() {
           </div>
 
           <div className="space-y-3">
-            {filtered.map((request) => {
+            {pageItems.map((request) => {
               const isRead = !!read[request.id]
               const isLeave = request.type === 'leave'
               const icon =
@@ -96,21 +113,20 @@ export default function InboxPage() {
                   <Clock3 className="text-amber-500" />
                 )
 
-              const title = isLeave
-                ? `Permintaan ${resolveLeaveTypeLabel((request as LeaveRequest).leaveTypeId) ?? 'Izin'}`
-                : 'Permintaan Lembur'
+              const typeLabel =
+                isLeave && resolveLeaveTypeLabel((request as LeaveRequest).leaveTypeId)
+                  ? ` • ${resolveLeaveTypeLabel((request as LeaveRequest).leaveTypeId)}`
+                  : ''
+              const title = isLeave ? `Leave request${typeLabel}` : 'Overtime request'
 
               const description = isLeave
                 ? [
-                    request.startDate ? `Mulai: ${formatDateTime(request.startDate)}` : null,
-                    request.endDate ? `Selesai: ${formatDateTime(request.endDate)}` : null,
+                    request.startDate ? `Start: ${formatDateOnly(request.startDate)}` : null,
+                    request.endDate ? `End: ${formatDateOnly(request.endDate)}` : null,
                   ]
                     .filter(Boolean)
                     .join(' • ')
-                : [
-                    request.workDate ? `Tanggal: ${formatDateTime(request.workDate)}` : null,
-                    request.startTime && request.endTime ? `Jam: ${request.startTime}–${request.endTime}` : null,
-                  ]
+                : [request.workDate ? `Date: ${formatDateOnly(request.workDate)}` : null]
                     .filter(Boolean)
                     .join(' • ')
 
@@ -118,20 +134,22 @@ export default function InboxPage() {
                 <div
                   key={request.id}
                   className={clsx(
-                    'card p-4 flex gap-3 items-start border transition',
+                    'rounded-2xl border border-gray-200 bg-white p-4 shadow-sm transition hover:shadow-md flex gap-3 items-start',
                     !isRead && 'ring-1 ring-[var(--B-200)]'
                   )}
                 >
-                  <div className="shrink-0 size-10 rounded-full grid place-items-center bg-gray-50">{icon}</div>
+                  <div className="shrink-0 size-10 rounded-full grid place-items-center bg-gray-50 text-amber-500">
+                    {icon}
+                  </div>
 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <div className="font-semibold truncate">{title}</div>
+                        <div className="font-semibold text-gray-900 truncate">{title}</div>
                         <div className="text-xs text-gray-500 mt-0.5">
                           {request.updatedAt
-                            ? `Diperbarui ${formatDateTime(request.updatedAt)}`
-                            : `Dibuat ${formatDateTime(request.createdAt)}`}
+                            ? `Updated ${formatDateOnly(request.updatedAt)}`
+                            : `Created ${formatDateOnly(request.createdAt)}`}
                         </div>
                       </div>
                       <StatusPill status={request.status} />
@@ -140,7 +158,7 @@ export default function InboxPage() {
                     {description && <div className="text-sm text-gray-700 mt-2">{description}</div>}
 
                     {request.reason && (
-                      <div className="text-sm text-gray-500 mt-1 line-clamp-2">Alasan: {request.reason}</div>
+                      <div className="text-sm text-gray-500 mt-1 line-clamp-2">Reason: {request.reason}</div>
                     )}
 
                     <div className="mt-3 flex items-center gap-3">
@@ -149,16 +167,16 @@ export default function InboxPage() {
                           onClick={() => markRead(request.id)}
                           className="text-sm text-[var(--B-700)] hover:underline"
                         >
-                          Tandai dibaca
+                          Mark as read
                         </button>
                       )}
                       <button
-                          onClick={() => handleViewDetail(request.id)}
-                          className="rounded-xl border px-3 py-1.5 text-xs font-semibold text-[color:var(--brand,_#00156B)] transition hover:bg-slate-50"
-                          style={{ ['--brand' as any]: BRAND }}
-                        >
-                          Details
-                        </button>
+                        onClick={() => handleViewDetail(request.id)}
+                        className="rounded-xl border px-3 py-1.5 text-xs font-semibold text-[color:var(--brand,_#00156B)] transition hover:bg-slate-50"
+                        style={{ ['--brand' as any]: BRAND }}
+                      >
+                        Details
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -166,11 +184,22 @@ export default function InboxPage() {
             })}
 
             {filtered.length === 0 && (
-              <div className="card p-6 text-center text-gray-500">
+              <div className="rounded-2xl border border-dashed border-gray-200 bg-white p-6 text-center text-gray-500">
                 <div className="mx-auto mb-2 h-10 w-10 rounded-full bg-gray-100 grid place-items-center">
                   <Bell className="text-gray-400" size={18} />
                 </div>
-                No notifications found
+                No requests found
+              </div>
+            )}
+
+            {filtered.length > 0 && (
+              <div className="pt-4 flex justify-center">
+                <Pagination
+                  totalItems={filtered.length}
+                  pageSize={PAGE_SIZE}
+                  currentPage={currentPage}
+                  onPageChange={setCurrentPage}
+                />
               </div>
             )}
           </div>

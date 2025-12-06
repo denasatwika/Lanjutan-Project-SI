@@ -203,7 +203,7 @@ function AdminSidebar({ open, onClose }: { open: boolean; onClose: () => void })
 }
 
 /** =============================== NAV BAR ================================ */
-export function NavBar() {
+export function NavBar({ role: layoutRole }: { role: Role }) {
   const auth = useAuth()
   const user = auth.user
   const roles = user?.roles ?? []
@@ -211,9 +211,14 @@ export function NavBar() {
   const effectiveRoles = roles.length > 0 ? roles : primaryRole ? [primaryRole] : ['user']
   const pathname = usePathname()
   const [adminSidebarOpen, setAdminSidebarOpen] = useState(false)
-  const hasAdmin = effectiveRoles.includes('admin')
+  const allowedRoles = effectiveRoles.filter(
+    (candidate): candidate is Role =>
+      candidate === 'user' || candidate === 'approver' || candidate === 'admin',
+  )
+  const defaultRole = allowedRoles[0] ?? 'user'
+  const activeRole = layoutRole ?? defaultRole
 
-  if (hasAdmin) {
+  if (activeRole === 'admin') {
     return (
       <nav className="z-50">
         {/* Top bar (mobile) with hamburger */}
@@ -246,14 +251,7 @@ export function NavBar() {
   }
 
   // Non-admin roles: keep your existing mobile pill
-  const currentSegment = pathname.split('/')[1] as Role | undefined
-  const activeRole = currentSegment && effectiveRoles.includes(currentSegment)
-    ? currentSegment
-    : primaryRole && effectiveRoles.includes(primaryRole)
-    ? primaryRole
-    : effectiveRoles[0]
-
-  const mobileItems = mobileItemsByRole[activeRole as Role] ?? []
+  const mobileItems = mobileItemsByRole[activeRole] ?? []
 
   return (
     <nav className="z-50">

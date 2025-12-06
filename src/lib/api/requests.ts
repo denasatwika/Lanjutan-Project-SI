@@ -1,6 +1,15 @@
 import type { TypedData, TypedDataDomain, TypedDataParameter } from 'viem'
 import type { AttachmentInfo } from './attachments'
-import type { ApprovalSeed, LeaveType, RequestStatus as LeaveRequestStatus } from './leaveRequests'
+import {
+  buildMetaPreparePayload,
+  type ApprovalSeed,
+  type LeaveType,
+  type MetaTransactionPreparePayload,
+  type MetaTransactionSubmitPayload,
+  type MetaTransactionSubmitResponse,
+  type MetaTransactionTypedDataResponse,
+  type RequestStatus as LeaveRequestStatus,
+} from './leaveRequests'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:8787'
 
@@ -68,6 +77,9 @@ export type ApprovalResponse = {
   requesterId?: string | null
   requesterName?: string | null
   requesterDepartment?: string | null
+  requesterWalletAddress?: string | null
+  onChainRequestId?: string | null
+  blockchainTxHash?: string | null
 }
 
 export type ApprovalListQuery = {
@@ -93,7 +105,7 @@ export type OvertimeRequestCreatePayload = {
   overtimeHours: number
   overtimeReason: string
   notes?: string | null
-  attachmentId: string
+  attachmentIds: string[]
   approvals?: ApprovalSeed[]
 }
 
@@ -239,6 +251,54 @@ export async function updateApproval(id: string, payload: ApprovalDecisionPayloa
   })
 
   return parseJson<ApprovalResponse>(response)
+}
+
+export type ApprovalMetaPreparePayload = {
+  approver: string
+  requestId: string
+  role: 'SUPERVISOR' | 'CHIEF' | 'HR'
+  multisigAddress?: string
+  gasLimit?: bigint | number | string
+  deadline?: bigint | number | string
+}
+
+function normalizeQuantity(value: bigint | number | string): string {
+  if (typeof value === 'bigint') return value.toString()
+  if (typeof value === 'number') return value.toString()
+  return value
+}
+
+export async function prepareApprovalMeta<
+  PrimaryType extends string = string,
+  Message extends TypedData = TypedData,
+>(
+  payload: ApprovalMetaPreparePayload,
+): Promise<MetaTransactionTypedDataResponse<PrimaryType, Message>> {
+  const response = await fetch(buildUrl('/approvals/meta/prepare'), {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      ...payload,
+      gasLimit: payload.gasLimit !== undefined ? normalizeQuantity(payload.gasLimit) : undefined,
+      deadline: payload.deadline !== undefined ? normalizeQuantity(payload.deadline) : undefined,
+    }),
+  })
+
+  return parseJson<MetaTransactionTypedDataResponse<PrimaryType, Message>>(response)
+}
+
+export async function submitApprovalMeta(
+  payload: MetaTransactionSubmitPayload,
+): Promise<MetaTransactionSubmitResponse> {
+  const response = await fetch(buildUrl('/approvals/meta/submit'), {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+
+  return parseJson<MetaTransactionSubmitResponse>(response)
 }
 
 function normalizeAttachment(input: RequestResponse): RequestResponse {
