@@ -454,14 +454,12 @@ function ApprovalTimelineItem({ item }: { item: any }) {
         )}
 
         {/* Blockchain Meta (Simplified) */}
-        {(item.blockchainTxHash || item.signature) && (
+        {item.blockchainTxHash && (
           <div className="mt-2 flex flex-wrap gap-2">
-            {item.blockchainTxHash && (
-              <div className="inline-flex items-center gap-1.5 rounded bg-blue-50 px-2 py-1 text-[10px] text-blue-700">
-                <LinkIcon className="h-3 w-3" />
-                <span className="font-mono">{formatSignaturePreview(item.blockchainTxHash)}</span>
-              </div>
-            )}
+            <div className="inline-flex items-center gap-1.5 rounded bg-blue-50 px-2 py-1 text-[10px] text-blue-700">
+              <LinkIcon className="h-3 w-3" />
+              <span className="font-mono">{formatSignaturePreview(item.blockchainTxHash)}</span>
+            </div>
             {item.onChain?.onChainConfirmed && (
               <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">
                 ✓ On-Chain Verified
