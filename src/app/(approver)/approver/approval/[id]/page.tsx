@@ -237,6 +237,9 @@ export default function ApproverApprovalDetailPage() {
   }
 
   async function handleDecision(decision: 'APPROVED' | 'REJECTED') {
+    // Prevent race condition: block if already submitting
+    if (submitting) return
+
     if (!id || !activeApproval) return
     if (!expectedWalletAddress) {
       toast.error('No registered wallet on file for this approver. Please contact the administrator.')
@@ -371,6 +374,9 @@ export default function ApproverApprovalDetailPage() {
   }
 
   async function handleRejection() {
+    // Prevent race condition: block if already submitting
+    if (submitting) return
+
     if (!id || !activeApproval) return
     if (!expectedWalletAddress) {
       toast.error('No registered wallet on file for this approver. Please contact the administrator.')
