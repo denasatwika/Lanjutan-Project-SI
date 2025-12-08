@@ -24,7 +24,6 @@ import { HttpError } from "@/lib/types/errors";
 import { useAuth } from "@/lib/state/auth";
 import { useChainConfig, isChainConfigReady } from "@/lib/state/chain";
 import { useRequests } from "@/lib/state/requests";
-import { usePrimaryWalletAddress } from "@/lib/hooks/usePrimaryWalletAddress";
 import { ensureChain } from "@/lib/web3/network";
 import {
   EthereumProviderUnavailableError,
