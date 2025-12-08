@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Search, Plus, Edit, Trash2, X, UserPlus, AlertCircle, Eye } from 'lucide-react'
+import { Search, Plus, Edit, Trash2, X, UserPlus, AlertCircle, Eye, Coins } from 'lucide-react'
 import {
   listEmployees,
   createEmployee,
@@ -17,6 +17,7 @@ import {
   type EmployeeRole,
 } from '@/lib/api/employees'
 import { listDepartments, type DepartmentResponse } from '@/lib/api/departments'
+import { allocateCutiTokens, type AllocateCutiTokensResponse } from '@/lib/api/admin'
 import { HttpError } from '@/lib/types/errors'
 import { Modal } from '@/components/ui/modal'
 
@@ -62,7 +63,9 @@ export default function AdminKaryawanPage() {
   const [createModalOpen, setCreateModalOpen] = useState(false)
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
+  const [allocateTokensModalOpen, setAllocateTokensModalOpen] = useState(false)
   const [selectedEmployee, setSelectedEmployee] = useState<EmployeeResponse | null>(null)
+  const [allocationResult, setAllocationResult] = useState<AllocateCutiTokensResponse | null>(null)
 
   // Form states
   const [formData, setFormData] = useState<EmployeeFormData>({
@@ -248,6 +251,28 @@ export default function AdminKaryawanPage() {
     }
   }
 
+  // Handle CUTI token allocation
+  async function handleAllocateTokens(tokenAmount: number = 12) {
+    setSubmitting(true)
+    try {
+      const result = await allocateCutiTokens({ tokenAmount })
+      setAllocationResult(result)
+      toast.success(`Successfully allocated ${result.totalTokens} CUTI tokens to ${result.allocated} employees`)
+      // Reload employee data to reflect updated balances
+      await loadData()
+    } catch (error) {
+      const message =
+        error instanceof HttpError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : 'Failed to allocate CUTI tokens'
+      toast.error(message)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   // Open create modal
   function openCreateModal() {
     resetForm()
@@ -296,14 +321,24 @@ export default function AdminKaryawanPage() {
             Manage company employees and their information
           </p>
         </div>
-        <button
-          onClick={openCreateModal}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-white font-semibold shadow-md transition hover:opacity-90"
-          style={{ background: '#00156B' }}
-        >
-          <Plus size={20} />
-          Add Employee
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setAllocateTokensModalOpen(true)}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-white font-semibold shadow-md transition hover:opacity-90"
+            style={{ background: '#10B981' }}
+          >
+            <Coins size={20} />
+            Allocate CUTI Tokens
+          </button>
+          <button
+            onClick={openCreateModal}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-white font-semibold shadow-md transition hover:opacity-90"
+            style={{ background: '#00156B' }}
+          >
+            <Plus size={20} />
+            Add Employee
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -609,6 +644,90 @@ export default function AdminKaryawanPage() {
               Cancel
             </button>
           </div>
+        </div>
+      </Modal>
+
+      {/* Allocate CUTI Tokens Modal */}
+      <Modal open={allocateTokensModalOpen} onClose={() => !submitting && setAllocateTokensModalOpen(false)}>
+        <div className="space-y-4">
+          {allocationResult ? (
+            // Success view
+            <div className="flex flex-col items-center text-center">
+              <div className="p-3 rounded-full bg-green-50 mb-4">
+                <Coins size={48} className="text-green-600" />
+              </div>
+              <h2 className="text-xl font-bold text-gray-900">Tokens Allocated Successfully!</h2>
+              <p className="text-gray-600 mt-2">
+                Successfully allocated <span className="font-semibold">{allocationResult.totalTokens} CUTI tokens</span>{' '}
+                to <span className="font-semibold">{allocationResult.allocated} employees</span>
+              </p>
+              <div className="mt-4 p-4 bg-gray-50 rounded-lg w-full">
+                <p className="text-sm text-gray-600">
+                  Transaction Hash:{' '}
+                  <span className="font-mono text-xs break-all block mt-1">{allocationResult.txHash}</span>
+                </p>
+              </div>
+              <div className="mt-4 max-h-60 overflow-y-auto w-full">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-3 py-2 text-left">Employee</th>
+                      <th className="px-3 py-2 text-right">Tokens</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {allocationResult.employees.map((emp) => (
+                      <tr key={emp.employeeId}>
+                        <td className="px-3 py-2">{emp.fullName}</td>
+                        <td className="px-3 py-2 text-right">{emp.amount} CUTI</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <button
+                onClick={() => {
+                  setAllocateTokensModalOpen(false)
+                  setAllocationResult(null)
+                }}
+                className="mt-6 px-6 py-2 rounded-xl text-white font-semibold shadow-md transition hover:opacity-90"
+                style={{ background: '#00156B' }}
+              >
+                Close
+              </button>
+            </div>
+          ) : (
+            // Confirmation view
+            <div className="flex flex-col items-center text-center">
+              <div className="p-3 rounded-full bg-green-50 mb-4">
+                <Coins size={48} className="text-green-600" />
+              </div>
+              <h2 className="text-xl font-bold text-gray-900">Allocate CUTI Tokens</h2>
+              <p className="text-gray-600 mt-2">
+                This will allocate <span className="font-semibold">12 CUTI tokens</span> to all employees with linked wallets.
+              </p>
+              <p className="text-sm text-gray-500 mt-2">
+                Employees without wallets will be skipped. This operation may take a few moments to complete.
+              </p>
+              <div className="flex gap-3 pt-6 w-full">
+                <button
+                  onClick={() => handleAllocateTokens(12)}
+                  disabled={submitting}
+                  className="flex-1 px-4 py-2 rounded-xl text-white font-semibold shadow-md transition hover:opacity-90 disabled:opacity-50"
+                  style={{ background: '#10B981' }}
+                >
+                  {submitting ? 'Allocating...' : 'Allocate Tokens'}
+                </button>
+                <button
+                  onClick={() => setAllocateTokensModalOpen(false)}
+                  disabled={submitting}
+                  className="px-4 py-2 rounded-xl border border-gray-300 font-semibold hover:bg-gray-50 transition disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </Modal>
     </div>
