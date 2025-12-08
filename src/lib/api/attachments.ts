@@ -1,3 +1,5 @@
+import { HttpError } from '../types/errors'
+
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:8787'
 const FALLBACK_MAX_BYTES = 5 * 1024 * 1024
 const configuredLimit = Number(process.env.NEXT_PUBLIC_MAX_ATTACHMENT_BYTES)
@@ -102,10 +104,8 @@ async function parseJson<T>(response: Response): Promise<T> {
       payload?.error ??
       response.statusText ??
       'Attachment upload failed'
-    const error = new Error(message)
-    ;(error as any).status = response.status
-    if (payload?.details) (error as any).details = payload.details
-    throw error
+    const details = payload?.details ? { details: payload.details } : undefined
+    throw new HttpError(message, response.status, details)
   }
 
   return data as T

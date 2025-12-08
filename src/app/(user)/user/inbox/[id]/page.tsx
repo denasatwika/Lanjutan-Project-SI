@@ -102,18 +102,27 @@ export default function InboxDetailPage() {
       return
     }
     let cancelled = false
+    const requestId = request.id // Capture for async function
 
     // Check existing approvals first
     const approvalMeta = approvals.find((item) => item.onChainRequestId || item.requesterWalletAddress)
-    if (approvalMeta?.onChainRequestId) setOnChainRequestId(approvalMeta.onChainRequestId as `0x${string}`)
-    if (approvalMeta?.requesterWalletAddress) setRequesterWallet(getAddress(approvalMeta.requesterWalletAddress as `0x${string}`))
+    if (approvalMeta?.onChainRequestId && typeof approvalMeta.onChainRequestId === 'string') {
+      setOnChainRequestId(approvalMeta.onChainRequestId as `0x${string}`)
+    }
+    if (approvalMeta?.requesterWalletAddress && typeof approvalMeta.requesterWalletAddress === 'string') {
+      setRequesterWallet(getAddress(approvalMeta.requesterWalletAddress as `0x${string}`))
+    }
 
     async function loadChainMeta() {
       try {
-        const leaveDetail = await getLeaveRequest(request.id)
+        const leaveDetail = await getLeaveRequest(requestId)
         if (cancelled) return
-        if (leaveDetail.onChainRequestId) setOnChainRequestId(leaveDetail.onChainRequestId as `0x${string}`)
-        if (leaveDetail.requesterWalletAddress) setRequesterWallet(getAddress(leaveDetail.requesterWalletAddress as `0x${string}`))
+        if (leaveDetail.onChainRequestId && typeof leaveDetail.onChainRequestId === 'string') {
+          setOnChainRequestId(leaveDetail.onChainRequestId as `0x${string}`)
+        }
+        if (leaveDetail.requesterWalletAddress && typeof leaveDetail.requesterWalletAddress === 'string') {
+          setRequesterWallet(getAddress(leaveDetail.requesterWalletAddress as `0x${string}`))
+        }
       } catch (error) {
         console.warn('Failed to load leave chain metadata', error)
       }
@@ -131,10 +140,11 @@ export default function InboxDetailPage() {
     if (!onChainRequestId && !requesterWallet) return
 
     let cancelled = false
+    const requestId = request.id // Capture for async function
     async function loadOnChainApprovalState() {
       try {
         setLoadingApprovalState(true)
-        const derivedRequestId = onChainRequestId ?? (requesterWallet ? (keccak256(encodeAbiParameters([{ name: 'dbId', type: 'string' }, { name: 'address', type: 'address' }], [request.id, requesterWallet])) as `0x${string}`) : null)
+        const derivedRequestId = onChainRequestId ?? (requesterWallet ? keccak256(encodeAbiParameters([{ name: 'dbId', type: 'string' }, { name: 'address', type: 'address' }], [requestId, requesterWallet])) : null)
 
         if (!derivedRequestId) {
           setApprovalState(null)
@@ -454,14 +464,12 @@ function ApprovalTimelineItem({ item }: { item: any }) {
         )}
 
         {/* Blockchain Meta (Simplified) */}
-        {(item.blockchainTxHash || item.signature) && (
+        {item.blockchainTxHash && (
           <div className="mt-2 flex flex-wrap gap-2">
-            {item.blockchainTxHash && (
-              <div className="inline-flex items-center gap-1.5 rounded bg-blue-50 px-2 py-1 text-[10px] text-blue-700">
-                <LinkIcon className="h-3 w-3" />
-                <span className="font-mono">{formatSignaturePreview(item.blockchainTxHash)}</span>
-              </div>
-            )}
+            <div className="inline-flex items-center gap-1.5 rounded bg-blue-50 px-2 py-1 text-[10px] text-blue-700">
+              <LinkIcon className="h-3 w-3" />
+              <span className="font-mono">{formatSignaturePreview(item.blockchainTxHash)}</span>
+            </div>
             {item.onChain?.onChainConfirmed && (
               <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">
                 ✓ On-Chain Verified

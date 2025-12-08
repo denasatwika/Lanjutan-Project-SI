@@ -1,5 +1,6 @@
 import type { TypedData, TypedDataDomain, TypedDataParameter } from 'viem'
 import type { AttachmentInfo } from './attachments'
+import { HttpError } from '../types/errors'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:8787'
 
@@ -112,9 +113,7 @@ async function parseJson<T>(response: Response): Promise<T> {
 
   if (!response.ok) {
     const message = (data as ErrorPayload | undefined)?.error ?? response.statusText ?? 'Request failed'
-    const error = new Error(message)
-    ;(error as any).status = response.status
-    throw error
+    throw new HttpError(message, response.status)
   }
 
   return data as T
