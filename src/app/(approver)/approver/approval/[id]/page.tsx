@@ -42,10 +42,12 @@ import {
 import { encodeCollectRejection } from '@/lib/web3/contracts'
 import { prepareForwardRequest, submitForwardRequest } from '@/lib/api/forwarder'
 import { recordRejection } from '@/lib/api/multisig'
+import { HttpError } from '@/lib/types/errors'
+
 type EthereumProvider = {
   request: (args: { method: string; params?: unknown[] }) => Promise<unknown>
-  on?: (event: string, handler: (...args: any[]) => void) => void
-  removeListener?: (event: string, handler: (...args: any[]) => void) => void
+  on?: (event: string, handler: (...args: unknown[]) => void) => void
+  removeListener?: (event: string, handler: (...args: unknown[]) => void) => void
 }
 
 function getEthereumProvider(): EthereumProvider | undefined {
@@ -348,7 +350,7 @@ export default function ApproverApprovalDetailPage() {
       setApproveDialogOpen(false)
       router.push('/approver/approval')
     } catch (error) {
-      const status = (error as any)?.status as number | undefined
+      const status = HttpError.getStatus(error)
       let message =
         error instanceof UserRejectedRequestError
           ? 'Signature request was rejected.'
@@ -506,7 +508,7 @@ export default function ApproverApprovalDetailPage() {
 
       router.push('/approver/approval')
     } catch (error) {
-      const status = (error as any)?.status as number | undefined
+      const status = HttpError.getStatus(error)
       let message =
         error instanceof UserRejectedRequestError
           ? 'Signature request was rejected.'

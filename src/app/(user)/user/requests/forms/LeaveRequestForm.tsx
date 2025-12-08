@@ -20,6 +20,7 @@ import {
   uploadAttachment,
   type AttachmentInfo,
 } from '@/lib/api/attachments'
+import { HttpError } from '@/lib/types/errors'
 import { useAuth } from '@/lib/state/auth'
 import { useChainConfig, isChainConfigReady } from '@/lib/state/chain'
 import { useRequests } from '@/lib/state/requests'
@@ -462,8 +463,8 @@ export function LeaveRequestForm({ onSubmitted }: { onSubmitted?: () => void }) 
           ? error.message
           : 'Failed to submit leave request'
 
-      const status = (error as any)?.status
-      const detail = (error as any)?.details
+      const status = HttpError.getStatus(error)
+      const detail = HttpError.isHttpError(error) ? error.details?.details : undefined
       if (detail) message = detail
 
       const serverMessage = message
