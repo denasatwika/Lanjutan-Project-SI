@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/lib/state/auth'
 import { PageHeader } from '@/components/PageHeader'
+import { CutiTokenApproval } from '@/components/CutiTokenApproval'
 import { Camera, Mail, Phone, Wallet, Building2, Moon, Sun } from 'lucide-react'
 import { toast } from 'sonner'
 import { useDisconnect } from 'wagmi'
@@ -325,6 +326,9 @@ export default function ProfilePage() {
                             </button>
                         </div>
                     </section>
+
+                    {/* CutiToken Approval */}
+                    <CutiTokenApproval />
 
                     {/* Contact & Org */}
                     <section className="grid md:grid-cols-2 gap-4">
