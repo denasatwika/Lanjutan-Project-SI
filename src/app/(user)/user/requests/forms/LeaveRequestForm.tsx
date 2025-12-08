@@ -420,7 +420,7 @@ export function LeaveRequestForm({ onSubmitted }: { onSubmitted?: () => void }) 
         account: signerAddress,
         domain: prepareResponse.domain,
         types: prepareResponse.types,
-        primaryType: prepareResponse.primaryType,
+        primaryType: prepareResponse.primaryType ?? 'ForwardRequest',
         message: prepareResponse.message,
       })
 
@@ -465,7 +465,7 @@ export function LeaveRequestForm({ onSubmitted }: { onSubmitted?: () => void }) 
 
       const status = HttpError.getStatus(error)
       const detail = HttpError.isHttpError(error) ? error.details?.details : undefined
-      if (detail) message = detail
+      if (typeof detail === 'string' && detail) message = detail
 
       const serverMessage = message
       const relayError = currentStep === 'relay'
