@@ -38,6 +38,9 @@ import {
   http,
   parseAbi,
 } from "viem";
+import { Modal } from "@/components/ui/modal";
+import { AlertCircle } from "lucide-react";
+
 type EthereumProvider = {
   request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
   on?: (event: string, handler: (...args: any[]) => void) => void;
@@ -199,6 +202,11 @@ export function LeaveRequestForm({
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [accountChanged, setAccountChanged] = useState(false);
   const [walletSwitching, setWalletSwitching] = useState(false);
+  const [insufficientBalanceModal, setInsufficientBalanceModal] = useState<{
+    open: boolean;
+    balance: number;
+    required: number;
+  }>({ open: false, balance: 0, required: 0 });
   const [form, setForm] = useState<{
     leaveType: LeaveKind;
     startDate: string;
@@ -400,8 +408,10 @@ export function LeaveRequestForm({
 
           const balanceNumber = Number(balance);
           if (balanceNumber < days) {
-            toast.error("Saldo CUTI tidak mencukupi", {
-              description: `Anda memiliki ${balanceNumber} hari CUTI, tetapi meminta ${days} hari`,
+            setInsufficientBalanceModal({
+              open: true,
+              balance: balanceNumber,
+              required: days,
             });
             setSubmitting(false);
             return;
@@ -755,6 +765,70 @@ export function LeaveRequestForm({
       >
         {submitLabel}
       </button>
+
+      {/* Insufficient Balance Modal */}
+      <Modal
+        open={insufficientBalanceModal.open}
+        onClose={() => {
+          setInsufficientBalanceModal({ open: false, balance: 0, required: 0 });
+          // Reset form to prevent re-submission with same invalid data
+          setForm({
+            leaveType: "CUTI",
+            startDate: "",
+            endDate: "",
+            reason: "",
+            attachment: null,
+          });
+          setAttachmentMeta(null);
+        }}
+      >
+        <div className="flex flex-col items-center text-center">
+          {/* Warning Icon */}
+          <div
+            className="rounded-full p-4 mb-4"
+            style={{ backgroundColor: "#FFA50020" }}
+          >
+            <AlertCircle size={48} style={{ color: "#FFA500" }} />
+          </div>
+
+          {/* Title */}
+          <h2 className="text-xl font-semibold text-gray-800 mb-3">
+            Insufficient CUTI Balance
+          </h2>
+
+          {/* Description */}
+          <p className="text-gray-600 mb-6 leading-relaxed">
+            You need at least {insufficientBalanceModal.required} days of CUTI
+            balance. Currently, you have {insufficientBalanceModal.balance} day
+            {insufficientBalanceModal.balance !== 1 ? "s" : ""} available.
+            Please adjust your leave request.
+          </p>
+
+          {/* OK Button */}
+          <button
+            onClick={() => {
+              setInsufficientBalanceModal({
+                open: false,
+                balance: 0,
+                required: 0,
+              });
+              // Reset form to prevent re-submission with same invalid data
+              setForm({
+                leaveType: "CUTI",
+                startDate: "",
+                endDate: "",
+                reason: "",
+                attachment: null,
+              });
+              setAttachmentMeta(null);
+            }}
+            className="w-full rounded-xl px-6 py-3 text-white font-semibold shadow-md transition hover:opacity-90"
+            style={{ background: "#00156B" }}
+          >
+            OK
+          </button>
+        </div>
+      </Modal>
     </form>
   );
 }
