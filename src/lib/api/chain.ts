@@ -1,4 +1,5 @@
 import { getAddress } from 'viem'
+import { HttpError } from '../types/errors'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:8787'
 
@@ -10,6 +11,7 @@ export type ChainConfigResponse = {
   forwarderAddress?: string | null
   leaveCoreAddress?: string | null
   companyMultisigAddress?: string | null
+  cutiTokenAddress?: string | null
   relayerAddress?: string | null
   name?: string | null
   nativeCurrency?: {
@@ -27,6 +29,7 @@ export type ChainConfig = {
   forwarderAddress?: `0x${string}`
   leaveCoreAddress?: `0x${string}`
   companyMultisigAddress?: `0x${string}`
+  cutiTokenAddress?: `0x${string}`
   relayerAddress?: `0x${string}`
   name?: string
   nativeCurrency?: {
@@ -58,9 +61,7 @@ async function parseJson<T>(response: Response): Promise<T> {
 
   if (!response.ok) {
     const message = (data as ErrorPayload | undefined)?.error ?? response.statusText ?? 'Request failed'
-    const error = new Error(message)
-    ;(error as any).status = response.status
-    throw error
+    throw new HttpError(message, response.status)
   }
 
   return data as T
@@ -83,6 +84,7 @@ function normalizeChainConfig(payload: ChainConfigResponse): ChainConfig {
     forwarderAddress: normalizeAddress(payload.forwarderAddress) ?? undefined,
     leaveCoreAddress: normalizeAddress(payload.leaveCoreAddress) ?? undefined,
     companyMultisigAddress: normalizeAddress(payload.companyMultisigAddress) ?? undefined,
+    cutiTokenAddress: normalizeAddress(payload.cutiTokenAddress) ?? undefined,
     relayerAddress: normalizeAddress(payload.relayerAddress) ?? undefined,
     name: typeof payload.name === 'string' ? payload.name : undefined,
     nativeCurrency: isValidNativeCurrency(payload.nativeCurrency)

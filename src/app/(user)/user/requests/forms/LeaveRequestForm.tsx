@@ -20,6 +20,7 @@ import {
   uploadAttachment,
   type AttachmentInfo,
 } from '@/lib/api/attachments'
+import { HttpError } from '@/lib/types/errors'
 import { useAuth } from '@/lib/state/auth'
 import { useChainConfig, isChainConfigReady } from '@/lib/state/chain'
 import { useRequests } from '@/lib/state/requests'
@@ -419,7 +420,7 @@ export function LeaveRequestForm({ onSubmitted }: { onSubmitted?: () => void }) 
         account: signerAddress,
         domain: prepareResponse.domain,
         types: prepareResponse.types,
-        primaryType: prepareResponse.primaryType,
+        primaryType: prepareResponse.primaryType ?? 'ForwardRequest',
         message: prepareResponse.message,
       })
 
@@ -462,9 +463,9 @@ export function LeaveRequestForm({ onSubmitted }: { onSubmitted?: () => void }) 
           ? error.message
           : 'Failed to submit leave request'
 
-      const status = (error as any)?.status
-      const detail = (error as any)?.details
-      if (detail) message = detail
+      const status = HttpError.getStatus(error)
+      const detail = HttpError.isHttpError(error) ? error.details?.details : undefined
+      if (typeof detail === 'string' && detail) message = detail
 
       const serverMessage = message
       const relayError = currentStep === 'relay'

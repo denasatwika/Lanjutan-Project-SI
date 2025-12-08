@@ -17,6 +17,7 @@ import {
   uploadAttachment,
   type AttachmentInfo,
 } from '@/lib/api/attachments'
+import { HttpError } from '@/lib/types/errors'
 
 /* ------------------------------------------
    Helpers: date <-> string
@@ -434,8 +435,8 @@ export function OvertimeRequestForm({ onSubmitted }: { onSubmitted?: () => void 
       onSubmitted?.()
       router.push(`/user/inbox/${created.id}`)
     } catch (error) {
-      const status = (error as any)?.status
-      const detail = (error as any)?.details
+      const status = HttpError.getStatus(error)
+      const detail = HttpError.isHttpError(error) ? error.details?.details : undefined
       let message = detail || (error instanceof Error ? error.message : 'Failed to submit overtime request')
       if (status === 400) {
         message = 'Attachment is too large or a required field is missing.'
