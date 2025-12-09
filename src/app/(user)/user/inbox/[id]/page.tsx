@@ -479,11 +479,11 @@ function ApprovalTimeline({
         />
       </div>
 
-      <div className="relative space-y-6 pl-2">
+      <div className="relative space-y-6">
         {/* Vertical connector line */}
         {approvalItems.length > 1 && (
           <div
-            className="absolute left-[15px] top-2 bottom-4 w-px bg-slate-200"
+            className="absolute left-3.5 top-2 bottom-2 w-px -translate-x-1/2 bg-slate-200"
             aria-hidden="true"
           />
         )}
