@@ -164,7 +164,7 @@ export default function InboxDetailPage() {
   // No request found
   if (!request) {
     return (
-      <main className="mx-auto w-full max-w-2xl p-4 pb-20">
+      <main className="relative z-0 mx-auto w-full max-w-2xl p-4 pb-20">
         <PageHeader
           title="Request Detail"
           backHref="/user/inbox"
@@ -180,7 +180,10 @@ export default function InboxDetailPage() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-2xl p-4 pb-20">
+    // PENTING:
+    // 1. 'relative z-0': Memaksa konten ini berada di layer paling bawah.
+    // 2. 'pb-32': Memberi ruang scroll ekstra di bawah agar konten terakhir tidak ketutupan Navbar.
+    <main className="relative z-0 mx-auto w-full max-w-2xl p-4 pb-32">
       <PageHeader
         title="Request Detail"
         backHref="/user/inbox"
@@ -483,7 +486,7 @@ function ApprovalTimeline({
         {/* Vertical connector line */}
         {approvalItems.length > 1 && (
           <div
-            className="absolute left-3.5 top-2 bottom-2 w-px -translate-x-1/2 bg-slate-200"
+            className="absolute left-3.5 top-2 bottom-2 w-px -translate-x-1/2 bg-slate-200 z-0"
             aria-hidden="true"
           />
         )}
@@ -507,7 +510,7 @@ function ApprovalTimelineItem({ item }: { item: ApprovalItem }) {
   const isRejected = item.status === "REJECTED";
 
   return (
-    <div className="relative z-10 flex gap-4">
+    <div className="relative flex gap-4 bg-white">
       {/* Status Icon */}
       <div
         className={clsx(
