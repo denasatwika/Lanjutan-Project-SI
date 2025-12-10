@@ -465,12 +465,6 @@ export function LeaveRequestForm({
       setSubmitStep("prepare");
 
       const signerAddress = expectedWalletAddress as `0x${string}`;
-
-      console.debug("[leave-request-meta] Preparing leave request");
-      console.debug("  Database ID:", created.id);
-      console.debug("  Signer:", signerAddress);
-      console.debug("  LeaveCore:", chainConfig.leaveCoreAddress);
-
       // Prepare leave request meta-transaction (uses /leave-requests/meta/prepare)
       const prepareResponse = await prepareLeaveRequestMeta({
         leaveRequestId: created.id,

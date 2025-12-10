@@ -241,13 +241,17 @@ export default function ApproverDashboard() {
             pendingRequests.slice(0, 3).map((r, idx) => (
               <ApprovalItem
                 key={r.id}
-                id={r.id}
+                id={r.id || ""}
                 kind={r.type}
                 name={r.requesterName}
-                submittedAt={formatDistanceToNow(new Date(r.createdAt), {
-                  addSuffix: true,
-                  locale: idLocale,
-                })}
+                submittedAt={
+                  r.createdAt
+                    ? formatDistanceToNow(new Date(r.createdAt), {
+                        addSuffix: true,
+                        locale: idLocale,
+                      })
+                    : "Unknown"
+                }
                 last={idx === Math.min(3, pendingRequests.length) - 1}
               />
             ))

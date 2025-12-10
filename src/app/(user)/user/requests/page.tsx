@@ -1,24 +1,38 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import clsx from 'clsx'
-import { PageHeader } from '@/components/PageHeader'
-import { LeaveRequestForm } from './forms/LeaveRequestForm'
-import { OvertimeRequestForm } from './forms/OvertimeRequestForm'
+import { useState } from "react";
+import clsx from "clsx";
+import { PageHeader } from "@/components/PageHeader";
+import { LeaveRequestFormRefactor as LeaveRequestForm } from "./forms/LeaveRequestFormRefactor";
+import { OvertimeRequestForm } from "./forms/OvertimeRequestForm";
 
-type RequestView = 'leave' | 'overtime'
+type RequestView = "leave" | "overtime";
 
 const TABS: { key: RequestView; label: string; description: string }[] = [
-  { key: 'leave', label: 'Leave', description: 'Time off, sick leave, or other absence' },
-  { key: 'overtime', label: 'Overtime', description: 'Extra working hours outside schedule' },
-]
+  {
+    key: "leave",
+    label: "Leave",
+    description: "Time off, sick leave, or other absence",
+  },
+  {
+    key: "overtime",
+    label: "Overtime",
+    description: "Extra working hours outside schedule",
+  },
+];
 
 export default function Page() {
-  const [view, setView] = useState<RequestView>('leave')
+  const [view, setView] = useState<RequestView>("leave");
 
   return (
     <div className="min-h-screen">
-      <PageHeader title="Request" backHref="/user/dashboard" fullBleed bleedMobileOnly pullUpPx={24} />
+      <PageHeader
+        title="Request"
+        backHref="/user/dashboard"
+        fullBleed
+        bleedMobileOnly
+        pullUpPx={24}
+      />
 
       <div className="mx-auto mt-3 max-w-screen-sm px-4 md:max-w-2xl">
         <div className="rounded-2xl border bg-white shadow-md">
@@ -31,10 +45,10 @@ export default function Page() {
                     type="button"
                     onClick={() => setView(tab.key)}
                     className={clsx(
-                      'flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition',
+                      "flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition",
                       view === tab.key
-                        ? 'bg-[#00156B] text-white shadow'
-                        : 'bg-transparent text-slate-600 hover:bg-slate-100'
+                        ? "bg-[#00156B] text-white shadow"
+                        : "bg-transparent text-slate-600 hover:bg-slate-100",
                     )}
                   >
                     {tab.label}
@@ -48,10 +62,10 @@ export default function Page() {
           </div>
 
           <div className="space-y-4 px-4 py-6 sm:px-6">
-            {view === 'leave' ? (
-              <LeaveRequestForm onSubmitted={() => setView('leave')} />
+            {view === "leave" ? (
+              <LeaveRequestForm onSubmitted={() => setView("leave")} />
             ) : (
-              <OvertimeRequestForm onSubmitted={() => setView('overtime')} />
+              <OvertimeRequestForm onSubmitted={() => setView("overtime")} />
             )}
           </div>
         </div>
@@ -59,5 +73,5 @@ export default function Page() {
 
       <div className="h-24 md:hidden" />
     </div>
-  )
+  );
 }
