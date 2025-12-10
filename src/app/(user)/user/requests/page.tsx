@@ -3,7 +3,7 @@
 import { useState } from "react";
 import clsx from "clsx";
 import { PageHeader } from "@/components/PageHeader";
-import { LeaveRequestFormRefactor as LeaveRequestForm } from "./forms/LeaveRequestFormRefactor";
+import { LeaveRequestForm as LeaveRequestForm } from "./forms/LeaveRequestForm";
 import { OvertimeRequestForm } from "./forms/OvertimeRequestForm";
 
 type RequestView = "leave" | "overtime";
