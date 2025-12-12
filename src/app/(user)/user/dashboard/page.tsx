@@ -12,7 +12,6 @@ import { CalendarDays, Clock, TrendingUp, Zap, Info, Check, Files } from 'lucide
 import { toast } from 'sonner'
 import { BottomSheet } from '@/components/ui/bottomSheet'
 import { useRouter } from 'next/navigation'
-import { anvilLocal } from '@/lib/web3/wagmiConfig'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE
 

@@ -21,6 +21,7 @@ export default function LoginPage() {
   const { openConnectModal } = useConnectModal();
   const [authorising, setAuthorising] = useState(false);
   const [awaitingConnection, setAwaitingConnection] = useState(false);
+  const [needsSignature, setNeedsSignature] = useState(false);
   const shouldAutoLoginRef = useRef(false);
   const hasTriedAutoLoginRef = useRef(false);
 
@@ -119,11 +120,11 @@ export default function LoginPage() {
     if (hasTriedAutoLoginRef.current) return;
     if (authorising) return;
 
-    console.log("[Login] Auto-triggering login after connection");
+    console.log("[Login] Wallet connected, showing sign button");
     hasTriedAutoLoginRef.current = true;
     shouldAutoLoginRef.current = false;
     setAwaitingConnection(false);
-    void runLogin(address);
+    setNeedsSignature(true);
   }, [address, isConnected, authorising, runLogin]);
 
   // Handle visibility change (when user returns from MetaMask app)
@@ -149,7 +150,7 @@ export default function LoginPage() {
           hasTriedAutoLoginRef.current = true;
           shouldAutoLoginRef.current = false;
           setAwaitingConnection(false);
-          void runLogin(address);
+          setNeedsSignature(true);
         }
       }
     };
@@ -159,10 +160,17 @@ export default function LoginPage() {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, [isConnected, address, authorising, runLogin]);
 
+  const handleSignMessage = async () => {
+    if (!address || authorising) return;
+    setNeedsSignature(false);
+    await runLogin(address);
+  };
+
   const buttonLabel = (() => {
     if (authorising) return "Signing…";
     if (isConnecting || awaitingConnection) return "Connecting…";
     if (!isConnected) return "Log In";
+    if (needsSignature) return "Sign Message";
     return "Sign & Login";
   })();
 
