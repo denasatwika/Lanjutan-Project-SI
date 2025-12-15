@@ -1,30 +1,29 @@
-import { getDefaultConfig } from '@rainbow-me/rainbowkit'
-import { cookieStorage, createStorage } from 'wagmi'
-import { http } from 'viem'
-import { mainnet, polygon, sepolia } from 'wagmi/chains'
-import { anvilLocal } from './anvilChain'
-export { anvilLocal } from './anvilChain'
+import { getDefaultConfig } from "@rainbow-me/rainbowkit";
+import { cookieStorage, createStorage } from "wagmi";
+import { http } from "viem";
+import { baliolaTestnet } from "./baliolaChain";
+export { baliolaTestnet } from "./baliolaChain";
 
-const projectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID
+const projectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID;
 
 if (!projectId) {
   const message =
-    'NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID is not set. Create a WalletConnect project and expose the ID via NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID.'
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error(message)
+    "NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID is not set. Create a WalletConnect project and expose the ID via NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID.";
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(message);
   }
-  console.warn(message)
+  console.warn(message);
 }
 
 export const wagmiConfig = getDefaultConfig({
-  appName: 'MyBaliola',
-  projectId: projectId ?? '00000000000000000000000000000000',
+  appName: "MyBaliola",
+  projectId: projectId ?? "00000000000000000000000000000000",
   ssr: true,
-  chains: [anvilLocal],
+  chains: [baliolaTestnet],
   transports: {
-    [anvilLocal.id]: http('http://127.0.0.1:8545'),
+    [baliolaTestnet.id]: http("https://collator1.baliola.dev"),
   },
   storage: createStorage({
     storage: cookieStorage,
   }),
-})
+});
