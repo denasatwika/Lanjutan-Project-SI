@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
@@ -21,9 +21,6 @@ export default function LoginPage() {
   const { openConnectModal } = useConnectModal();
   const [authorising, setAuthorising] = useState(false);
   const [awaitingConnection, setAwaitingConnection] = useState(false);
-  const [needsSignature, setNeedsSignature] = useState(false);
-  const shouldAutoLoginRef = useRef(false);
-  const hasTriedAutoLoginRef = useRef(false);
 
   const runLogin = useCallback(
     async (walletAddress: string) => {
@@ -90,87 +87,27 @@ export default function LoginPage() {
         return;
       }
 
-      console.log(
-        "[Login] Opening connect modal, setting shouldAutoLogin=true",
-      );
-      shouldAutoLoginRef.current = true;
-      hasTriedAutoLoginRef.current = false;
       setAwaitingConnection(true);
       openConnectModal();
       return;
     }
 
-    console.log("[Login] Already connected, running login directly");
     setAwaitingConnection(false);
     await runLogin(address);
   };
 
-  // Auto-login after wallet connection (for mobile)
   useEffect(() => {
-    console.log("[Login useEffect]", {
-      isConnected,
-      address,
-      shouldAutoLogin: shouldAutoLoginRef.current,
-      hasTriedAutoLogin: hasTriedAutoLoginRef.current,
-      authorising,
-    });
-
+    if (!awaitingConnection) return;
     if (!isConnected || !address) return;
-    if (!shouldAutoLoginRef.current) return;
-    if (hasTriedAutoLoginRef.current) return;
-    if (authorising) return;
 
-    console.log("[Login] Wallet connected, showing sign button");
-    hasTriedAutoLoginRef.current = true;
-    shouldAutoLoginRef.current = false;
     setAwaitingConnection(false);
-    setNeedsSignature(true);
-  }, [address, isConnected, authorising, runLogin]);
-
-  // Handle visibility change (when user returns from MetaMask app)
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        console.log("[Login] Page became visible", {
-          isConnected,
-          address,
-          shouldAutoLogin: shouldAutoLoginRef.current,
-          hasTriedAutoLogin: hasTriedAutoLoginRef.current,
-        });
-
-        // Trigger login check when page becomes visible again
-        if (
-          isConnected &&
-          address &&
-          shouldAutoLoginRef.current &&
-          !hasTriedAutoLoginRef.current &&
-          !authorising
-        ) {
-          console.log("[Login] Triggering login after visibility change");
-          hasTriedAutoLoginRef.current = true;
-          shouldAutoLoginRef.current = false;
-          setAwaitingConnection(false);
-          setNeedsSignature(true);
-        }
-      }
-    };
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    return () =>
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [isConnected, address, authorising, runLogin]);
-
-  const handleSignMessage = async () => {
-    if (!address || authorising) return;
-    setNeedsSignature(false);
-    await runLogin(address);
-  };
+    void runLogin(address);
+  }, [address, awaitingConnection, isConnected, runLogin]);
 
   const buttonLabel = (() => {
     if (authorising) return "Signing…";
     if (isConnecting || awaitingConnection) return "Connecting…";
     if (!isConnected) return "Log In";
-    if (needsSignature) return "Sign Message";
     return "Sign & Login";
   })();
 
