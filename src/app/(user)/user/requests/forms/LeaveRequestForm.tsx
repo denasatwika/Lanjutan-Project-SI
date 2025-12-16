@@ -1,219 +1,71 @@
+// 🎯 REFACTORED VERSION - Clean Code Principles Applied
+// Business logic extracted to services and hooks
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useRef, useMemo } from "react";
 import { toast } from "sonner";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, AlertCircle } from "lucide-react";
+import { useAccount } from "wagmi";
 import DateRangePicker from "@/components/DateRangePicker";
 import type { DateRange } from "react-day-picker";
-import { useAccount } from "wagmi";
+import { Modal } from "@/components/ui/modal";
+import { useAuth } from "@/lib/state/auth";
+import { useChainConfig, isChainConfigReady } from "@/lib/state/chain";
+import { useLeaveRequest } from "@/lib/hooks/useLeaveRequest";
 import {
-  createLeaveRequest,
-  prepareLeaveRequestMeta,
-  submitLeaveRequestMeta,
-  type LeaveType,
-} from "@/lib/api/leaveRequests";
+  calculateDays,
+  type LeaveFormData,
+} from "@/lib/services/leaveRequestService";
 import {
   formatAttachmentSize,
   isSupportedAttachmentType,
   MAX_ATTACHMENT_BYTES,
-  uploadAttachment,
-  type AttachmentInfo,
 } from "@/lib/api/attachments";
-import { HttpError } from "@/lib/types/errors";
-import { useAuth } from "@/lib/state/auth";
-import { useChainConfig, isChainConfigReady } from "@/lib/state/chain";
-import { useRequests } from "@/lib/state/requests";
-import { usePrimaryWalletAddress } from "@/lib/hooks/usePrimaryWalletAddress";
-import { ensureChain } from "@/lib/web3/network";
-import {
-  EthereumProviderUnavailableError,
-  UserRejectedRequestError,
-} from "@/lib/web3/signing";
-import {
-  createWalletClient,
-  custom,
-  type WalletClient,
-  createPublicClient,
-  http,
-  parseAbi,
-} from "viem";
-import { Modal } from "@/components/ui/modal";
-import { AlertCircle } from "lucide-react";
-
-type EthereumProvider = {
-  request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
-  on?: (event: string, handler: (...args: any[]) => void) => void;
-  removeListener?: (event: string, handler: (...args: any[]) => void) => void;
-};
-
-const CUTI_TOKEN_ABI = parseAbi([
-  "function balanceOf(address account) view returns (uint256)",
-]);
-
-function getEthereumProvider(): EthereumProvider | undefined {
-  if (typeof window === "undefined") return undefined;
-  return (window as typeof window & { ethereum?: EthereumProvider }).ethereum;
-}
-
-/* ---- Helpers ---- */
-function toISODate(d?: Date) {
-  if (!d) return "";
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-function fromISODate(s?: string) {
-  if (!s) return undefined;
-  const d = new Date(s);
-  return Number.isNaN(d.getTime()) ? undefined : d;
-}
-
-function useOutsideClose(onClose: () => void) {
-  const ref = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    function handler(e: MouseEvent) {
-      if (!ref.current) return;
-      if (!ref.current.contains(e.target as Node)) onClose();
-    }
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [onClose]);
-  return ref;
-}
+import { useExpectedWallet } from "@/lib/hooks/useExpectedWallet";
 
 const LEAVE_TYPE_OPTIONS = [
-  { value: "Cuti" as LeaveType, label: "Cuti" },
-  { value: "Sakit" as LeaveType, label: "Sakit" },
-  { value: "Izin" as LeaveType, label: "Izin" },
+  { value: "Cuti", label: "Cuti" },
+  { value: "Sakit", label: "Sakit" },
+  { value: "Izin", label: "Izin" },
 ] as const;
 
-function Popover({
-  open,
-  onOpenChange,
-  trigger,
-  children,
-  align = "start",
-}: {
-  open: boolean;
-  onOpenChange: (v: boolean) => void;
-  trigger: ReactNode;
-  children: ReactNode;
-  align?: "start" | "end";
-}) {
-  const ref = useOutsideClose(() => onOpenChange(false));
-  const alignClass =
-    align === "end" ? "sm:right-0 sm:left-auto" : "sm:left-0 sm:right-auto";
-  return (
-    <div className="relative" ref={ref}>
-      <div onClick={() => onOpenChange(!open)}>{trigger}</div>
-      {open && (
-        <div
-          className={`absolute z-50 mt-2 left-1/2 w-[calc(100vw-2rem)] max-w-sm -translate-x-1/2 rounded-2xl border bg-white p-2 shadow-lg sm:min-w-[260px] sm:w-auto sm:translate-x-0 ${alignClass}`}
-        >
-          {children}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function SelectBox<T extends string>({
-  label,
-  value,
-  onChange,
-  options,
-}: {
-  label: string;
-  value: T;
-  onChange: (v: T) => void;
-  options: { value: T; label: string }[];
-}) {
-  const [open, setOpen] = useState(false);
-  const selected = options.find((o) => o.value === value)?.label ?? "Select";
-  return (
-    <label className="block">
-      <span className="text-sm text-gray-700">{label}</span>
-      <Popover
-        open={open}
-        onOpenChange={setOpen}
-        trigger={
-          <button
-            type="button"
-            className="w-full mt-1 rounded-xl border px-3 py-3 text-left shadow-sm flex items-center justify-between"
-            style={{
-              borderColor: "#00156B20",
-              boxShadow: "0 1px 2px rgba(0,0,0,.06)",
-            }}
-          >
-            <span>{selected}</span>
-            <ChevronDown className="size-4 opacity-70" />
-          </button>
-        }
-        align="start"
-      >
-        <ul role="listbox" className="max-h-[260px] overflow-auto py-1">
-          {options.map((opt) => (
-            <li key={opt.value}>
-              <button
-                type="button"
-                onClick={() => {
-                  onChange(opt.value);
-                  setOpen(false);
-                }}
-                className={`w-full text-left px-3 py-2 rounded-lg hover:bg-gray-100 ${opt.value === value ? "bg-gray-50 font-medium" : ""}`}
-              >
-                {opt.label}
-              </button>
-            </li>
-          ))}
-        </ul>
-      </Popover>
-    </label>
-  );
-}
-
-export type LeaveKind = (typeof LEAVE_TYPE_OPTIONS)[number]["value"];
-
-export function LeaveRequestForm({
-  onSubmitted,
-}: {
+type Props = {
   onSubmitted?: () => void;
-}) {
-  const router = useRouter();
-  const { user } = useAuth();
+};
+
+export function LeaveRequestForm({ onSubmitted }: Props) {
+  const user = useAuth((s) => s.user);
   const { address: connectedAddress } = useAccount();
-  const chainConfig = useChainConfig((state) => state.config);
-  // SIMPLIFIED: Use whatever wallet is connected, no verification
-  const expectedWalletAddress = connectedAddress;
-  const expectedWalletLoading = false;
-  const expectedWalletError = null;
-  const walletMismatch = false;
-  const upsertRequest = useRequests((s) => s.upsertFromApi);
-  const [submitting, setSubmitting] = useState(false);
-  const [submitStep, setSubmitStep] = useState<
-    "upload" | "create" | "prepare" | "sign" | "relay" | null
-  >(null);
-  const [uploadingAttachment, setUploadingAttachment] = useState(false);
-  const [attachmentMeta, setAttachmentMeta] = useState<AttachmentInfo | null>(
-    null,
+  const chainConfigState = useChainConfig();
+  const chainConfig = chainConfigState.config;
+
+  const {
+    expectedWalletAddress,
+    loading: expectedWalletLoading,
+    error: expectedWalletError,
+  } = useExpectedWallet();
+  const walletMismatch = useMemo(
+    () =>
+      Boolean(
+        expectedWalletAddress &&
+          connectedAddress &&
+          expectedWalletAddress.toLowerCase() !==
+            connectedAddress.toLowerCase(),
+      ),
+    [expectedWalletAddress, connectedAddress],
   );
-  const [attachmentError, setAttachmentError] = useState<string | null>(null);
-  const [accountChanged, setAccountChanged] = useState(false);
-  const [walletSwitching, setWalletSwitching] = useState(false);
-  const [insufficientBalanceModal, setInsufficientBalanceModal] = useState<{
-    open: boolean;
-    balance: number;
-    required: number;
-  }>({ open: false, balance: 0, required: 0 });
-  const [form, setForm] = useState<{
-    leaveType: LeaveKind;
-    startDate: string;
-    endDate: string;
-    reason: string;
-    attachment: File | null;
-  }>({
+
+  // Use custom hook for submission logic
+  const {
+    submitting,
+    submitStep,
+    insufficientBalance,
+    submit,
+    closeInsufficientBalanceModal,
+  } = useLeaveRequest();
+
+  // Form state
+  const [form, setForm] = useState<LeaveFormData>({
     leaveType: LEAVE_TYPE_OPTIONS[0].value,
     startDate: "",
     endDate: "",
@@ -221,322 +73,121 @@ export function LeaveRequestForm({
     attachment: null,
   });
 
-  const fileRef = useRef<HTMLInputElement | null>(null);
-  const submitLabel = uploadingAttachment
-    ? "Uploading attachment..."
-    : submitting
-      ? submitStep === "create"
-        ? "Saving request..."
-        : submitStep === "prepare"
-          ? "Preparing transaction..."
-          : submitStep === "sign"
-            ? "Awaiting signature..."
-            : submitStep === "relay"
-              ? "Relaying transaction..."
-              : "Submitting..."
-      : "Submit Leave Request";
+  const fileRef = useRef<HTMLInputElement>(null);
 
-  const dateRange = useMemo<DateRange>(
-    () => ({
-      from: fromISODate(form.startDate),
-      to: fromISODate(form.endDate),
-    }),
-    [form.startDate, form.endDate],
-  );
-
-  const days = useMemo(() => {
-    if (!form.startDate || !form.endDate) return 0;
-    const start = new Date(form.startDate);
-    const end = new Date(form.endDate);
-    const diff = Math.ceil((end.getTime() - start.getTime()) / 86400000) + 1;
-    return Number.isNaN(diff) || diff < 0 ? 0 : diff;
+  // Derived state
+  const dateRange: DateRange | undefined = useMemo(() => {
+    if (!form.startDate || !form.endDate) return undefined;
+    return {
+      from: new Date(form.startDate),
+      to: new Date(form.endDate),
+    };
   }, [form.startDate, form.endDate]);
 
+  const days = calculateDays(form.startDate, form.endDate);
   const hasDateOrderIssue =
-    form.startDate &&
-    form.endDate &&
-    new Date(form.startDate) > new Date(form.endDate);
+    form.startDate && form.endDate && form.startDate > form.endDate;
 
-  const valid =
-    !!form.startDate &&
-    !!form.endDate &&
-    !hasDateOrderIssue &&
-    days > 0 &&
-    form.reason.trim().length > 0;
+  // Form validation
+  const valid = useMemo(() => {
+    return (
+      form.leaveType.trim().length > 0 &&
+      form.startDate.trim().length > 0 &&
+      form.endDate.trim().length > 0 &&
+      form.reason.trim().length > 0 &&
+      !hasDateOrderIssue
+    );
+  }, [form, hasDateOrderIssue]);
 
-  function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0];
-    if (!f) return;
-
-    if (!isSupportedAttachmentType(f.type)) {
-      toast.error("Only PDF or image files (PNG, JPEG, etc.) are allowed.");
-      e.target.value = "";
+  // Handlers
+  function handleDateRangeChange(range: DateRange | undefined) {
+    if (!range) {
+      setForm((prev) => ({ ...prev, startDate: "", endDate: "" }));
       return;
     }
-
-    if (f.size > MAX_ATTACHMENT_BYTES) {
-      toast.error(
-        `File must be smaller than ${formatAttachmentSize(MAX_ATTACHMENT_BYTES)}.`,
-      );
-      e.target.value = "";
-      return;
-    }
-
-    setForm((s) => ({ ...s, attachment: f }));
-    setAttachmentMeta(null);
-    setAttachmentError(null);
+    setForm((prev) => ({
+      ...prev,
+      startDate: range.from ? toISODate(range.from) : "",
+      endDate: range.to ? toISODate(range.to) : "",
+    }));
   }
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!isSupportedAttachmentType(file.type)) {
+      toast.error("Unsupported file type. Please upload a PDF or image.");
+      if (fileRef.current) fileRef.current.value = "";
+      return;
+    }
+
+    if (file.size > MAX_ATTACHMENT_BYTES) {
+      toast.error(
+        `File is too large. Maximum size is ${formatAttachmentSize(MAX_ATTACHMENT_BYTES)}.`,
+      );
+      if (fileRef.current) fileRef.current.value = "";
+      return;
+    }
+
+    setForm((prev) => ({ ...prev, attachment: file }));
+  }
+
   function clearFile() {
-    setForm((s) => ({ ...s, attachment: null }));
-    setAttachmentMeta(null);
-    setAttachmentError(null);
+    setForm((prev) => ({ ...prev, attachment: null }));
     if (fileRef.current) fileRef.current.value = "";
   }
 
-  async function requestWalletAlignment() {
-    const provider = getEthereumProvider();
-    if (!provider) {
-      toast.error(
-        "No Ethereum provider detected. Please install MetaMask or a compatible wallet.",
-      );
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+
+    // Validation
+    if (!valid) {
+      toast.error("Please fill out all required fields.");
       return;
     }
-    setWalletSwitching(true);
-    try {
-      await provider.request({
-        method: "wallet_requestPermissions",
-        params: [{ eth_accounts: {} }],
-      });
-      await provider.request({ method: "wallet_requestAccounts" });
-      if (chainConfig?.chainHexId) {
-        try {
-          await provider.request({
-            method: "wallet_switchEthereumChain",
-            params: [{ chainId: chainConfig.chainHexId }],
-          });
-        } catch (error) {
-          console.warn(
-            "wallet_switchEthereumChain failed, relying on ensureChain()",
-            error,
-          );
-        }
-      }
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : "Unable to request wallet permissions. Please switch manually.";
-      toast.error(message);
-    } finally {
-      setWalletSwitching(false);
-    }
-  }
 
-  async function submit() {
-    let currentStep: typeof submitStep = null;
-    if (!valid) return;
     if (!user?.id) {
       toast.error("Unable to determine the requester. Please sign in again.");
       return;
     }
+
     if (!expectedWalletAddress) {
       toast.error(
         "No registered wallet found for this account. Please contact the administrator.",
       );
       return;
     }
+
     if (!connectedAddress) {
       toast.error("Connect a wallet before submitting the request.");
       return;
     }
+
     if (walletMismatch) {
       toast.error(
-        "Connected wallet does not match your registered company wallet. Please switch accounts in your wallet extension.",
+        "Connected wallet does not match your registered company wallet. Please switch accounts.",
       );
       return;
     }
+
     if (!chainConfig || !isChainConfigReady(chainConfig)) {
       toast.error(
         "Chain configuration is incomplete. Please contact the administrator.",
       );
       return;
     }
-    if (uploadingAttachment) {
-      toast.error("Please wait until the attachment upload finishes.");
-      return;
-    }
-    if (accountChanged) {
-      toast.error(
-        "Your wallet changed recently. Please ensure it matches the registered account before submitting.",
-      );
-      return;
-    }
 
-    setSubmitting(true);
-    setAttachmentError(null);
-
-    let uploaded: AttachmentInfo | null = null;
     try {
-      // Upload attachment if provided (optional for testing)
-      if (form.attachment) {
-        currentStep = "upload";
-        setSubmitStep("upload");
-        setUploadingAttachment(true);
-
-        const file = form.attachment;
-        uploaded = await uploadAttachment(file, user.id, {
-          requesterId: user.id,
-          requestType: "LEAVE",
-        });
-        setAttachmentMeta(uploaded);
-        setUploadingAttachment(false);
-      }
-
-      // Check CutiToken balance before submitting
-      if (chainConfig?.cutiTokenAddress && chainConfig?.rpcUrl) {
-        try {
-          const publicClient = createPublicClient({
-            transport: http(chainConfig.rpcUrl),
-          });
-
-          const balance = await publicClient.readContract({
-            address: chainConfig.cutiTokenAddress,
-            abi: CUTI_TOKEN_ABI,
-            functionName: "balanceOf",
-            args: [connectedAddress],
-          });
-
-          const balanceNumber = Number(balance);
-          if (balanceNumber < days) {
-            setInsufficientBalanceModal({
-              open: true,
-              balance: balanceNumber,
-              required: days,
-            });
-            setSubmitting(false);
-            return;
-          }
-        } catch (error) {
-          console.error(
-            "[LeaveRequestForm] Failed to check CutiToken balance:",
-            error,
-          );
-          // Continue anyway - let blockchain validation handle it
-        }
-      }
-
-      currentStep = "create";
-      setSubmitStep("create");
-      const created = await createLeaveRequest({
-        type: "LEAVE",
-        requesterId: user.id,
-        leaveType: form.leaveType,
-        leaveStartDate: form.startDate,
-        leaveEndDate: form.endDate,
-        leaveDays: days,
-        leaveReason: form.reason.trim(),
-        attachmentIds: uploaded ? [uploaded.id] : [],
-        approvals: [],
+      await submit({
+        formData: form,
+        userId: user.id,
+        userWalletAddress: expectedWalletAddress as `0x${string}`,
+        days,
+        chainConfig,
       });
 
-      upsertRequest({
-        ...created,
-        overtimeDate: null,
-        overtimeStartTime: null,
-        overtimeEndTime: null,
-        overtimeHours: null,
-        overtimeReason: null,
-      });
-
-      try {
-        await ensureChain(chainConfig, {
-          allowAdd: true,
-          chainName: chainConfig.name,
-          nativeCurrency: chainConfig.nativeCurrency,
-        });
-      } catch (networkError) {
-        throw new Error(
-          networkError instanceof Error
-            ? networkError.message
-            : "Please switch your wallet to the configured network.",
-        );
-      }
-
-      currentStep = "prepare";
-      setSubmitStep("prepare");
-
-      const signerAddress = expectedWalletAddress as `0x${string}`;
-
-      console.debug("[leave-request-meta] Preparing leave request");
-      console.debug("  Database ID:", created.id);
-      console.debug("  Signer:", signerAddress);
-      console.debug("  LeaveCore:", chainConfig.leaveCoreAddress);
-
-      // Prepare leave request meta-transaction (uses /leave-requests/meta/prepare)
-      const prepareResponse = await prepareLeaveRequestMeta({
-        leaveRequestId: created.id,
-      });
-
-      const provider = getEthereumProvider();
-      if (provider) {
-        try {
-          const currentAccounts = (await provider.request({
-            method: "eth_accounts",
-          })) as string[] | undefined;
-          console.debug(
-            "[leave-request-meta] eth_accounts before signing",
-            currentAccounts,
-          );
-        } catch (error) {
-          console.warn(
-            "[leave-request-meta] Unable to read eth_accounts before signing",
-            error,
-          );
-        }
-      }
-
-      currentStep = "sign";
-      setSubmitStep("sign");
-      console.debug("[leave-request-meta] Requesting signature...");
-
-      // Create wallet client from Ethereum provider
-      if (!provider) {
-        throw new EthereumProviderUnavailableError();
-      }
-
-      const walletClient = createWalletClient({
-        account: signerAddress,
-        transport: custom(provider),
-      });
-
-      // Sign the typed data using EIP-712
-      const signature = await walletClient.signTypedData({
-        account: signerAddress,
-        domain: prepareResponse.domain,
-        types: prepareResponse.types,
-        primaryType: prepareResponse.primaryType ?? "ForwardRequest",
-        message: prepareResponse.message,
-      });
-
-      console.debug(
-        "[leave-request-meta] Signature obtained, submitting to relayer",
-      );
-
-      currentStep = "relay";
-      setSubmitStep("relay");
-
-      // Submit to /leave-requests/meta/submit endpoint
-      const relayResponse = await submitLeaveRequestMeta({
-        request: prepareResponse.request,
-        signature,
-      });
-
-      toast.success("Leave request created on-chain", {
-        description: relayResponse.txHash
-          ? `Transaction: ${relayResponse.txHash.slice(0, 10)}... - Awaiting approvals (3 required)`
-          : "Awaiting approvals from Supervisor, Chief, and HR",
-      });
-
+      // Reset form on success
       setForm({
         leaveType: LEAVE_TYPE_OPTIONS[0].value,
         startDate: "",
@@ -544,246 +195,198 @@ export function LeaveRequestForm({
         reason: "",
         attachment: null,
       });
-      setAttachmentMeta(null);
-      setAttachmentError(null);
       if (fileRef.current) fileRef.current.value = "";
       onSubmitted?.();
-      router.push(`/user/inbox/${created.id}`);
     } catch (error) {
-      let message =
-        error instanceof UserRejectedRequestError
-          ? "Signature request was rejected."
-          : error instanceof EthereumProviderUnavailableError
-            ? "No Ethereum provider detected. Please install MetaMask or a compatible wallet."
-            : error instanceof Error
-              ? error.message
-              : "Failed to submit leave request";
-
-      const status = HttpError.getStatus(error);
-      const detail = HttpError.isHttpError(error)
-        ? error.details?.details
-        : undefined;
-      if (typeof detail === "string" && detail) message = detail;
-
-      const serverMessage = message;
-      const relayError = currentStep === "relay";
-      const prepareError = currentStep === "prepare";
-
-      if (status === 400) {
-        message = relayError
-          ? (serverMessage ??
-            "Signature validation failed. Please retry the signing step.")
-          : serverMessage ||
-            "Attachment is too large or a required field is missing.";
-      } else if (status === 404) {
-        message = "Requester not found. Please sign in again.";
-      } else if (status === 403) {
-        message = prepareError
-          ? "Please use your verified company wallet (primary & verified) to submit this request."
-          : "Attachment could not be linked. Please re-upload and try again.";
-      } else if (status === 409) {
-        message =
-          "Attachment could not be linked. Please re-upload and try again.";
-      } else if (status === 415) {
-        message = "File type not supported. Please upload a PDF or image.";
-      }
-
-      if (relayError) {
-        setAttachmentError(null);
-      } else {
-        setAttachmentError(message);
-      }
-
-      toast.error(message);
-    } finally {
-      currentStep = null;
-      setSubmitStep(null);
-      setUploadingAttachment(false);
-      setSubmitting(false);
+      // Error already handled in hook
     }
   }
 
-  const previewUrl = useMemo(() => {
-    if (!form.attachment) return null;
-    return form.attachment.type.startsWith("image/")
-      ? URL.createObjectURL(form.attachment)
-      : null;
-  }, [form.attachment]);
+  // Submit button label
+  const submitLabel = submitting
+    ? submitStep === "upload"
+      ? "Uploading..."
+      : submitStep === "balance"
+        ? "Checking balance..."
+        : submitStep === "create"
+          ? "Creating request..."
+          : submitStep === "prepare"
+            ? "Preparing..."
+            : submitStep === "sign"
+              ? "Waiting for signature..."
+              : submitStep === "relay"
+                ? "Submitting..."
+                : "Processing..."
+    : "Submit Leave Request";
 
-  useEffect(() => {
-    return () => {
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
-    };
-  }, [previewUrl]);
-
-  useEffect(() => {
-    const provider = getEthereumProvider();
-    if (!provider?.on) return;
-    const handler = () => {
-      setAccountChanged(true);
-      setSubmitting(false);
-      setSubmitStep(null);
-    };
-    provider.on("accountsChanged", handler);
-    return () => provider.removeListener?.("accountsChanged", handler);
-  }, []);
-
-  useEffect(() => {
-    if (
-      accountChanged &&
-      expectedWalletAddress &&
-      connectedAddress &&
-      expectedWalletAddress.toLowerCase() === connectedAddress.toLowerCase()
-    ) {
-      setAccountChanged(false);
-    }
-  }, [accountChanged, expectedWalletAddress, connectedAddress]);
-
-  const isImg = !!previewUrl;
+  const previewUrl = form.attachment
+    ? URL.createObjectURL(form.attachment)
+    : null;
+  const isImg = form.attachment?.type.startsWith("image/");
 
   return (
-    <form
-      className="grid gap-4 text-[15px]"
-      onSubmit={(e) => {
-        e.preventDefault();
-        submit();
-      }}
-    >
-      <SelectBox<LeaveKind>
-        label="Leave type"
-        value={form.leaveType}
-        onChange={(v) => setForm((s) => ({ ...s, leaveType: v }))}
-        options={LEAVE_TYPE_OPTIONS.map((opt) => ({
-          value: opt.value,
-          label: opt.label,
-        }))}
-      />
-
-      <DateRangePicker
-        label="Leave dates"
-        range={dateRange}
-        onChange={(next: DateRange) =>
-          setForm((s) => ({
-            ...s,
-            startDate: next.from ? toISODate(next.from) : "",
-            endDate: next.to ? toISODate(next.to) : "",
-          }))
-        }
-      />
-
-      {hasDateOrderIssue && (
-        <div className="text-sm text-rose-600 -mt-2">
-          End date cannot be earlier than the start date.
-        </div>
-      )}
-
-      <div
-        className="rounded-xl border px-3 py-2 text-gray-600"
-        style={{ borderColor: "#00156B20" }}
-      >
-        Total: <span className="font-semibold text-gray-800">{days}</span> days
-      </div>
-
-      <label className="block">
-        <span className="text-sm text-gray-700">Leave reason</span>
-        <textarea
-          rows={5}
-          value={form.reason}
-          onChange={(e) => setForm((s) => ({ ...s, reason: e.target.value }))}
-          className="w-full mt-1 rounded-xl border px-3 py-3 shadow-sm focus-visible:ring-2 focus-visible:ring-offset-0"
-          style={{
-            borderColor: "#00156B20",
-            boxShadow: "0 1px 2px rgba(0,0,0,.06)",
-          }}
-          placeholder="Example: family event, doctor appointment, etc."
-        />
-      </label>
-
-      <div>
-        <span className="text-sm text-gray-700">
-          Attachment (optional - disabled for testing)
-        </span>
-        <div className="mt-1 flex flex-col gap-3 sm:flex-row sm:items-center">
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*,application/pdf"
-            onChange={onPickFile}
-            disabled
-            className="w-full rounded-xl border px-3 py-2 shadow-sm text-sm file:mr-3 file:rounded-lg file:border-0 file:px-3 file:py-2 file:bg-[#00156B] file:text-white focus-visible:ring-2 focus-visible:ring-offset-0 sm:w-auto opacity-50 cursor-not-allowed"
-            style={{ borderColor: "#00156B20" }}
-          />
-          {form.attachment && (
-            <button
-              type="button"
-              onClick={clearFile}
-              className="w-full rounded-xl border px-3 py-2 text-sm shadow-sm self-start sm:w-auto sm:self-auto"
+    <>
+      <form onSubmit={handleSubmit} className="grid gap-4 text-[15px]">
+        {/* --- LEAVE TYPE --- */}
+        <div className="block">
+          <label className="mb-1.5 block text-xs font-semibold text-slate-700">
+            Leave Type <span className="text-rose-500">*</span>
+          </label>
+          <div className="relative">
+            <select
+              value={form.leaveType}
+              onChange={(e) =>
+                setForm((prev) => ({ ...prev, leaveType: e.target.value }))
+              }
+              // Mengembalikan style SelectBox original yang lebih clean
+              className="w-full appearance-none rounded-xl border bg-white px-3 py-3 text-sm shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
               style={{ borderColor: "#00156B20" }}
+              disabled={submitting}
             >
-              Remove
-            </button>
+              {LEAVE_TYPE_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="absolute right-3 top-1/2 size-4 -translate-y-1/2 opacity-70 pointer-events-none" />
+          </div>
+        </div>
+
+        {/* --- DATE RANGE --- */}
+        <div>
+          <label className="mb-1.5 block text-xs font-semibold text-slate-700">
+            Leave Dates <span className="text-rose-500">*</span>
+          </label>
+          <DateRangePicker
+            range={dateRange ?? { from: undefined, to: undefined }}
+            onChange={handleDateRangeChange}
+            disabled={submitting}
+          />
+          {hasDateOrderIssue && (
+            <p className="mt-1 text-xs text-rose-600">
+              End date cannot be earlier than the start date.
+            </p>
           )}
         </div>
-        {uploadingAttachment && (
-          <div className="mt-2 text-xs text-gray-500">
-            Uploading attachment…
-          </div>
-        )}
-        {attachmentError && (
-          <div className="mt-2 text-sm text-rose-600">{attachmentError}</div>
-        )}
-        {form.attachment && (
-          <div className="mt-3 space-y-2">
-            {isImg && (
-              <img
-                src={previewUrl || ""}
-                alt="Attachment preview"
-                className="max-h-40 max-w-full rounded-xl border object-contain"
-              />
+
+        {/* --- TOTAL DAYS (Restored Style) --- */}
+        <div
+          className="rounded-xl border px-3 py-2 text-gray-600"
+          style={{ borderColor: "#00156B20" }}
+        >
+          Total: <span className="font-semibold text-gray-800">{days}</span>{" "}
+          days
+        </div>
+
+        {/* --- REASON --- */}
+        <label className="block">
+          <span className="mb-1.5 block text-xs font-semibold text-slate-700">
+            Reason <span className="text-rose-500">*</span>
+          </span>
+          <textarea
+            value={form.reason}
+            onChange={(e) =>
+              setForm((prev) => ({ ...prev, reason: e.target.value }))
+            }
+            placeholder="Example: family event, doctor appointment, etc."
+            rows={5}
+            className="w-full rounded-xl border px-3 py-3 shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            style={{
+              borderColor: "#00156B20",
+              boxShadow: "0 1px 2px rgba(0,0,0,.06)",
+            }}
+            disabled={submitting}
+          />
+        </label>
+
+        {/* --- ATTACHMENT (Restored Style) --- */}
+        <div>
+          <span className="mb-1.5 block text-xs font-semibold text-slate-700">
+            Attachment (optional)
+          </span>
+
+          {/* Container Flex Row seperti Original */}
+          <div className="mt-1 flex flex-col gap-3 sm:flex-row sm:items-center">
+            <input
+              ref={fileRef}
+              type="file"
+              onChange={handleFileChange}
+              accept="image/*,application/pdf"
+              className="w-full rounded-xl border px-3 py-2 shadow-sm text-sm file:mr-3 file:rounded-lg file:border-0 file:px-3 file:py-2 file:bg-[#00156B] file:text-white focus-visible:ring-2 focus-visible:ring-offset-0 sm:w-auto"
+              style={{ borderColor: "#00156B20" }}
+              disabled={submitting}
+            />
+
+            {/* Tombol Remove dikembalikan menjadi Button, bukan Text Link */}
+            {form.attachment && (
+              <button
+                type="button"
+                onClick={clearFile}
+                className="w-full rounded-xl border px-3 py-2 text-sm shadow-sm self-start sm:w-auto sm:self-auto hover:bg-gray-50"
+                style={{ borderColor: "#00156B20" }}
+                disabled={submitting}
+              >
+                Remove
+              </button>
             )}
-            <div className="text-sm text-gray-600 break-words">
-              {attachmentMeta
-                ? `${attachmentMeta.name} (${formatAttachmentSize(attachmentMeta.size)})`
-                : `${form.attachment.name} (${formatAttachmentSize(form.attachment.size)})`}
+          </div>
+
+          {/* Preview Area */}
+          {form.attachment && (
+            <div className="mt-3 space-y-2">
+              {isImg && previewUrl && (
+                <img
+                  src={previewUrl}
+                  alt="Attachment preview"
+                  className="max-h-40 max-w-full rounded-xl border object-contain"
+                />
+              )}
+              <div className="text-sm text-gray-600 break-words">
+                {form.attachment.name} (
+                {formatAttachmentSize(form.attachment.size)})
+              </div>
             </div>
+          )}
+        </div>
+
+        {/* --- WALLET WARNING --- */}
+        {walletMismatch && (
+          <div className="rounded-xl bg-amber-50 p-3 text-xs text-amber-800 flex items-center">
+            <AlertCircle className="inline size-4 mr-2" />
+            Connected wallet does not match your registered wallet
           </div>
         )}
-      </div>
 
-      <button
-        type="submit"
-        disabled={
-          !valid ||
-          submitting ||
-          uploadingAttachment ||
-          !user ||
-          walletMismatch ||
-          !expectedWalletAddress
-        }
-        className="w-full inline-flex items-center justify-center rounded-xl px-4 py-3 text-white font-semibold shadow-md transition disabled:cursor-not-allowed disabled:bg-slate-400"
-        style={{ background: "#00156B" }}
-      >
-        {submitLabel}
-      </button>
+        {/* --- SUBMIT BUTTON --- */}
+        <button
+          type="submit"
+          disabled={!valid || submitting || walletMismatch}
+          className="w-full inline-flex items-center justify-center rounded-xl px-4 py-3 text-white font-semibold shadow-md transition disabled:cursor-not-allowed disabled:bg-slate-400 hover:brightness-110"
+          style={{ background: "#00156B" }}
+        >
+          {submitLabel}
+        </button>
+      </form>
 
-      {/* Insufficient Balance Modal */}
+      {/* --- INSUFFICIENT BALANCE MODAL (Restored Style) --- */}
       <Modal
-        open={insufficientBalanceModal.open}
+        open={insufficientBalance?.open ?? false}
         onClose={() => {
-          setInsufficientBalanceModal({ open: false, balance: 0, required: 0 });
-          // Reset form to prevent re-submission with same invalid data
+          closeInsufficientBalanceModal();
+          // Opsional: Reset form jika user menutup modal (seperti logic original)
           setForm({
-            leaveType: "CUTI",
+            leaveType: LEAVE_TYPE_OPTIONS[0].value,
             startDate: "",
             endDate: "",
             reason: "",
             attachment: null,
           });
-          setAttachmentMeta(null);
+          if (fileRef.current) fileRef.current.value = "";
         }}
       >
         <div className="flex flex-col items-center text-center">
-          {/* Warning Icon */}
+          {/* Warning Icon (Restored) */}
           <div
             className="rounded-full p-4 mb-4"
             style={{ backgroundColor: "#FFA50020" }}
@@ -797,30 +400,27 @@ export function LeaveRequestForm({
           </h2>
 
           {/* Description */}
-          <p className="text-gray-600 mb-6 leading-relaxed">
-            You need at least {insufficientBalanceModal.required} days of CUTI
-            balance. Currently, you have {insufficientBalanceModal.balance} day
-            {insufficientBalanceModal.balance !== 1 ? "s" : ""} available.
+          <p className="text-gray-600 mb-6 leading-relaxed px-4">
+            You need at least <b>{insufficientBalance?.required ?? 0}</b> days
+            of CUTI balance. Currently, you have{" "}
+            <b>{insufficientBalance?.balance ?? 0}</b> day
+            {(insufficientBalance?.balance ?? 0) !== 1 ? "s" : ""} available.
             Please adjust your leave request.
           </p>
 
-          {/* OK Button */}
+          {/* OK Button (Restored) */}
           <button
             onClick={() => {
-              setInsufficientBalanceModal({
-                open: false,
-                balance: 0,
-                required: 0,
-              });
-              // Reset form to prevent re-submission with same invalid data
+              closeInsufficientBalanceModal();
+              // Reset form logic
               setForm({
-                leaveType: "CUTI",
+                leaveType: LEAVE_TYPE_OPTIONS[0].value,
                 startDate: "",
                 endDate: "",
                 reason: "",
                 attachment: null,
               });
-              setAttachmentMeta(null);
+              if (fileRef.current) fileRef.current.value = "";
             }}
             className="w-full rounded-xl px-6 py-3 text-white font-semibold shadow-md transition hover:opacity-90"
             style={{ background: "#00156B" }}
@@ -829,6 +429,14 @@ export function LeaveRequestForm({
           </button>
         </div>
       </Modal>
-    </form>
+    </>
   );
+}
+
+// Helper
+function toISODate(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
 }
