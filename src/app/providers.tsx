@@ -9,6 +9,7 @@ import { WagmiProvider } from 'wagmi'
 import { wagmiConfig } from '@/lib/web3/wagmiConfig'
 import { useAuth } from '@/lib/state/auth'
 import { useChainConfig } from '@/lib/state/chain'
+import { useSessionTimeout } from '@/lib/hooks/useSessionTimeout'
 
 const queryClient = new QueryClient()
 
@@ -22,6 +23,7 @@ export function Providers({ children }: { children: ReactNode }) {
         >
           <AuthHydrator />
           <ChainConfigHydrator />
+          <SessionTimeoutTracker />
           {children}
         </RainbowKitProvider>
       </QueryClientProvider>
@@ -56,5 +58,10 @@ function ChainConfigHydrator() {
     }
   }, [hydrated, load])
 
+  return null
+}
+
+function SessionTimeoutTracker() {
+  useSessionTimeout()
   return null
 }

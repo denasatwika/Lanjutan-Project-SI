@@ -1,6 +1,6 @@
 import { HttpError } from "../types/errors";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE;
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8787";
 
 type ErrorPayload = { error: string };
 

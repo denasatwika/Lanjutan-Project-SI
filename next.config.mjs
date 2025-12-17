@@ -12,16 +12,22 @@ const nextConfig = {
       },
       {
         protocol: "https",
-        hostname: "*.mypinata.cloud", // Allow all Pinata subdomains
+        hostname: "*.mypinata.cloud",
         pathname: "/ipfs/**",
       },
+    ],
+  },
+  experimental: {
+    allowedDevOrigins: [
+      "http://192.168.110.250:3000",
+      "http://192.168.110.250",
     ],
   },
 };
 
 export default withPWA({
   dest: "public",
-  disable: false, // Enable PWA even in development for mobile testing
+  disable: false,
   register: true,
   skipWaiting: true,
 })(nextConfig);
