@@ -83,8 +83,6 @@ export class LeaveRequestService {
   ): Promise<SubmitLeaveRequestResult> {
     const { formData, userId, userWalletAddress, days, chainConfig, signTypedDataFn } = params;
 
-    alert('DEBUG: Starting leave request submission');
-
     let uploadedAttachment: AttachmentInfo | null = null;
 
     // Step 1: Upload attachment (if provided)
