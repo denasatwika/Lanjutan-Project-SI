@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { UserRejectedRequestError } from "viem";
 import type { Address } from "viem";
+import { useSignTypedData } from "wagmi";
 import {
   LeaveRequestService,
   type LeaveFormData,
@@ -40,6 +41,9 @@ export type UseLeaveRequestResult = {
 export function useLeaveRequest(): UseLeaveRequestResult {
   const router = useRouter();
   const upsertRequest = useRequests((state) => state.upsertFromApi);
+  
+  // Use wagmi's signTypedData hook (same pattern as login uses signMessage)
+  const { signTypedDataAsync } = useSignTypedData();
 
   const [submitting, setSubmitting] = useState(false);
   const [submitStep, setSubmitStep] = useState<SubmitStep>(null);
@@ -65,7 +69,11 @@ export function useLeaveRequest(): UseLeaveRequestResult {
       });
 
       try {
-        const result = await service.submit(params);
+        // Pass wagmi's signTypedDataAsync to the service
+        const result = await service.submit({
+          ...params,
+          signTypedDataFn: signTypedDataAsync,
+        });
 
         // Update local state with properly typed RequestResponse
         const created: import("../api/requests").RequestResponse = {
@@ -110,7 +118,7 @@ export function useLeaveRequest(): UseLeaveRequestResult {
         setSubmitStep(null);
       }
     },
-    [router, upsertRequest, submitStep],
+    [router, upsertRequest, submitStep, signTypedDataAsync],
   );
 
   const closeInsufficientBalanceModal = useCallback(() => {

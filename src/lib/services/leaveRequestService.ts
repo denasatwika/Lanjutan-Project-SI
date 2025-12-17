@@ -9,8 +9,6 @@ import { uploadAttachment, type AttachmentInfo } from "../api/attachments";
 import type { ChainConfig } from "../api/chain";
 import {
   checkCutiTokenBalance,
-  signTypedData,
-  ensureChain,
 } from "./web3Service";
 
 export class InsufficientBalanceError extends Error {
@@ -39,6 +37,7 @@ export type SubmitLeaveRequestParams = {
   userWalletAddress: Address;
   days: number;
   chainConfig: ChainConfig;
+  signTypedDataFn: (args: any) => Promise<`0x${string}`>;
 };
 
 export type SubmitLeaveRequestResult = {
@@ -82,7 +81,9 @@ export class LeaveRequestService {
   async submit(
     params: SubmitLeaveRequestParams,
   ): Promise<SubmitLeaveRequestResult> {
-    const { formData, userId, userWalletAddress, days, chainConfig } = params;
+    const { formData, userId, userWalletAddress, days, chainConfig, signTypedDataFn } = params;
+
+    alert('DEBUG: Starting leave request submission');
 
     let uploadedAttachment: AttachmentInfo | null = null;
 
@@ -129,12 +130,7 @@ export class LeaveRequestService {
       approvals: [],
     });
 
-    // Step 4: Ensure correct network
-    await ensureChain(chainConfig, {
-      allowAdd: true,
-      chainName: chainConfig.name,
-      nativeCurrency: chainConfig.nativeCurrency,
-    });
+
 
     // Step 5: Prepare meta-transaction
     this.progress("prepare", "Preparing transaction...");
@@ -142,15 +138,21 @@ export class LeaveRequestService {
       leaveRequestId: created.id,
     });
 
-    // Step 6: Sign typed data
+    // Step 6: Sign typed data using wagmi's signTypedDataAsync
+
     this.progress("sign", "Waiting for signature...");
-    const signature = await signTypedData({
-      signerAddress: userWalletAddress,
-      domain: prepareResponse.domain,
-      types: prepareResponse.types,
-      primaryType: prepareResponse.primaryType ?? "ForwardRequest",
-      message: prepareResponse.message,
-    });
+    
+    let signature: `0x${string}`;
+    try {
+      signature = await signTypedDataFn({
+        domain: prepareResponse.domain,
+        types: prepareResponse.types,
+        primaryType: prepareResponse.primaryType ?? "ForwardRequest",
+        message: prepareResponse.message,
+      });
+    } catch (signError) {
+      throw signError;
+    }
 
     // Step 7: Submit to relayer
     this.progress("relay", "Submitting to blockchain...");
