@@ -128,31 +128,23 @@ export class LeaveRequestService {
       approvals: [],
     });
 
-
-
-    // Step 5: Prepare meta-transaction
+    // Step 4: Prepare meta-transaction
     this.progress("prepare", "Preparing transaction...");
     const prepareResponse = await prepareLeaveRequestMeta({
       leaveRequestId: created.id,
     });
 
-    // Step 6: Sign typed data using wagmi's signTypedDataAsync
-
+    // Step 5: Sign typed data using wagmi's signTypedDataAsync
+    // This triggers MetaMask mobile deep linking properly
     this.progress("sign", "Waiting for signature...");
-    
-    let signature: `0x${string}`;
-    try {
-      signature = await signTypedDataFn({
-        domain: prepareResponse.domain,
-        types: prepareResponse.types,
-        primaryType: prepareResponse.primaryType ?? "ForwardRequest",
-        message: prepareResponse.message,
-      });
-    } catch (signError) {
-      throw signError;
-    }
+    const signature = await signTypedDataFn({
+      domain: prepareResponse.domain,
+      types: prepareResponse.types,
+      primaryType: prepareResponse.primaryType ?? "ForwardRequest",
+      message: prepareResponse.message,
+    });
 
-    // Step 7: Submit to relayer
+    // Step 6: Submit to relayer
     this.progress("relay", "Submitting to blockchain...");
     const relayResponse = await submitLeaveRequestMeta({
       request: prepareResponse.request,
