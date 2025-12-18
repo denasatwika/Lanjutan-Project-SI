@@ -20,6 +20,9 @@ const nextConfig = {
   // Allow access from local network devices (for mobile testing)
   experimental: {
     allowedDevOrigins: [
+      "http://192.168.110.250:3000",
+      "http://192.168.110.250:3001",
+      "http://192.168.110.250",
       "http://192.168.1.31:3000",
       "http://192.168.1.31",
     ],
