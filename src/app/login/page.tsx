@@ -55,7 +55,7 @@ export default function LoginPage() {
         const destinationMap: Record<"user" | "approver" | "admin", string> = {
           user: "/user/dashboard",
           approver: "/approver/dashboard",
-          admin: "/admin/dashboard",
+          admin: "/approver/dashboard",
         };
         const destination =
           destinationMap[session.primaryRole] ?? "/user/dashboard";
