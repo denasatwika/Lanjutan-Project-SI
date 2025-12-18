@@ -1,4 +1,4 @@
-# ![Baliola]( MyBaliola Frontend
+# MyBaliola Frontend
 
 **Blockchain-Based Leave Management System**
 
