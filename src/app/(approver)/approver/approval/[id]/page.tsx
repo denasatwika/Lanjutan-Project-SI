@@ -7,7 +7,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import clsx from "clsx";
 import { ChevronDown } from "lucide-react";
 import { toast } from "sonner";
-import { useAccount } from "wagmi";
+import { useAccount, useSignTypedData } from "wagmi";
 import { PageHeader } from "@/components/PageHeader";
 import {
   buildAttachmentDownloadUrl,
@@ -37,7 +37,6 @@ import { ensureChain } from "@/lib/web3/network";
 import {
   EthereumProviderUnavailableError,
   UserRejectedRequestError,
-  signForwardRequest,
 } from "@/lib/web3/signing";
 import { encodeCollectRejection } from "@/lib/web3/contracts";
 import {
@@ -68,6 +67,7 @@ export default function ApproverApprovalDetailPage() {
   const approvalIdFromQuery = searchParams.get("approval");
   const user = useAuth((state) => state.user);
   const { address: connectedAddress } = useAccount();
+  const { signTypedDataAsync } = useSignTypedData();
   const chainConfig = useChainConfig((state) => state.config);
   const {
     address: expectedWalletAddress,
@@ -322,22 +322,15 @@ export default function ApproverApprovalDetailPage() {
     setSubmitting(decision);
     setErrorMessage(null);
     try {
+      alert("DEBUG: Starting approval decision - getting addresses");
       const forwarderAddress = ensureForwarderAddress(chainConfig);
       const multisigAddress = ensureCompanyMultisigAddress(chainConfig);
+      alert("DEBUG: Got addresses, about to call ensureChain");
 
-      try {
-        await ensureChain(chainConfig, {
-          allowAdd: true,
-          chainName: chainConfig.name,
-          nativeCurrency: chainConfig.nativeCurrency,
-        });
-      } catch (networkError) {
-        throw new Error(
-          networkError instanceof Error
-            ? networkError.message
-            : "Please switch your wallet to the configured network.",
-        );
-      }
+      // REMOVED: ensureChain() call - doesn't work on mobile
+      // Mobile wallets handle chain switching through their own UI
+      // The wagmi hooks will automatically trigger the wallet app
+      alert("DEBUG: Skipped ensureChain, continuing with signature");
 
       const signerAddress = expectedWalletAddress as `0x${string}`;
       const deadline = BigInt(Math.floor(Date.now() / 1000) + 60 * 60 * 24);
@@ -396,10 +389,25 @@ export default function ApproverApprovalDetailPage() {
           );
         }
       }
-      const signature = await signForwardRequest(
-        signerAddress,
-        prepareResponse,
+      alert(
+        "DEBUG: About to request signature for approval - MetaMask should open!",
       );
+      let signature;
+      try {
+        signature = await signTypedDataAsync({
+          domain: prepareResponse.domain,
+          types: prepareResponse.types,
+          primaryType: prepareResponse.primaryType ?? "ForwardRequest",
+          message: prepareResponse.message,
+        });
+        alert("DEBUG: Signature received! Length: " + signature.length);
+      } catch (error) {
+        alert(
+          "DEBUG: Signature ERROR: " +
+            (error instanceof Error ? error.message : String(error)),
+        );
+        throw error;
+      }
       const relayResponse = await submitApprovalMeta({
         request: prepareResponse.request,
         signature,
@@ -512,19 +520,9 @@ export default function ApproverApprovalDetailPage() {
     try {
       const multisigAddress = ensureCompanyMultisigAddress(chainConfig);
 
-      try {
-        await ensureChain(chainConfig, {
-          allowAdd: true,
-          chainName: chainConfig.name,
-          nativeCurrency: chainConfig.nativeCurrency,
-        });
-      } catch (networkError) {
-        throw new Error(
-          networkError instanceof Error
-            ? networkError.message
-            : "Please switch your wallet to the configured network.",
-        );
-      }
+      // REMOVED: ensureChain() call - doesn't work on mobile
+      // Mobile wallets handle chain switching through their own UI
+      // The wagmi hooks will automatically trigger the wallet app
 
       const signerAddress = expectedWalletAddress as `0x${string}`;
 
@@ -575,12 +573,27 @@ export default function ApproverApprovalDetailPage() {
       });
 
       // Sign ForwardRequest
-      const signature = await signForwardRequest(signerAddress, {
-        domain: prepared.domain,
-        types: prepared.types,
-        message: prepared.message as any,
-        primaryType: prepared.primaryType,
-      });
+      alert(
+        "DEBUG: About to request signature for rejection - MetaMask should open!",
+      );
+      let signature;
+      try {
+        signature = await signTypedDataAsync({
+          domain: prepared.domain,
+          types: prepared.types,
+          primaryType: prepared.primaryType,
+          message: prepared.message,
+        });
+        alert(
+          "DEBUG: Rejection signature received! Length: " + signature.length,
+        );
+      } catch (error) {
+        alert(
+          "DEBUG: Rejection signature ERROR: " +
+            (error instanceof Error ? error.message : String(error)),
+        );
+        throw error;
+      }
 
       // Submit to blockchain via relayer
       const result = await submitForwardRequest({
