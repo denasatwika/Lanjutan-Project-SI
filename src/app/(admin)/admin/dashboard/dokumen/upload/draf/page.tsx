@@ -4,24 +4,7 @@ import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { FileText, Loader2, AlertTriangle, CheckCircle } from "lucide-react";
-import { API_ENDPOINTS } from "@/lib/api/documents";
-import Cookies from "js-cookie";
-
-// Definisikan struktur dokumen sesuai respons API Anda
-interface Document {
-  id: number;
-  title: string;
-  filename: string;
-  status: string;
-  // Tambahkan field relevan lainnya jika perlu
-}
-
-// (REKOMENDASI) Definisikan struktur respons dari endpoint batch
-interface BatchApiResponse {
-  batchId: string;
-  documents: Document[];
-  totalCount: number;
-}
+import { getDocumentsByBatchId, Document } from "@/lib/api/documents";
 
 function DraftPageContent() {
   const searchParams = useSearchParams();
@@ -40,53 +23,27 @@ function DraftPageContent() {
 
     const fetchDocuments = async () => {
       setIsLoading(true);
-      setError(null); // Reset error state on new fetch
-      const token = Cookies.get("auth_token");
-
+      setError(null);
       try {
-        const response = await fetch(API_ENDPOINTS.GET_BATCH(batchId), {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "ngrok-skip-browser-warning": "true",
-          },
-        });
+        // Gunakan fungsi API yang sudah ada. Kita asumsikan ia mengembalikan objek.
+        const data: any = await getDocumentsByBatchId(batchId);
 
-        if (!response.ok) {
-          // Coba parse error JSON jika ada
-          try {
-            const errorData = await response.json();
-            throw new Error(
-              errorData.error || "Gagal mengambil data dokumen dari server."
-            );
-          } catch (e) {
-            // Jika respons bukan JSON, tampilkan sebagai teks biasa
-            const errorText = await response.text();
-            console.error("Server returned non-JSON response:", errorText);
-            throw new Error(
-              `Terjadi kesalahan pada server (status: ${response.status}). Cek console browser.`
-            );
-          }
-        }
-
-        // --- PERBAIKAN DI SINI ---
-        const data: BatchApiResponse = await response.json();
-
-        // Pastikan 'documents' ada di dalam respons sebelum di-set
+        // Periksa apakah respons adalah objek yang berisi array 'documents'
         if (data && Array.isArray(data.documents)) {
           const draftDocuments = data.documents.filter(
-            (doc) => doc.status.toLowerCase() === "draft"
+            (doc: Document) => doc.status.toLowerCase() === "draft"
           );
           setDocuments(draftDocuments);
         } else {
+          // Jika strukturnya masih salah, beri pesan error yang jelas.
           console.error(
-            "Struktur data tidak sesuai, 'documents' tidak ditemukan:",
+            "Struktur data tidak sesuai, 'documents' tidak ditemukan dalam objek respons:",
             data
           );
           throw new Error(
             "Respons dari server tidak memiliki format yang diharapkan."
           );
         }
-        // --- AKHIR PERBAIKAN ---
       } catch (err: any) {
         setError(err.message);
       } finally {

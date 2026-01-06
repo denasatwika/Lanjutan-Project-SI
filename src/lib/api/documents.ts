@@ -1,13 +1,18 @@
 import { HttpError } from "../types/errors";
+import Cookies from "js-cookie";
 
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8787";
+export const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8787";
 
 async function parseJson<T>(response: Response): Promise<T> {
   const text = await response.text();
   const data = text ? JSON.parse(text) : undefined;
 
   if (!response.ok) {
-    const message = (data as { error: string } | undefined)?.error ?? response.statusText ?? "Request failed";
+    const message =
+      (data as { error: string } | undefined)?.error ??
+      response.statusText ??
+      "Request failed";
     throw new HttpError(message, response.status);
   }
 
@@ -50,14 +55,27 @@ export type Document = {
   id: string;
   title: string;
   filename: string;
-  status: 'draft' | 'pending' | 'signed' | 'rejected';
+  status: "draft" | "pending" | "signed" | "rejected";
   sizeBytes: number;
   createdAt: string;
   updatedAt: string;
 };
 
+export async function getAllDocuments(): Promise<Document[]> {
+  const token = Cookies.get("auth_token");
+  const response = await fetch(API_ENDPOINTS.GET_ALL_DOCUMENTS, {
+    method: "GET",
+    credentials: "include",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  return parseJson<Document[]>(response);
+}
 
-export async function getDocumentsByBatchId(batchId: string): Promise<Document[]> {
+export async function getDocumentsByBatchId(
+  batchId: string
+): Promise<Document[]> {
   const response = await fetch(API_ENDPOINTS.GET_BATCH(batchId), {
     method: "GET",
     credentials: "include",
@@ -67,7 +85,7 @@ export async function getDocumentsByBatchId(batchId: string): Promise<Document[]
 }
 
 export async function uploadDocuments(
-  formData: FormData,
+  formData: FormData
 ): Promise<UploadResponse> {
   const response = await fetch(API_ENDPOINTS.UPLOAD_DOCUMENTS, {
     method: "POST",

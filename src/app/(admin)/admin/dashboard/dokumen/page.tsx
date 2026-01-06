@@ -5,7 +5,6 @@ import {
   FileText,
   Plus,
   Search,
-  Settings,
   Calendar,
   X,
   Filter,
@@ -18,8 +17,7 @@ import DokumenCard, {
   Document,
 } from "@/components/sign-baliola/staf/dashboard/DokumenCard";
 import Pagination from "@/components/sign-baliola/staf/dashboard/Pagination";
-import { API_ENDPOINTS } from "@/lib/api/documents";
-import Cookies from "js-cookie";
+import { getAllDocuments } from "@/lib/api/documents";
 import dynamic from "next/dynamic";
 
 const ViewDocumentModal = dynamic(
@@ -60,28 +58,15 @@ export default function StaffDashboard() {
     const fetchDocuments = async () => {
       setIsLoading(true);
       setError(null);
-      const token = Cookies.get("auth_token");
-
       try {
-        const response = await fetch(API_ENDPOINTS.GET_ALL_DOCUMENTS, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "ngrok-skip-browser-warning": "true",
-          },
-        });
-
-        if (!response.ok) {
-          throw new Error("Gagal mengambil data dokumen.");
-        }
-
-        const data: Document[] = await response.json();
+        const data = await getAllDocuments();
         const sortedData = data.sort(
           (a, b) =>
             new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
         );
         setAllDocuments(sortedData);
       } catch (err: any) {
-        setError(err.message);
+        setError(err.message || "Gagal mengambil data dokumen.");
       } finally {
         setIsLoading(false);
       }
