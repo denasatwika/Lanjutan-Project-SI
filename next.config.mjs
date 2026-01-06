@@ -2,6 +2,11 @@ import withPWA from "@ducanh2912/next-pwa";
 
 /** @type {import("next").NextConfig} */
 const nextConfig = {
+  transpilePackages: ["react-pdf", "pdfjs-dist"],
+  webpack: (config) => {
+    config.resolve.alias.canvas = false;
+    return config;
+  },
   reactStrictMode: true,
   images: {
     remotePatterns: [

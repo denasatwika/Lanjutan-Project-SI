@@ -1,0 +1,79 @@
+import { HttpError } from "../types/errors";
+
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8787";
+
+async function parseJson<T>(response: Response): Promise<T> {
+  const text = await response.text();
+  const data = text ? JSON.parse(text) : undefined;
+
+  if (!response.ok) {
+    const message = (data as { error: string } | undefined)?.error ?? response.statusText ?? "Request failed";
+    throw new HttpError(message, response.status);
+  }
+
+  return data as T;
+}
+
+export const API_ENDPOINTS = {
+  LOGIN: `${API_BASE_URL}/users/login`,
+  UPLOAD_DOCUMENTS: `${API_BASE_URL}/documents/upload`,
+  GET_ALL_DOCUMENTS: `${API_BASE_URL}/documents`,
+  GET_BATCH: (batchId: string) => `${API_BASE_URL}/documents/batch/${batchId}`,
+  GET_DOCUMENT: (documentId: number) =>
+    `${API_BASE_URL}/documents/${documentId}`,
+  UPDATE_DOCUMENT: (documentId: number) =>
+    `${API_BASE_URL}/documents/${documentId}`,
+  GET_DOCUMENT_FILE: (filePath: string) =>
+    `${API_BASE_URL}/documents/${filePath}`,
+  VIEW_DOCUMENT: (filePath: string) =>
+    `${API_BASE_URL}/documents/view/${filePath}`,
+  GET_CHIEF_DOCUMENTS: (userId: number) =>
+    `${API_BASE_URL}/signers/documents?userId=${userId}`,
+  GET_DOCUMENT_TO_SIGN: (documentId: string, userId: number) =>
+    `${API_BASE_URL}/signers/documents/${documentId}/sign?userId=${userId}`,
+  GET_USER_SIGNATURE: (userId: number) =>
+    `${API_BASE_URL}/signatures/user/${userId}`,
+  UPLOAD_SIGNATURE: `${API_BASE_URL}/signatures/upload`,
+  SAVE_CANVAS_SIGNATURE: `${API_BASE_URL}/signatures/save-canvas`,
+  GET_NOTIFICATIONS: (userId: number) =>
+    `${API_BASE_URL}/signers/notifications?userId=${userId}`,
+  REJECT_DOCUMENT: (documentId: string) =>
+    `${API_BASE_URL}/signers/documents/${documentId}/reject`,
+};
+
+export type UploadResponse = {
+  uploadBatchId: string;
+  // Add other expected properties from the response
+};
+
+export type Document = {
+  id: string;
+  title: string;
+  filename: string;
+  status: 'draft' | 'pending' | 'signed' | 'rejected';
+  sizeBytes: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+
+export async function getDocumentsByBatchId(batchId: string): Promise<Document[]> {
+  const response = await fetch(API_ENDPOINTS.GET_BATCH(batchId), {
+    method: "GET",
+    credentials: "include",
+  });
+
+  return parseJson<Document[]>(response);
+}
+
+export async function uploadDocuments(
+  formData: FormData,
+): Promise<UploadResponse> {
+  const response = await fetch(API_ENDPOINTS.UPLOAD_DOCUMENTS, {
+    method: "POST",
+    credentials: "include", // Use cookie-based session authentication
+    body: formData,
+  });
+
+  return parseJson<UploadResponse>(response);
+}

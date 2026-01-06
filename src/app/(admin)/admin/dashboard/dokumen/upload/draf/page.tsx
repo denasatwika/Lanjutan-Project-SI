@@ -1,0 +1,194 @@
+"use client";
+
+import { useEffect, useState, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { FileText, Loader2, AlertTriangle, CheckCircle } from "lucide-react";
+import { API_ENDPOINTS } from "@/lib/api/documents";
+import Cookies from "js-cookie";
+
+// Definisikan struktur dokumen sesuai respons API Anda
+interface Document {
+  id: number;
+  title: string;
+  filename: string;
+  status: string;
+  // Tambahkan field relevan lainnya jika perlu
+}
+
+// (REKOMENDASI) Definisikan struktur respons dari endpoint batch
+interface BatchApiResponse {
+  batchId: string;
+  documents: Document[];
+  totalCount: number;
+}
+
+function DraftPageContent() {
+  const searchParams = useSearchParams();
+  const batchId = searchParams.get("batchId");
+
+  const [documents, setDocuments] = useState<Document[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!batchId) {
+      setError("Batch ID tidak ditemukan di URL.");
+      setIsLoading(false);
+      return;
+    }
+
+    const fetchDocuments = async () => {
+      setIsLoading(true);
+      setError(null); // Reset error state on new fetch
+      const token = Cookies.get("auth_token");
+
+      try {
+        const response = await fetch(API_ENDPOINTS.GET_BATCH(batchId), {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "ngrok-skip-browser-warning": "true",
+          },
+        });
+
+        if (!response.ok) {
+          // Coba parse error JSON jika ada
+          try {
+            const errorData = await response.json();
+            throw new Error(
+              errorData.error || "Gagal mengambil data dokumen dari server."
+            );
+          } catch (e) {
+            // Jika respons bukan JSON, tampilkan sebagai teks biasa
+            const errorText = await response.text();
+            console.error("Server returned non-JSON response:", errorText);
+            throw new Error(
+              `Terjadi kesalahan pada server (status: ${response.status}). Cek console browser.`
+            );
+          }
+        }
+
+        // --- PERBAIKAN DI SINI ---
+        const data: BatchApiResponse = await response.json();
+
+        // Pastikan 'documents' ada di dalam respons sebelum di-set
+        if (data && Array.isArray(data.documents)) {
+          const draftDocuments = data.documents.filter(
+            (doc) => doc.status.toLowerCase() === "draft"
+          );
+          setDocuments(draftDocuments);
+        } else {
+          console.error(
+            "Struktur data tidak sesuai, 'documents' tidak ditemukan:",
+            data
+          );
+          throw new Error(
+            "Respons dari server tidak memiliki format yang diharapkan."
+          );
+        }
+        // --- AKHIR PERBAIKAN ---
+      } catch (err: any) {
+        setError(err.message);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchDocuments();
+  }, [batchId]);
+
+  if (isLoading) {
+    return (
+      <div className="text-center p-10">
+        <Loader2 className="h-12 w-12 animate-spin mx-auto text-blue-950" />
+        <p className="mt-4 text-gray-600">Memuat dokumen...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-md flex items-center">
+        <AlertTriangle className="h-6 w-6 mr-3" />
+        <div>
+          <p className="font-bold">Terjadi Kesalahan</p>
+          <p>{error}</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="text-sm text-gray-500">
+        <span>Beranda</span> / <span>Upload</span> /{" "}
+        <span className="text-gray-800 font-medium">Draft</span>
+      </div>
+
+      <div className="bg-white rounded-2xl p-8">
+        <div className="text-center border-b pb-6 mb-6">
+          <CheckCircle size={60} className="inline-block text-green-500" />
+          <h1 className="text-2xl font-bold mt-4">Upload Berhasil!</h1>
+          <p className="text-gray-600 mt-2">
+            Pilih dokumen di bawah ini untuk melanjutkan ke proses penentuan
+            posisi tanda tangan.
+          </p>
+        </div>
+
+        <div className="space-y-3">
+          <h2 className="text-lg font-semibold text-gray-800 mb-3">
+            Dokumen dalam Batch Ini:
+          </h2>
+          {documents.length > 0 ? (
+            documents.map((doc) => (
+              <div
+                key={doc.id}
+                className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between hover:bg-gray-50 transition-colors"
+              >
+                <div className="flex gap-3 items-center">
+                  <FileText size={36} className="text-blue-950" />
+                  <div>
+                    <h3 className="text-md font-medium text-gray-900">
+                      {doc.title || doc.filename}
+                    </h3>
+                    <p
+                      className={`text-sm font-semibold ${
+                        doc.status === "draft"
+                          ? "text-orange-500"
+                          : "text-green-600"
+                      }`}
+                    >
+                      Status: {doc.status}
+                    </p>
+                  </div>
+                </div>
+                <Link
+                  href={`/admin/dashboard/dokumen/upload/signed?documentId=${doc.id}&batchId=${batchId}`}
+                >
+                  <button className="flex items-center gap-1 rounded-lg bg-blue-950 text-white px-6 py-2.5 text-sm font-semibold hover:bg-blue-800 transition-colors w-full sm:w-auto justify-center">
+                    Pilih Dokumen
+                  </button>
+                </Link>
+              </div>
+            ))
+          ) : (
+            <p className="text-center text-gray-500 py-6">
+              Tidak ada dokumen yang ditemukan dalam batch ini.
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Bungkus komponen konten utama dengan Suspense
+export default function DraftPage() {
+  return (
+    <Suspense
+      fallback={<div className="text-center p-10">Memuat halaman...</div>}
+    >
+      <DraftPageContent />
+    </Suspense>
+  );
+}

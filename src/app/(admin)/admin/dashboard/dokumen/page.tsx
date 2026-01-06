@@ -1,147 +1,175 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { FileText, Plus, Search } from "lucide-react";
+import { useEffect, useState } from "react";
+import {
+  FileText,
+  Plus,
+  Search,
+  Settings,
+  Calendar,
+  X,
+  Filter,
+  Check,
+  LoaderCircle,
+} from "lucide-react";
 import Link from "next/link";
-import StatCards from "@/components/sign-baliola/StatCards";
-import DokumenCard, { Document } from "@/components/sign-baliola/DokumenCard";
-import Pagination from "@/components/sign-baliola/Pagination";
+import StatCards from "@/components/sign-baliola/staf/dashboard/StatCards";
+import DokumenCard, {
+  Document,
+} from "@/components/sign-baliola/staf/dashboard/DokumenCard";
+import Pagination from "@/components/sign-baliola/staf/dashboard/Pagination";
+import { API_ENDPOINTS } from "@/lib/api/documents";
+import Cookies from "js-cookie";
+import dynamic from "next/dynamic";
 
-/**
- * Dummy data generator
- * You can tweak the count, titles, and fields freely.
- */
-const STATUSES = ["draft", "pending", "signed", "rejected"] as const;
-
-function daysAgo(n: number) {
-  const d = new Date();
-  d.setDate(d.getDate() - n);
-  return d.toISOString();
-}
-
-function makeDoc(
-  id: number,
-  title: string,
-  status: (typeof STATUSES)[number],
-  daysOld: number,
-  extra?: Partial<Document>
-): Document {
-  // Provide common fields often used by a DokumenCard component.
-  // If your DokumenCard expects additional fields, you can add them here.
-  const base = {
-    id: String(id),
-    title,
-    status,
-    createdAt: daysAgo(daysOld),
-    // Common optional fields (adjust freely)
-    description:
-      "Dokumen internal untuk keperluan administrasi. Silakan ditinjau sesuai alur kerja.",
-    ownerName: ["Ayu", "Budi", "Citra", "Dewi", "Eka"][id % 5],
-    fileUrl: "#",
-    // Add anything else your DokumenCard uses:
-    updatedAt: daysAgo(Math.max(0, daysOld - 1)),
-    tags: ["Internal", "HR", status.toUpperCase()],
-  };
-
-  // Cast to Document to satisfy TypeScript even if your exported type is stricter.
-  return { ...base, ...(extra ?? {}) } as unknown as Document;
-}
-
-const DUMMY_DOCUMENTS: Document[] = [
-  makeDoc(1, "Surat Keterangan Kerja", "signed", 1),
-  makeDoc(2, "Kontrak Kerja – Perpanjangan", "pending", 3),
-  makeDoc(3, "Form Cuti Tahunan – Budi", "draft", 5),
-  makeDoc(4, "Laporan Kehadiran Q3", "rejected", 8),
-  makeDoc(5, "Perjanjian Kerahasiaan (NDA)", "signed", 10),
-  makeDoc(6, "Form Lembur – Tim Operasional", "pending", 12),
-  makeDoc(7, "SOP Onboarding Karyawan", "draft", 13),
-  makeDoc(8, "Revisi Struktur Gaji 2025", "pending", 14),
-  makeDoc(9, "SK Pengangkatan Sementara", "signed", 15),
-  makeDoc(10, "Notulen Rapat HR Bulanan", "draft", 16),
-  makeDoc(11, "Form Perubahan Data Karyawan", "rejected", 18),
-  makeDoc(12, "Daftar Hadir Pelatihan", "signed", 20),
-  makeDoc(13, "Template Evaluasi Kinerja", "draft", 22),
-  makeDoc(14, "Form Cuti Melahirkan – Citra", "pending", 24),
-  makeDoc(15, "Surat Peringatan Tahap I", "rejected", 25),
-  makeDoc(16, "Pakta Integritas", "signed", 27),
-  makeDoc(17, "Daftar Pengajuan Izin", "pending", 28),
-  makeDoc(18, "Form Reimbursement Kesehatan", "draft", 29),
-  makeDoc(19, "Serah Terima Aset", "signed", 30),
-  makeDoc(20, "Form Mutasi Internal", "pending", 32),
-  makeDoc(21, "Memo Kebijakan WFH", "draft", 35),
-  makeDoc(22, "Checklist Exit Interview", "signed", 36),
-  makeDoc(23, "Kontrak Vendor Rekrutmen", "rejected", 40),
-];
+const ViewDocumentModal = dynamic(
+  () => import("@/components/sign-baliola/staf/dashboard/ViewDocumentModal"),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50">
+        <div className="flex flex-col items-center justify-center h-full p-10">
+          <LoaderCircle className="animate-spin h-8 w-8 text-white" />
+          <p className="mt-4 text-gray-300">Memuat pratinjau dokumen...</p>
+        </div>
+      </div>
+    ),
+  }
+);
 
 export default function StaffDashboard() {
   const [allDocuments, setAllDocuments] = useState<Document[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [error] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [showFilters, setShowFilters] = useState(false);
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [appliedStartDate, setAppliedStartDate] = useState("");
+  const [appliedEndDate, setAppliedEndDate] = useState("");
+  const [appliedSearchQuery, setAppliedSearchQuery] = useState("");
+  const [viewingDocId, setViewingDocId] = useState<number | null>(null);
+  const [appliedActiveFilter, setAppliedActiveFilter] = useState<string | null>(
+    null
+  );
   const docsPerPage = 5;
 
-  // On mount: simulate fetching with dummy data
   useEffect(() => {
-    setIsLoading(true);
+    const fetchDocuments = async () => {
+      setIsLoading(true);
+      setError(null);
+      const token = Cookies.get("auth_token");
 
-    // Simulate latency (optional). You can remove setTimeout for instant load.
-    const t = setTimeout(() => {
-      // Sort newest first (based on createdAt) — same behavior you had
-      const sorted = [...DUMMY_DOCUMENTS].sort(
-        (a, b) =>
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      );
-      setAllDocuments(sorted);
-      setIsLoading(false);
-    }, 300);
+      try {
+        const response = await fetch(API_ENDPOINTS.GET_ALL_DOCUMENTS, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "ngrok-skip-browser-warning": "true",
+          },
+        });
 
-    return () => clearTimeout(t);
+        if (!response.ok) {
+          throw new Error("Gagal mengambil data dokumen.");
+        }
+
+        const data: Document[] = await response.json();
+        const sortedData = data.sort(
+          (a, b) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+        setAllDocuments(sortedData);
+      } catch (err: any) {
+        setError(err.message);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchDocuments();
   }, []);
+
+  const handleApplyFilters = () => {
+    setAppliedSearchQuery(searchQuery);
+    setAppliedActiveFilter(activeFilter);
+    setAppliedStartDate(startDate);
+    setAppliedEndDate(endDate);
+    setCurrentPage(1);
+  };
+
+  const handleClearFilters = () => {
+    setActiveFilter(null);
+    setStartDate("");
+    setEndDate("");
+    setSearchQuery("");
+    setAppliedSearchQuery("");
+    setAppliedActiveFilter(null);
+    setAppliedStartDate("");
+    setAppliedEndDate("");
+    setCurrentPage(1);
+  };
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(e.target.value);
-    setCurrentPage(1);
   };
 
   const handleFilterChange = (status: string | null) => {
     setActiveFilter(activeFilter === status ? null : status);
-    setCurrentPage(1);
   };
 
-  const filteredDocuments = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    return allDocuments
-      .filter((doc) => (q ? doc.title.toLowerCase().includes(q) : true))
-      .filter((doc) =>
-        activeFilter ? doc.status.toLowerCase() === activeFilter : true
-      );
-  }, [allDocuments, searchQuery, activeFilter]);
+  const filteredDocuments = allDocuments
+    .filter((doc) =>
+      doc.title.toLowerCase().includes(appliedSearchQuery.toLowerCase())
+    )
+    .filter((doc) =>
+      appliedActiveFilter
+        ? doc.status.toLowerCase() === appliedActiveFilter
+        : true
+    )
+    .filter((doc) => {
+      if (!appliedStartDate || !appliedEndDate) return true;
+      const docDate = new Date(doc.createdAt);
+      const start = new Date(appliedStartDate);
+      const end = new Date(appliedEndDate);
+      start.setHours(0, 0, 0, 0);
+      end.setHours(23, 59, 59, 999);
+      return docDate >= start && docDate <= end;
+    });
 
-  // Pagination
+  // Pagination logic
   const indexOfLastDoc = currentPage * docsPerPage;
   const indexOfFirstDoc = indexOfLastDoc - docsPerPage;
   const currentDocs = filteredDocuments.slice(indexOfFirstDoc, indexOfLastDoc);
 
-  const FilterButton = ({
-    status,
-    label,
-  }: {
-    status: string;
-    label: string;
-  }) => (
-    <button
-      onClick={() => handleFilterChange(status)}
-      className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-        activeFilter === status
-          ? "bg-blue-950 text-white"
-          : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-      }`}
-    >
-      {label}
-    </button>
-  );
+  const filterOptions = [
+    {
+      status: "draft",
+      label: "Draft",
+      color: "bg-gray-100 text-gray-700 border-gray-300",
+      activeColor: "bg-gray-700 text-white border-gray-700",
+    },
+    {
+      status: "pending",
+      label: "Pending",
+      color: "bg-yellow-50 text-yellow-700 border-yellow-300",
+      activeColor: "bg-yellow-600 text-white border-yellow-600",
+    },
+    {
+      status: "signed",
+      label: "Signed",
+      color: "bg-green-50 text-green-700 border-green-300",
+      activeColor: "bg-green-600 text-white border-green-600",
+    },
+    {
+      status: "rejected",
+      label: "Rejected",
+      color: "bg-red-50 text-red-700 border-red-300",
+      activeColor: "bg-red-600 text-white border-red-600",
+    },
+  ];
+
+  const hasActiveFilters = activeFilter || startDate || endDate;
 
   return (
     <div className="space-y-6">
@@ -155,7 +183,7 @@ export default function StaffDashboard() {
             </p>
           </div>
         </div>
-        <Link href="/staff/upload">
+        <Link href="/admin/dashboard/dokumen/upload">
           <button className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white font-semibold py-3 px-5 rounded-lg transition-colors">
             <Plus className="h-5 w-5" />
             <span>Unggah Dokumen</span>
@@ -163,26 +191,126 @@ export default function StaffDashboard() {
         </Link>
       </div>
 
-      {/* StatCards still receives the whole list */}
       <StatCards documents={allDocuments} />
 
-      <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="relative flex-grow">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Cari berdasarkan judul dokumen..."
-              value={searchQuery}
-              onChange={handleSearchChange}
-              className="w-full p-3 pl-10 bg-gray-50 rounded-lg border border-gray-300"
-            />
+      {/* Modern Filter Section */}
+      <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+        {/* Search Bar */}
+        <div className="p-6 border-b border-gray-100">
+          <div className="flex flex-col md:flex-row gap-3">
+            <div className="relative flex-grow">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Cari berdasarkan judul dokumen..."
+                value={searchQuery}
+                onChange={handleSearchChange}
+                className="w-full py-3 pl-12 pr-4 bg-gray-50 rounded-xl border-2 border-gray-200 focus:border-blue-500 focus:bg-white focus:outline-none transition-all duration-200"
+              />
+            </div>
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className={`flex items-center justify-center gap-2 rounded-xl py-3 px-6 font-semibold transition-all duration-200 ${
+                showFilters
+                  ? "bg-blue-950 text-white shadow-lg"
+                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+              }`}
+            >
+              <Filter className="h-5 w-5" />
+              <span className="hidden sm:inline">Filter</span>
+              {hasActiveFilters && (
+                <span className="ml-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                  {[activeFilter, startDate, endDate].filter(Boolean).length}
+                </span>
+              )}
+            </button>
           </div>
-          <div className="flex items-center gap-2">
-            <FilterButton status="draft" label="Draft" />
-            <FilterButton status="pending" label="Pending" />
-            <FilterButton status="signed" label="Signed" />
-            <FilterButton status="rejected" label="Reject" />
+        </div>
+
+        {/* Filter Panel */}
+        <div
+          className={`overflow-hidden transition-all duration-300 ease-in-out ${
+            showFilters ? "max-h-96 opacity-100" : "max-h-0 opacity-0"
+          }`}
+        >
+          <div className="p-6 bg-gradient-to-br from-gray-50 to-white">
+            {/* Status Filters */}
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-3">
+                <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                  <div className="w-1 h-5 bg-blue-950 rounded-full"></div>
+                  Status Dokumen
+                </label>
+                {hasActiveFilters && (
+                  <button
+                    onClick={handleClearFilters}
+                    className="text-sm text-red-600 hover:text-red-700 font-medium flex items-center gap-1"
+                  >
+                    <X className="h-4 w-4" />
+                    Clear All
+                  </button>
+                )}
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {filterOptions.map((option) => (
+                  <button
+                    key={option.status}
+                    onClick={() => handleFilterChange(option.status)}
+                    className={`relative px-4 py-3 text-sm font-semibold rounded-xl border-2 transition-all duration-200 ${
+                      activeFilter === option.status
+                        ? option.activeColor + " shadow-md scale-105"
+                        : option.color + " hover:scale-105 hover:shadow-sm"
+                    }`}
+                  >
+                    <div className="flex items-center justify-center gap-2">
+                      {activeFilter === option.status && (
+                        <Check className="h-4 w-4" />
+                      )}
+                      <span>{option.label}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Date Range */}
+            <div className="mb-6">
+              <label className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                <div className="w-1 h-5 bg-blue-950 rounded-full"></div>
+                Rentang Tanggal
+              </label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="relative">
+                  <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" />
+                  <input
+                    type="date"
+                    className="w-full py-3 pl-12 pr-4 bg-white rounded-xl border-2 border-gray-200 focus:border-blue-500 focus:outline-none transition-all duration-200"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    placeholder="Tanggal Awal"
+                  />
+                </div>
+                <div className="relative">
+                  <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" />
+                  <input
+                    type="date"
+                    className="w-full py-3 pl-12 pr-4 bg-white rounded-xl border-2 border-gray-200 focus:border-blue-500 focus:outline-none transition-all duration-200"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    placeholder="Tanggal Akhir"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Apply Button */}
+            <button
+              onClick={handleApplyFilters}
+              className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-950 to-blue-800 py-3.5 px-6 text-white font-semibold hover:from-blue-900 hover:to-blue-700 transition-all duration-200 shadow-lg hover:shadow-xl"
+            >
+              <Search className="h-5 w-5" />
+              <span>Terapkan Filter</span>
+            </button>
           </div>
         </div>
       </div>
@@ -193,7 +321,9 @@ export default function StaffDashboard() {
         {!isLoading && !error && (
           <>
             {currentDocs.length > 0 ? (
-              currentDocs.map((doc) => <DokumenCard key={doc.id} doc={doc} />)
+              currentDocs.map((doc) => (
+                <DokumenCard key={doc.id} doc={doc} onView={setViewingDocId} />
+              ))
             ) : (
               <p className="text-center text-gray-500 py-10">
                 Tidak ada dokumen yang cocok dengan kriteria Anda.
@@ -208,6 +338,11 @@ export default function StaffDashboard() {
         totalDocs={filteredDocuments.length}
         currentPage={currentPage}
         setCurrentPage={setCurrentPage}
+      />
+
+      <ViewDocumentModal
+        documentId={viewingDocId}
+        onClose={() => setViewingDocId(null)}
       />
     </div>
   );
