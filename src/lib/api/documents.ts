@@ -24,9 +24,9 @@ export const API_ENDPOINTS = {
   UPLOAD_DOCUMENTS: `${API_BASE_URL}/documents/upload`,
   GET_ALL_DOCUMENTS: `${API_BASE_URL}/documents`,
   GET_BATCH: (batchId: string) => `${API_BASE_URL}/documents/batch/${batchId}`,
-  GET_DOCUMENT: (documentId: number) =>
+  GET_DOCUMENT: (documentId: string) =>
     `${API_BASE_URL}/documents/${documentId}`,
-  UPDATE_DOCUMENT: (documentId: number) =>
+  UPDATE_DOCUMENT: (documentId: string) =>
     `${API_BASE_URL}/documents/${documentId}`,
   GET_DOCUMENT_FILE: (filePath: string) =>
     `${API_BASE_URL}/documents/${filePath}`,
@@ -48,7 +48,6 @@ export const API_ENDPOINTS = {
 
 export type UploadResponse = {
   uploadBatchId: string;
-  // Add other expected properties from the response
 };
 
 export type Document = {
@@ -89,7 +88,7 @@ export async function uploadDocuments(
 ): Promise<UploadResponse> {
   const response = await fetch(API_ENDPOINTS.UPLOAD_DOCUMENTS, {
     method: "POST",
-    credentials: "include", // Use cookie-based session authentication
+    credentials: "include",
     body: formData,
   });
 

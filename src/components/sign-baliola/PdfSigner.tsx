@@ -23,7 +23,7 @@ interface SignaturePosition {
 }
 
 interface DocumentData {
-  id: number;
+  id: string;
   batchId: string;
   title: string;
   filename: string;
@@ -111,15 +111,12 @@ export default function PdfSigner({ documentId, batchId }: PdfSignerProps) {
       setError(null);
 
       try {
-        const response = await fetch(
-          API_ENDPOINTS.GET_DOCUMENT(Number(documentId)),
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "ngrok-skip-browser-warning": "true",
-            },
-          }
-        );
+        const response = await fetch(API_ENDPOINTS.GET_DOCUMENT(documentId), {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "ngrok-skip-browser-warning": "true",
+          },
+        });
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
@@ -183,7 +180,7 @@ export default function PdfSigner({ documentId, batchId }: PdfSignerProps) {
 
       try {
         const response = await fetch(
-          API_ENDPOINTS.UPDATE_DOCUMENT(Number(documentId)),
+          API_ENDPOINTS.UPDATE_DOCUMENT(documentId),
           {
             method: "PATCH",
             headers: {
