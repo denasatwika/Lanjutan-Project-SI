@@ -33,7 +33,7 @@ export default function UploadPage() {
       const newFiles = [...prevFiles, ...validatedFiles];
       if (newFiles.length > 5) {
         toast.warning(
-          "Maksimal hanya 5 file PDF yang dapat diunggah sekaligus."
+          "Maksimal hanya 5 file PDF yang dapat diunggah sekaligus.",
         );
         return newFiles.slice(0, 5);
       }
@@ -73,9 +73,9 @@ export default function UploadPage() {
 
       toast.success("Dokumen berhasil diunggah!");
 
-      if (result.uploadBatchId) {
+      if (result.batchId) {
         router.push(
-          `/admin/dashboard/dokumen/upload/draf?batchId=${result.uploadBatchId}`
+          `/admin/dashboard/dokumen/upload/draf?batchId=${result.batchId}`,
         );
       } else {
         router.push("/admin/dashboard/dokumen");

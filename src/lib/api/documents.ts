@@ -47,7 +47,7 @@ export const API_ENDPOINTS = {
 };
 
 export type UploadResponse = {
-  uploadBatchId: string;
+  batchId: string;
 };
 
 export type Document = {
@@ -73,7 +73,7 @@ export async function getAllDocuments(): Promise<Document[]> {
 }
 
 export async function getDocumentsByBatchId(
-  batchId: string
+  batchId: string,
 ): Promise<Document[]> {
   const response = await fetch(API_ENDPOINTS.GET_BATCH(batchId), {
     method: "GET",
@@ -84,7 +84,7 @@ export async function getDocumentsByBatchId(
 }
 
 export async function uploadDocuments(
-  formData: FormData
+  formData: FormData,
 ): Promise<UploadResponse> {
   const response = await fetch(API_ENDPOINTS.UPLOAD_DOCUMENTS, {
     method: "POST",
