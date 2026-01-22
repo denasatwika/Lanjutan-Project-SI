@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useState, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { FileText, Loader2, AlertTriangle, CheckCircle } from "lucide-react";
 import { getDocumentsByBatchId, Document } from "@/lib/api/documents";
 
 function DraftPageContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const batchId = searchParams.get("batchId");
 
   const [documents, setDocuments] = useState<Document[]>([]);
@@ -24,35 +25,36 @@ function DraftPageContent() {
     const fetchDocuments = async () => {
       setIsLoading(true);
       setError(null);
+
       try {
-        // Gunakan fungsi API yang sudah ada. Kita asumsikan ia mengembalikan objek.
         const data: any = await getDocumentsByBatchId(batchId);
 
-        // Periksa apakah respons adalah objek yang berisi array 'documents'
         if (data && Array.isArray(data.documents)) {
           const draftDocuments = data.documents.filter(
-            (doc: Document) => doc.status.toLowerCase() === "draft"
+            (doc: Document) => doc.status.toLowerCase() === "draft",
           );
+
+          // 🔁 REDIRECT JIKA TIDAK ADA DOKUMEN
+          if (draftDocuments.length === 0) {
+            router.replace("/admin/dashboard/dokumen");
+            return;
+          }
+
           setDocuments(draftDocuments);
         } else {
-          // Jika strukturnya masih salah, beri pesan error yang jelas.
-          console.error(
-            "Struktur data tidak sesuai, 'documents' tidak ditemukan dalam objek respons:",
-            data
-          );
           throw new Error(
-            "Respons dari server tidak memiliki format yang diharapkan."
+            "Respons dari server tidak memiliki format yang diharapkan.",
           );
         }
       } catch (err: any) {
-        setError(err.message);
+        setError(err.message || "Terjadi kesalahan saat memuat dokumen.");
       } finally {
         setIsLoading(false);
       }
     };
 
     fetchDocuments();
-  }, [batchId]);
+  }, [batchId, router]);
 
   if (isLoading) {
     return (
@@ -96,50 +98,40 @@ function DraftPageContent() {
           <h2 className="text-lg font-semibold text-gray-800 mb-3">
             Dokumen dalam Batch Ini:
           </h2>
-          {documents.length > 0 ? (
-            documents.map((doc) => (
-              <div
-                key={doc.id}
-                className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between hover:bg-gray-50 transition-colors"
-              >
-                <div className="flex gap-3 items-center">
-                  <FileText size={36} className="text-blue-950" />
-                  <div>
-                    <h3 className="text-md font-medium text-gray-900">
-                      {doc.title || doc.filename}
-                    </h3>
-                    <p
-                      className={`text-sm font-semibold ${
-                        doc.status === "draft"
-                          ? "text-orange-500"
-                          : "text-green-600"
-                      }`}
-                    >
-                      Status: {doc.status}
-                    </p>
-                  </div>
+
+          {documents.map((doc) => (
+            <div
+              key={doc.id}
+              className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between hover:bg-gray-50 transition-colors"
+            >
+              <div className="flex gap-3 items-center">
+                <FileText size={36} className="text-blue-950" />
+                <div>
+                  <h3 className="text-md font-medium text-gray-900">
+                    {doc.title || doc.filename}
+                  </h3>
+                  <p className="text-sm font-semibold text-orange-500">
+                    Status: {doc.status}
+                  </p>
                 </div>
-                <Link
-                  href={`/admin/dashboard/dokumen/upload/signed?documentId=${doc.id}&batchId=${batchId}`}
-                >
-                  <button className="flex items-center gap-1 rounded-lg bg-blue-950 text-white px-6 py-2.5 text-sm font-semibold hover:bg-blue-800 transition-colors w-full sm:w-auto justify-center">
-                    Pilih Dokumen
-                  </button>
-                </Link>
               </div>
-            ))
-          ) : (
-            <p className="text-center text-gray-500 py-6">
-              Tidak ada dokumen yang ditemukan dalam batch ini.
-            </p>
-          )}
+
+              <Link
+                href={`/admin/dashboard/dokumen/upload/signed?documentId=${doc.id}&batchId=${batchId}`}
+              >
+                <button className="flex items-center gap-1 rounded-lg bg-blue-950 text-white px-6 py-2.5 text-sm font-semibold hover:bg-blue-800 transition-colors w-full sm:w-auto justify-center">
+                  Pilih Dokumen
+                </button>
+              </Link>
+            </div>
+          ))}
         </div>
       </div>
     </div>
   );
 }
 
-// Bungkus komponen konten utama dengan Suspense
+// Suspense wrapper (WAJIB untuk useSearchParams)
 export default function DraftPage() {
   return (
     <Suspense

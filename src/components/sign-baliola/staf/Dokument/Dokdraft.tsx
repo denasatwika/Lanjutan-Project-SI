@@ -21,9 +21,8 @@ const StatusBadge = ({ status }: { status: string }) => {
   const statusText = status.charAt(0).toUpperCase() + status.slice(1);
   return (
     <span
-      className={`${baseClasses} ${
-        styles[status.toLowerCase()] || "bg-gray-100 text-gray-800"
-      }`}
+      className={`${baseClasses} ${styles[status.toLowerCase()] || "bg-gray-100 text-gray-800"
+        }`}
     >
       {statusText}
     </span>
@@ -55,7 +54,7 @@ export default function Dokdraft({ documents }: { documents: Document[] }) {
               <div className="flex justify-between items-end mt-4">
                 <div className="flex gap-2">
                   <Link
-                    href={`/staff/upload/signed?documentId=${doc.id}&batchId=${doc.batchId}`}
+                    href={`/admin/dashboard/dokumen/upload/signed?documentId=${doc.id}&batchId=${doc.batchId}`}
                     className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900 font-medium p-2 rounded-lg hover:bg-gray-100"
                   >
                     <Signature className="h-4 w-4" />

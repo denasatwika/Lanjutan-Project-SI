@@ -1,5 +1,5 @@
 import { HttpError } from "../types/errors";
-import Cookies from "js-cookie";
+// import Cookies from "js-cookie";
 
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8787";
@@ -61,15 +61,25 @@ export type Document = {
 };
 
 export async function getAllDocuments(): Promise<Document[]> {
-  const token = Cookies.get("auth_token");
   const response = await fetch(API_ENDPOINTS.GET_ALL_DOCUMENTS, {
     method: "GET",
     credentials: "include",
     headers: {
-      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
     },
   });
   return parseJson<Document[]>(response);
+}
+
+export async function getDocumentById(documentId: string): Promise<Document> {
+  const response = await fetch(API_ENDPOINTS.GET_DOCUMENT(documentId), {
+    method: "GET",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+  return parseJson<Document>(response);
 }
 
 export async function getDocumentsByBatchId(
@@ -78,6 +88,9 @@ export async function getDocumentsByBatchId(
   const response = await fetch(API_ENDPOINTS.GET_BATCH(batchId), {
     method: "GET",
     credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+    },
   });
 
   return parseJson<Document[]>(response);
@@ -93,4 +106,36 @@ export async function uploadDocuments(
   });
 
   return parseJson<UploadResponse>(response);
+}
+
+export interface UpdateDocumentPayload {
+  title?: string;
+  signers?: {
+    userId: string;
+    position: {
+      page: number;
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+    };
+  }[];
+}
+
+// 2. Fungsi Patch Sederhana
+export async function updateDocument(
+  documentId: string,
+  payload: UpdateDocumentPayload,
+) {
+  const response = await fetch(API_ENDPOINTS.UPDATE_DOCUMENT(documentId), {
+    method: "PATCH",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  // Mengembalikan hasil parseJson (apa adanya)
+  return parseJson(response);
 }

@@ -3,16 +3,19 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Document, Page, pdfjs } from "react-pdf";
-import Cookies from "js-cookie";
+// import Cookies from "js-cookie";
 import { Loader2, AlertTriangle, LoaderCircle } from "lucide-react";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 
 // Import API (Sesuaikan path ini dengan file api/signing.ts yang Anda buat)
-import { API_ENDPOINTS } from "@/lib/api/documents";
+import {
+  API_ENDPOINTS,
+  getDocumentById,
+  updateDocument,
+} from "@/lib/api/documents";
 
-// Import Hook PDF Worker
-import { usePDFJS } from "@/hooks/usePDFJS";
+pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 interface SignaturePosition {
   page: number;
@@ -27,7 +30,8 @@ interface DocumentData {
   batchId: string;
   title: string;
   filename: string;
-  filePath: string;
+  filePath?: string;
+  documentUrl?: string;
   mimeType: string;
   sizeBytes: number;
   status: string;
@@ -60,43 +64,24 @@ export default function PdfSigner({ documentId, batchId }: PdfSignerProps) {
   // Loading States
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [isPdfWorkerReady, setIsPdfWorkerReady] = useState(false); // State baru
+  const [isPdfWorkerReady, setIsPdfWorkerReady] = useState(true); // State baru
 
   const [error, setError] = useState<string | null>(null);
 
-  // --- IMPLEMENTASI HOOK ---
-  usePDFJS(async (pdfjsLib) => {
-    try {
-      // Set worker source dari library yang di-load hook
-      pdfjs.GlobalWorkerOptions.workerSrc =
-        pdfjsLib.GlobalWorkerOptions.workerSrc;
-      setIsPdfWorkerReady(true);
-      console.log("PDF Worker initialized in Signer");
-    } catch (e) {
-      console.error("Worker init failed", e);
-      setError("Gagal memuat sistem PDF.");
-    }
-  });
-  // -------------------------
-
   const signers: Signatory[] = [
     {
-      userId: "a93b7ba5-0e17-4b87-bfa2-2d12e22ed331",
+      userId: "96e386e0-6b37-4689-9f81-18a1ecb71f29",
       name: "Chief",
       role: "Chief",
     },
   ];
-  const token = Cookies.get("auth_token");
 
   // Options for PDF fetching
   const options = useMemo(
     () => ({
-      httpHeaders: {
-        Authorization: `Bearer ${token}`,
-        "ngrok-skip-browser-warning": "true",
-      },
+      withCredentials: true,
     }),
-    [token]
+    [],
   );
 
   useEffect(() => {
@@ -111,32 +96,18 @@ export default function PdfSigner({ documentId, batchId }: PdfSignerProps) {
       setError(null);
 
       try {
-        const response = await fetch(API_ENDPOINTS.GET_DOCUMENT(documentId), {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "ngrok-skip-browser-warning": "true",
-          },
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(
-            errorData.error ||
-              `Gagal mengambil data dokumen (status: ${response.status}).`
-          );
-        }
-
-        const documentData: DocumentData = await response.json();
-        setDocument(documentData);
+        const documentData = await getDocumentById(documentId);
+        setDocument(documentData as unknown as DocumentData);
       } catch (err: any) {
-        setError(err.message);
+        console.error("Fetch Error:", err);
+        setError(err.message || "Gagal mengambil dokumen.");
       } finally {
         setIsLoading(false);
       }
     };
 
     fetchDocument();
-  }, [documentId, token]);
+  }, [documentId]);
 
   function onDocumentLoadSuccess({ numPages }: { numPages: number }) {
     setNumPages(numPages);
@@ -144,7 +115,7 @@ export default function PdfSigner({ documentId, batchId }: PdfSignerProps) {
 
   function handlePageClick(
     event: React.MouseEvent<HTMLDivElement, MouseEvent>,
-    pageNumber: number
+    pageNumber: number,
   ) {
     const rect = event.currentTarget.getBoundingClientRect();
     const x = event.clientX - rect.left;
@@ -179,41 +150,25 @@ export default function PdfSigner({ documentId, batchId }: PdfSignerProps) {
       setIsSaving(true);
 
       try {
-        const response = await fetch(
-          API_ENDPOINTS.UPDATE_DOCUMENT(documentId),
-          {
-            method: "PATCH",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-              "ngrok-skip-browser-warning": "true",
+        // --- BAGIAN INI YANG DIGANTI ---
+        // Kita panggil fungsi dari document.ts
+        await updateDocument(documentId, {
+          title: document?.title || "Dokumen Tanpa Judul",
+          // PENTING: Key ini harus 'signers' agar Backend tidak Error 500
+          signers: [
+            {
+              userId: selectedSigner.userId,
+              position: { ...position },
             },
-            body: JSON.stringify({
-              signers: [
-                {
-                  userId: selectedSigner.userId,
-                  position: { ...position },
-                },
-              ],
-            }),
-          }
-        );
+          ],
+        });
 
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(
-            errorData.error ||
-              `Gagal menyimpan posisi tanda tangan (status: ${response.status}).`
-          );
-        }
-
-        // Handle redirect logic based on batchId
         if (batchId) {
-          // ... (Logic redirect batch Anda tetap sama)
-          // Saya sederhanakan untuk brevity, tapi paste logic asli Anda di sini jika kompleks
-          router.push(`/staff/upload/draf?batchId=${batchId}`);
+          router.push(
+            `/admin/dashboard/dokumen/upload/draf?batchId=${batchId}`,
+          );
         } else {
-          router.push("/staff/upload");
+          router.push("/admin/dashboard/dokumen");
         }
       } catch (err: any) {
         alert(`Error: ${err.message}`);
@@ -228,9 +183,9 @@ export default function PdfSigner({ documentId, batchId }: PdfSignerProps) {
       setStep(step - 1);
     } else {
       if (batchId) {
-        router.push(`/staff/upload/draf?batchId=${batchId}`);
+        router.push(`/admin/dashboard/dokumen/upload/draf?batchId=${batchId}`);
       } else {
-        router.push("/staff/upload");
+        router.push("/admin/dashboard/dokumen/upload");
       }
     }
   }
@@ -257,7 +212,9 @@ export default function PdfSigner({ documentId, batchId }: PdfSignerProps) {
   }
 
   // Gunakan endpoint VIEW_DOCUMENT yang benar dari API config baru
-  const fileUrl = API_ENDPOINTS.VIEW_DOCUMENT(document.filePath);
+  const fileUrl =
+    document.documentUrl ??
+    API_ENDPOINTS.VIEW_DOCUMENT(document.filePath || "");
 
   return (
     <div className="space-y-4">
@@ -292,6 +249,10 @@ export default function PdfSigner({ documentId, batchId }: PdfSignerProps) {
                     file={fileUrl}
                     options={options}
                     onLoadSuccess={onDocumentLoadSuccess}
+                    onLoadError={(error) => {
+                      console.error("PDF Load Error:", error);
+                      alert("Gagal memuat PDF: " + error.message);
+                    }}
                     className="shadow-sm"
                     loading={
                       <div className="flex items-center gap-2 mt-10 text-gray-400">
