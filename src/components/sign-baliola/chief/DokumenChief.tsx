@@ -39,13 +39,13 @@ const DokumenChief = ({ doc }: { doc: any }) => (
     </div>
     <div className="flex justify-end items-center mt-4 pt-4 border-t border-gray-100">
       <div className="flex gap-2">
-        <Link href={`/chief/view/${doc.id}`} className="flex items-center gap-2 px-4 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg font-semibold">
+        <Link href={`/approver/dokumen/view/${doc.id}`} className="flex items-center gap-2 px-4 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg font-semibold">
           <Eye className="h-4 w-4" />
           <span>Lihat</span>
         </Link>
         {doc.status === "Pending" && (
           <Link
-            href={`/chief/sign-document/${doc.id}`}
+            href={`/approver/dokumen/sign-document/${doc.id}`}
             className="flex items-center gap-2 px-4 py-2 text-sm text-white bg-blue-950 hover:bg-blue-800 rounded-lg font-semibold"
           >
             <Pencil className="h-4 w-4" />

@@ -19,6 +19,8 @@ import {
   LogOut,
   X,
   Menu,
+  PenSquare,
+  FolderClosed,
   LayoutGrid as LayoutDashboard,
   ChevronDown,
   History as FileClock,
@@ -47,6 +49,8 @@ const mobileItemsByRole: Record<
     { href: "/approver/approval", label: "Approval", icon: ClipboardCheck },
     { href: "/approver/history", label: "History", icon: HistoryIcon },
     { href: "/approver/profile", label: "Profile", icon: User },
+    { href: "/approver/dokumen", label: "Dokumen", icon: FolderClosed },
+    { href: "/approver/upload", label: "Upload", icon: PenSquare },
   ],
   admin: [
     { href: "/admin/dashboard", label: "Dashboard", icon: LayoutGrid },
@@ -183,11 +187,10 @@ function AdminSidebar({
                             key={sub.href}
                             href={sub.href}
                             onClick={onClose}
-                            className={`flex items-center gap-2 rounded-r-full p-2.5 pl-4 text-sm transition-colors ${
-                              isActive
-                                ? "bg-blue-950 text-white"
-                                : "text-blue-950 hover:bg-gray-100"
-                            }`}
+                            className={`flex items-center gap-2 rounded-r-full p-2.5 pl-4 text-sm transition-colors ${isActive
+                              ? "bg-blue-950 text-white"
+                              : "text-blue-950 hover:bg-gray-100"
+                              }`}
                           >
                             {sub.icon ? <sub.icon className="h-4 w-4" /> : null}
                             {sub.name}
@@ -206,11 +209,10 @@ function AdminSidebar({
                 key={(item as any).href}
                 href={(item as any).href!}
                 onClick={onClose}
-                className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors ${
-                  isActive
-                    ? "bg-blue-950 text-white"
-                    : "text-blue-950 hover:bg-gray-100"
-                }`}
+                className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors ${isActive
+                  ? "bg-blue-950 text-white"
+                  : "text-blue-950 hover:bg-gray-100"
+                  }`}
               >
                 <item.icon className="h-5 w-5" />
                 <span>{item.name}</span>
@@ -272,7 +274,7 @@ export function NavBar({ role: layoutRole }: { role: Role }) {
 
         {/* Static sidebar on md+ */}
         <div className="hidden md:block">
-          <AdminSidebar open={true} onClose={() => {}} />
+          <AdminSidebar open={true} onClose={() => { }} />
         </div>
 
         {/* Drawer on mobile */}

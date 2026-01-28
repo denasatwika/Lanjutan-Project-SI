@@ -32,8 +32,10 @@ export const API_ENDPOINTS = {
     `${API_BASE_URL}/documents/${filePath}`,
   VIEW_DOCUMENT: (filePath: string) =>
     `${API_BASE_URL}/documents/view/${filePath}`,
-  GET_CHIEF_DOCUMENTS: (userId: number) =>
-    `${API_BASE_URL}/signers/documents?userId=${userId}`,
+  // GET_CHIEF_DOCUMENTS: (userId: number) =>
+  //   `${API_BASE_URL}/signers/documents?userId=${userId}`,
+  GET_CHIEF_DOCUMENTS_2: (userId: number) =>
+    `${API_BASE_URL}/documents?exclude=draft`,
   GET_DOCUMENT_TO_SIGN: (documentId: string, userId: number) =>
     `${API_BASE_URL}/signers/documents/${documentId}/sign?userId=${userId}`,
   GET_USER_SIGNATURE: (userId: number) =>
