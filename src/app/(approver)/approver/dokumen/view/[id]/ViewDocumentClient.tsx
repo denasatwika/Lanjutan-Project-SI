@@ -6,7 +6,7 @@ import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 import { ArrowLeft, LoaderCircle, AlertTriangle } from "lucide-react";
-import { API_ENDPOINTS } from "@/lib/config";
+import { API_ENDPOINTS } from "@/lib/api/documents";
 import Cookies from "js-cookie";
 
 // Configure PDF.js worker

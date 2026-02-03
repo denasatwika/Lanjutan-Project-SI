@@ -34,14 +34,12 @@ export const API_ENDPOINTS = {
     `${API_BASE_URL}/documents/view/${filePath}`,
   // GET_CHIEF_DOCUMENTS: (userId: number) =>
   //   `${API_BASE_URL}/signers/documents?userId=${userId}`,
-  GET_CHIEF_DOCUMENTS_2: (userId: number) =>
-    `${API_BASE_URL}/documents?exclude=draft`,
-  GET_DOCUMENT_TO_SIGN: (documentId: string, userId: number) =>
-    `${API_BASE_URL}/signers/documents/${documentId}/sign?userId=${userId}`,
-  GET_USER_SIGNATURE: (userId: number) =>
-    `${API_BASE_URL}/signatures/user/${userId}`,
-  UPLOAD_SIGNATURE: `${API_BASE_URL}/signatures/upload`,
-  SAVE_CANVAS_SIGNATURE: `${API_BASE_URL}/signatures/save-canvas`,
+  GET_CHIEF_DOCUMENTS_2: `${API_BASE_URL}/signers/documents`,
+  GET_DOCUMENT_TO_SIGN:(documentId: string) =>
+    `${API_BASE_URL}/signers/documents/${documentId}`,
+  GET_USER_SIGNATURE: `${API_BASE_URL}/signers/signature/me`,
+  UPLOAD_SIGNATURE: `${API_BASE_URL}/signers/signature/upload`,
+  SAVE_CANVAS_SIGNATURE: `${API_BASE_URL}/signers/signature/canvas`,
   GET_NOTIFICATIONS: (userId: number) =>
     `${API_BASE_URL}/signers/notifications?userId=${userId}`,
   REJECT_DOCUMENT: (documentId: string) =>
@@ -108,6 +106,17 @@ export async function uploadDocuments(
   });
 
   return parseJson<UploadResponse>(response);
+}
+
+export async function getMyDocumentsToSign(): Promise<Document[]> {
+  const response = await fetch(API_ENDPOINTS.GET_CHIEF_DOCUMENTS_2, {
+    method: "GET",
+    credentials: "include", 
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+  return parseJson<Document[]>(response);
 }
 
 export interface UpdateDocumentPayload {

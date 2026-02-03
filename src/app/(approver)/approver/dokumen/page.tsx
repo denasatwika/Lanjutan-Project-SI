@@ -71,7 +71,9 @@ export default function ChiefHomePage() {
                 setError(null);
 
                 // --- PERUBAHAN 1: Ganti Endpoint ---
-                const response = await fetch(API_ENDPOINTS.GET_CHIEF_DOCUMENTS_2(Number(user.id)), {
+                const endpoint = API_ENDPOINTS.GET_CHIEF_DOCUMENTS_2;
+
+                const response = await fetch(endpoint, {
                     method: "GET",
                     credentials: "include",
                     headers: {
@@ -109,6 +111,7 @@ export default function ChiefHomePage() {
                     date: formatDate(doc.createdAt),
                     status: mapStatus(doc.status),
                     updatedAt: doc.updatedAt || null,
+                    documentUrl: doc.documentUrl || null,
                 }));
 
                 setAllDocuments(formattedDocuments);

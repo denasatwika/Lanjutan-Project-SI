@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { LoaderCircle, AlertCircle } from "lucide-react";
-import Cookies from "js-cookie";
 import { API_ENDPOINTS } from "@/lib/api/documents";
 import DrawCanvas, { DrawCanvasRef } from "@/components/sign-baliola/chief/DrawCanvas";
 import UploadSignature, {
@@ -11,8 +10,10 @@ import UploadSignature, {
 } from "@/components/sign-baliola/chief/UploadSignature";
 
 interface SignatureData {
-    id: number;
+    id: string; 
+    userId?: string; 
     signatureImageUrl: string;
+    createdAt?: string;
 }
 
 // --- MAIN PAGE COMPONENT ---
@@ -28,20 +29,18 @@ export default function UploadSignaturePage() {
     const drawCanvasRef = useRef<DrawCanvasRef>(null);
     const uploadSignatureRef = useRef<UploadSignatureRef>(null);
 
-    const userId = 2; // Hardcoded user ID
-
     // Check for existing signature on mount
     useEffect(() => {
         const checkSignature = async () => {
             try {
                 setIsLoading(true);
                 setError(null);
-                const token = Cookies.get("auth_token");
 
-                const response = await fetch(API_ENDPOINTS.GET_USER_SIGNATURE(userId), {
+                const response = await fetch(API_ENDPOINTS.GET_USER_SIGNATURE, {
+                    method: "GET",
+                    credentials: "include",
                     headers: {
-                        "ngrok-skip-browser-warning": "true",
-                        Authorization: `Bearer ${token}`,
+                        "Content-Type": "application/json",
                     },
                 });
 
@@ -54,8 +53,14 @@ export default function UploadSignaturePage() {
                 }
 
                 const result = await response.json();
-                if (result.data && result.data.length > 0) {
-                    setSignatureData(result.data[0]);
+
+                if (result.data) {
+                    setSignatureData({
+                        id: result.data.id,
+                        userId: result.data.userId,
+                        signatureImageUrl: result.data.signatureUrl, 
+                        createdAt: result.data.createdAt
+                    });
                 }
             } catch (err: any) {
                 setError(err.message);
@@ -70,7 +75,6 @@ export default function UploadSignaturePage() {
     const handleSave = async () => {
         setIsUploading(true);
         setError(null);
-        const token = Cookies.get("auth_token");
 
         try {
             let response;
@@ -86,12 +90,13 @@ export default function UploadSignaturePage() {
                 // The server expects the full Data URL with the key `signatureBase64`.
                 response = await fetch(API_ENDPOINTS.SAVE_CANVAS_SIGNATURE, {
                     method: "POST",
+                    credentials: "include",
                     headers: {
                         "Content-Type": "application/json",
-                        "ngrok-skip-browser-warning": "true",
-                        Authorization: `Bearer ${token}`,
                     },
-                    body: JSON.stringify({ userId, signatureBase64: dataUrl }),
+                    body: JSON.stringify({ 
+                        signatureBase64: dataUrl 
+                    }),
                 });
             } else {
                 // Handle file upload saving
@@ -103,16 +108,12 @@ export default function UploadSignaturePage() {
                 }
 
                 const formData = new FormData();
-                formData.append("userId", String(userId));
-                formData.append("signatureFile", signatureFile, signatureFile.name);
+                formData.append("signatureFile", signatureFile);
 
                 response = await fetch(API_ENDPOINTS.UPLOAD_SIGNATURE, {
                     method: "POST",
+                    credentials: "include",
                     body: formData,
-                    headers: {
-                        "ngrok-skip-browser-warning": "true",
-                        Authorization: `Bearer ${token}`,
-                    },
                 });
             }
 
@@ -124,10 +125,13 @@ export default function UploadSignaturePage() {
             const newSignature = await response.json();
             setSignatureData({
                 id: newSignature.id,
-                signatureImageUrl:
-                    newSignature.signatureImageUrl ||
-                    `${API_ENDPOINTS.API_BASE_URL}/api/signatures/view/${newSignature.signatureImagePath}`,
+                userId: newSignature.userId,
+                signatureImageUrl: newSignature.signatureUrl,
+                createdAt: newSignature.createdAt
             });
+
+            alert("Tanda tangan berhasil disimpan!");
+
         } catch (err: any) {
             setError(err.message);
         } finally {
