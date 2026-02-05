@@ -39,30 +39,13 @@ export default function ConfirmSignClient({ id }: ConfirmSignClientProps) {
     setError(null);
 
     try {
-      const userString = localStorage.getItem("user");
-      if (!userString) {
-        throw new Error(
-          "Sesi pengguna tidak ditemukan. Silakan login kembali."
-        );
-      }
-      const user = JSON.parse(userString);
-      const userId = user.id;
-      const documentId = id;
-
-      if (!token) {
-        throw new Error("Otentikasi gagal: Token tidak ditemukan.");
-      }
-
-      // 1. Fetch the user's signature ID first
-      const sigResponse = await fetch(
-        API_ENDPOINTS.GET_USER_SIGNATURE(userId),
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "ngrok-skip-browser-warning": "true",
-          },
-        }
-      );
+      const sigResponse = await fetch(API_ENDPOINTS.GET_USER_SIGNATURE, {
+        method: "GET",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
 
       if (!sigResponse.ok) {
         if (sigResponse.status === 404) {
@@ -74,32 +57,28 @@ export default function ConfirmSignClient({ id }: ConfirmSignClientProps) {
       }
 
       const sigResult = await sigResponse.json();
-      if (!sigResult.data || sigResult.data.length === 0) {
+
+      if (!sigResult.data || sigResult.data.id) {
         throw new Error(
           "Data tanda tangan tidak valid. Silakan unggah ulang tanda tangan Anda."
         );
       }
-      const signatureId = sigResult.data[0].id;
+      const signatureId = sigResult.data.id;
 
       // 2. Now, sign the document.
-      const baseUrl = API_ENDPOINTS.GET_DOCUMENT_TO_SIGN(
-        documentId,
-        userId
-      ).split("?")[0];
-
-      const response = await fetch(baseUrl, {
+      const response = await fetch(API_ENDPOINTS.SIGN_DOCUMENT(id), {
         method: "POST",
+        credentials: "include",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-          "ngrok-skip-browser-warning": "true",
+          // "ngrok-skip-browser-warning": "true",
         },
-        body: JSON.stringify({ userId, signatureId }),
+        body: JSON.stringify({ signatureId: signatureId }),
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        throw new Error(errorData?.message || "Gagal menandatangani dokumen.");
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || errorData.error || "Gagal menandatangani dokumen.");
       }
 
       const result = await response.json();
@@ -142,25 +121,13 @@ export default function ConfirmSignClient({ id }: ConfirmSignClientProps) {
       const fetchSignedDocument = async () => {
         setSignedUrlStatus("loading");
         try {
-          const userString = localStorage.getItem("user");
-          if (!userString) throw new Error("Sesi pengguna tidak ditemukan.");
-          const user = JSON.parse(userString);
-          const userId = user.id;
-
-          if (!token) {
-            throw new Error("Otentikasi gagal: Token tidak ditemukan.");
-          }
-
-          const response = await fetch(
-            API_ENDPOINTS.GET_DOCUMENT_TO_SIGN(id, userId),
-            {
-              headers: {
-                "Content-Type": "application/json",
-                "ngrok-skip-browser-warning": "true",
-                Authorization: `Bearer ${token}`,
-              },
-            }
-          );
+          const response = await fetch(API_ENDPOINTS.GET_DOCUMENT_TO_SIGN(id), {
+            method: "GET",
+            credentials: "include", // PENTING
+            headers: {
+              "Content-Type": "application/json",
+            },
+          });
 
           if (!response.ok) {
             throw new Error(
@@ -169,6 +136,7 @@ export default function ConfirmSignClient({ id }: ConfirmSignClientProps) {
           }
 
           const data = await response.json();
+
           if (data.pdfUrl) {
             setSignedPdfUrl(data.pdfUrl.replace("http://", "https://"));
             setSignedUrlStatus("success");

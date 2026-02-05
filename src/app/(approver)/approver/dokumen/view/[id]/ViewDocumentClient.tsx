@@ -10,10 +10,7 @@ import { API_ENDPOINTS } from "@/lib/api/documents";
 import Cookies from "js-cookie";
 
 // Configure PDF.js worker
-pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-  "pdfjs-dist/build/pdf.worker.min.mjs",
-  import.meta.url
-).toString();
+pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 interface ViewDocumentClientProps {
   id: string;
@@ -36,41 +33,31 @@ export default function ViewDocumentClient({ id }: ViewDocumentClientProps) {
       setError(null);
 
       try {
-        const userString = localStorage.getItem("user");
-        if (!userString) {
-          throw new Error(
-            "Sesi pengguna tidak ditemukan. Silakan login kembali."
-          );
-        }
-        const user = JSON.parse(userString);
-        const userId = user.id;
-
-        if (!token) {
-          throw new Error("Otentikasi gagal: Token tidak ditemukan.");
-        }
-
         // Using the same endpoint as the sign page to get document details
-        const response = await fetch(
-          API_ENDPOINTS.GET_DOCUMENT_TO_SIGN(id, userId),
-          {
+          const response = await fetch(API_ENDPOINTS.GET_DOCUMENT_TO_SIGN(id), {
+            method: "GET",
+            credentials: "include",
             headers: {
               "Content-Type": "application/json",
-              "ngrok-skip-browser-warning": "true",
-              Authorization: `Bearer ${token}`,
             },
-          }
-        );
+          });
 
         if (!response.ok) {
-          const errorData = await response.json().catch(() => null);
-          throw new Error(errorData?.message || "Gagal mengambil data dokumen");
+            if (response.status === 401) throw new Error("Sesi berakhir.");
+            if (response.status === 404) throw new Error("Dokumen tidak ditemukan.");
+            const errorData = await response.json().catch(() => null);
+            throw new Error(errorData?.message || "Gagal mengambil data dokumen");
         }
 
         const data = await response.json();
-        if (data.pdfUrl) {
-          setPdfUrl(data.pdfUrl.replace("http://", "https://"));
+
+        const finalPdfUrl = data.pdfUrl || data.data?.pdfUrl;
+        const finalTitle = data.documentTitle || data.data?.documentTitle;
+
+        if (finalPdfUrl) {
+          setPdfUrl(finalPdfUrl.replace("http://", "https://"));
         }
-        setDocumentTitle(data.documentTitle || `Dokumen (ID: ${id})`);
+        setDocumentTitle(finalTitle || `Dokumen (ID: ${id})`);
       } catch (err: any) {
         setError(err.message);
       } finally {
@@ -79,18 +66,18 @@ export default function ViewDocumentClient({ id }: ViewDocumentClientProps) {
     };
 
     fetchDocument();
-  }, [id, token]);
+  }, [id]);
 
   const fileProp = useMemo(() => {
     if (!pdfUrl) return null;
     return {
       url: pdfUrl,
+      withCredentials: true,
       httpHeaders: {
-        "ngrok-skip-browser-warning": "true",
-        Authorization: `Bearer ${token}`,
+        // "ngrok-skip-browser-warning": "true",
       },
     };
-  }, [pdfUrl, token]);
+  }, [pdfUrl]);
 
   function onDocumentLoadSuccess({ numPages }: { numPages: number }) {
     setNumPages(numPages);

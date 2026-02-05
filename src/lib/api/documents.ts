@@ -36,7 +36,9 @@ export const API_ENDPOINTS = {
   //   `${API_BASE_URL}/signers/documents?userId=${userId}`,
   GET_CHIEF_DOCUMENTS_2: `${API_BASE_URL}/signers/documents`,
   GET_DOCUMENT_TO_SIGN:(documentId: string) =>
-    `${API_BASE_URL}/signers/documents/${documentId}`,
+    `${API_BASE_URL}/signers/documents/${documentId}/session`,
+  SIGN_DOCUMENT: (documentId: string) => 
+    `${API_BASE_URL}/signers/documents/${documentId}/sign`,
   GET_USER_SIGNATURE: `${API_BASE_URL}/signers/signature/me`,
   UPLOAD_SIGNATURE: `${API_BASE_URL}/signers/signature/upload`,
   SAVE_CANVAS_SIGNATURE: `${API_BASE_URL}/signers/signature/canvas`,
