@@ -42,8 +42,7 @@ export const API_ENDPOINTS = {
   GET_USER_SIGNATURE: `${API_BASE_URL}/signers/signature/me`,
   UPLOAD_SIGNATURE: `${API_BASE_URL}/signers/signature/upload`,
   SAVE_CANVAS_SIGNATURE: `${API_BASE_URL}/signers/signature/canvas`,
-  GET_NOTIFICATIONS: (userId: number) =>
-    `${API_BASE_URL}/signers/notifications?userId=${userId}`,
+  GET_NOTIFICATIONS: `${API_BASE_URL}/signers/notifications`,
   REJECT_DOCUMENT: (documentId: string) =>
     `${API_BASE_URL}/signers/documents/${documentId}/reject`,
 };

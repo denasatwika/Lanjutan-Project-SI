@@ -7,34 +7,35 @@ import { Loader2, Upload, File as FileIcon, X } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { uploadDocuments } from "@/lib/api/documents";
 import { toast } from "sonner";
-import { useAuth } from "@/lib/state/auth"; // Import the auth store
+import { useAuth } from "@/lib/state/auth";
+
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export default function UploadPage() {
   const [files, setFiles] = useState<File[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const router = useRouter();
-  const user = useAuth((s) => s.user); // Get user from the auth store
+  const user = useAuth((s) => s.user);
 
   const onDrop = (acceptedFiles: File[]) => {
+    if (isUploading) return;
+
     const validatedFiles = acceptedFiles.filter((file) => {
       if (file.type !== "application/pdf") {
         toast.error("Hanya file PDF yang didukung.");
         return false;
       }
       if (file.size > 10 * 1024 * 1024) {
-        // 10 MB limit
-        toast.error(`File ${file.name} terlalu besar. Ukuran maksimal 10 MB.`);
+        toast.error(`File ${file.name} terlalu besar. Maksimal 10 MB.`);
         return false;
       }
       return true;
     });
 
-    setFiles((prevFiles) => {
-      const newFiles = [...prevFiles, ...validatedFiles];
+    setFiles((prev) => {
+      const newFiles = [...prev, ...validatedFiles];
       if (newFiles.length > 5) {
-        toast.warning(
-          "Maksimal hanya 5 file PDF yang dapat diunggah sekaligus.",
-        );
+        toast.warning("Maksimal hanya 5 file PDF.");
         return newFiles.slice(0, 5);
       }
       return newFiles;
@@ -42,17 +43,18 @@ export default function UploadPage() {
   };
 
   const removeFile = (fileToRemove: File) => {
-    setFiles((prevFiles) => prevFiles.filter((file) => file !== fileToRemove));
+    if (isUploading) return;
+    setFiles((prev) => prev.filter((file) => file !== fileToRemove));
   };
 
   const handleUpload = async () => {
     if (files.length === 0) {
-      toast.info("Silakan pilih file untuk diunggah.");
+      toast.info("Silakan pilih file terlebih dahulu.");
       return;
     }
 
     if (!user?.id) {
-      toast.error("Sesi pengguna tidak ditemukan. Silakan login kembali.");
+      toast.error("Sesi pengguna tidak ditemukan. Silakan login ulang.");
       router.push("/login");
       return;
     }
@@ -63,13 +65,13 @@ export default function UploadPage() {
     files.forEach((file) => {
       formData.append("documentFiles", file);
     });
-
-    // Add the user ID to the form data, as required by the backend
     formData.append("uploadedByUserId", user.id);
 
     try {
-      // Use the new, secure upload function
-      const result = await uploadDocuments(formData);
+      const [result] = await Promise.all([
+        uploadDocuments(formData),
+        delay(1000),
+      ]);
 
       toast.success("Dokumen berhasil diunggah!");
 
@@ -81,12 +83,12 @@ export default function UploadPage() {
         router.push("/admin/dashboard/dokumen");
       }
     } catch (error) {
-      console.error("Upload error:", error);
-      const errorMessage =
+      console.error(error);
+      toast.error(
         error instanceof Error
           ? error.message
-          : "Terjadi kesalahan yang tidak diketahui.";
-      toast.error(errorMessage);
+          : "Terjadi kesalahan saat upload.",
+      );
     } finally {
       setIsUploading(false);
     }
@@ -96,10 +98,11 @@ export default function UploadPage() {
     onDrop,
     multiple: true,
     accept: { "application/pdf": [".pdf"] },
+    disabled: isUploading,
   });
 
   return (
-    <div className="pb-8">
+    <div className="pb-8 relative">
       <PageHeader
         title="Unggah Dokumen"
         subtitle="Tambahkan dokumen baru untuk diproses dalam alur kerja."
@@ -111,22 +114,21 @@ export default function UploadPage() {
         <div className="bg-white rounded-2xl shadow-md border p-8">
           <div
             {...getRootProps()}
-            className={`w-full rounded-lg border-2 border-dashed p-12 text-center cursor-pointer transition ${
-              isDragActive
-                ? "border-blue-600 bg-blue-50"
-                : "border-gray-300 bg-white hover:border-gray-400"
+            className={`w-full rounded-lg border-2 border-dashed p-12 text-center transition ${
+              isUploading
+                ? "opacity-50 cursor-not-allowed"
+                : isDragActive
+                  ? "border-blue-600 bg-blue-50 cursor-pointer"
+                  : "border-gray-300 bg-white hover:border-gray-400 cursor-pointer"
             }`}
           >
             <input {...getInputProps()} />
-            <Upload
-              size={50}
-              className="inline-block text-[var(--B-800)] opacity-80"
-            />
+            <Upload size={50} className="mx-auto text-blue-950 opacity-80" />
             <p className="text-gray-700 font-semibold mt-2">
               Seret file ke sini atau klik untuk pilih
             </p>
             <p className="text-sm text-gray-500">
-              PDF | Maksimal 5 file, @ 10 MB
+              PDF | Maksimal 5 file, 10 MB / file
             </p>
           </div>
 
@@ -139,25 +141,22 @@ export default function UploadPage() {
                 {files.map((file, i) => (
                   <li
                     key={i}
-                    className="border border-gray-200 rounded-lg p-3 bg-gray-50 flex items-center justify-between shadow-sm"
+                    className="flex items-center justify-between p-3 bg-gray-50 border rounded-lg shadow-sm"
                   >
                     <div className="flex items-center gap-3">
                       <FileIcon className="h-5 w-5 text-blue-950" />
-                      <span
-                        className="text-sm font-medium text-gray-700 truncate"
-                        title={file.name}
-                      >
+                      <span className="text-sm font-medium text-gray-700 truncate">
                         {file.name}
                       </span>
                     </div>
-                    <div className="flex items-center gap-3 flex-shrink-0">
+                    <div className="flex items-center gap-3">
                       <span className="text-xs text-gray-500">
                         {(file.size / 1024).toFixed(1)} KB
                       </span>
                       <button
                         onClick={() => removeFile(file)}
                         disabled={isUploading}
-                        className="p-1 rounded-full hover:bg-red-100"
+                        className="p-1 rounded-full hover:bg-red-100 disabled:opacity-50"
                       >
                         <X className="h-4 w-4 text-red-500" />
                       </button>
@@ -171,12 +170,12 @@ export default function UploadPage() {
           <button
             onClick={handleUpload}
             disabled={isUploading || files.length === 0}
-            className="mt-6 w-full rounded-lg bg-blue-950 py-3 text-white font-semibold hover:bg-blue-800 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors"
+            className="mt-6 w-full rounded-lg bg-blue-950 py-3 text-white font-semibold hover:bg-blue-800 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {isUploading ? (
               <>
                 <Loader2 className="h-5 w-5 animate-spin" />
-                <span>Mengunggah...</span>
+                Mengunggah...
               </>
             ) : (
               "Unggah dan Proses"
@@ -184,6 +183,17 @@ export default function UploadPage() {
           </button>
         </div>
       </div>
+
+      {isUploading && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl px-6 py-5 flex flex-col items-center gap-3 shadow-xl">
+            <Loader2 className="h-8 w-8 animate-spin text-blue-950" />
+            <p className="text-sm font-medium text-gray-700">
+              Mengunggah dan memproses dokumen...
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

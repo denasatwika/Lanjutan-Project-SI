@@ -8,36 +8,42 @@ import { API_ENDPOINTS } from "@/lib/api/documents";
 
 interface Notification {
     id: number;
-    message: string;
+    status: string;
     title: string;
-    timestamp: string;
+    documentId?: string;
+    createdAt: string;  
+    isRead: boolean;
+    timestamp?: string;
 }
 
-function formatTimeAgo(isoString: string): string {
-    const date = new Date(isoString);
+function formatTimeAgo(dateInput: string | Date | undefined | null): string {
+    if (!dateInput) return "Baru saja";
+    const date = new Date(dateInput);
+    
+    if (isNaN(date.getTime())) {
+        return "Baru saja";
+    }
+
     const now = new Date();
     const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
 
-    let interval = seconds / 31536000; // years
-    if (interval > 1) {
-        return Math.floor(interval) + " tahun yang lalu";
-    }
-    interval = seconds / 2592000; // months
-    if (interval > 1) {
-        return Math.floor(interval) + " bulan yang lalu";
-    }
-    interval = seconds / 86400; // days
-    if (interval > 1) {
-        return Math.floor(interval) + " hari yang lalu";
-    }
-    interval = seconds / 3600; // hours
-    if (interval > 1) {
-        return Math.floor(interval) + " jam yang lalu";
-    }
-    interval = seconds / 60; // minutes
-    if (interval > 1) {
-        return Math.floor(interval) + " menit yang lalu";
-    }
+    if (seconds < 0) return "Baru saja";
+
+    let interval = seconds / 31536000;
+    if (interval > 1) return Math.floor(interval) + " tahun yang lalu";
+    
+    interval = seconds / 2592000;
+    if (interval > 1) return Math.floor(interval) + " bulan yang lalu";
+    
+    interval = seconds / 86400;
+    if (interval > 1) return Math.floor(interval) + " hari yang lalu";
+    
+    interval = seconds / 3600;
+    if (interval > 1) return Math.floor(interval) + " jam yang lalu";
+    
+    interval = seconds / 60;
+    if (interval > 1) return Math.floor(interval) + " menit yang lalu";
+    
     return Math.floor(seconds) + " detik yang lalu";
 }
 
@@ -55,28 +61,57 @@ export default function NotificationsPage() {
                 setIsLoading(true);
                 setError(null);
 
-                const response = await fetch(API_ENDPOINTS.GET_NOTIFICATIONS(Number(user.id)), {
+                const response = await fetch(API_ENDPOINTS.GET_NOTIFICATIONS, {
                     method: "GET",
                     credentials: "include",
-                    headers: {
-                        "ngrok-skip-browser-warning": "true",
-                    },
                 });
 
-                if (!response.ok) {
-                    throw new Error("Gagal memuat notifikasi");
+                if (response.ok) {
+                    const result = await response.json();
+                    setNotifications(result.data || []);
                 }
 
-                const result = await response.json();
-                setNotifications(result.data || []);
             } catch (err: any) {
-                setError(err.message);
+                console.error("Gagal memuat riwayat notifikasi", err);
             } finally {
                 setIsLoading(false);
             }
         };
 
         fetchNotifications();
+    }, [user?.id]);
+
+    useEffect(() => {
+        if (!user?.id) return;
+
+        const socket = new WebSocket('ws://localhost:8787');
+
+        socket.onopen = () => {
+            socket.send(JSON.stringify({
+                type: "AUTHENTICATE",
+                userId: user.id
+            }));
+        };
+
+        socket.onmessage = (event) => {
+            try {
+                const message = JSON.parse(event.data);
+                console.log("[WS Client] Received data:", message);
+                if (message.type === "NEW_DOCUMENT_ASSIGNED") {
+                    const newNotif = message.payload;
+                    
+                    setNotifications(prev => [newNotif, ...prev]);
+                    
+                    if (Notification.permission === "granted") {
+                        new Notification(newNotif.line1, { body: newNotif.line2 });
+                    }
+                }
+            } catch (error) {
+                console.error("Gagal memproses pesan WebSocket", error);
+            }
+        };
+
+        return () => socket.close();
     }, [user?.id]);
 
     const renderContent = () => {
@@ -117,10 +152,10 @@ export default function NotificationsPage() {
                                     <span className="absolute top-0 right-0 block h-3 w-3 rounded-full bg-red-600 border-2 border-white"></span>
                                 </div>
                                 <div className="flex-grow">
-                                    <p className="text-sm text-gray-600">{notif.message}</p>
+                                    <p className="text-sm text-gray-600">{notif.status}</p>
                                     <p className="font-semibold text-gray-800">{notif.title}</p>
                                     <p className="text-xs text-gray-400 mt-1">
-                                        {formatTimeAgo(notif.timestamp)}
+                                        {formatTimeAgo(notif.createdAt || notif.timestamp)}
                                     </p>
                                 </div>
                             </div>

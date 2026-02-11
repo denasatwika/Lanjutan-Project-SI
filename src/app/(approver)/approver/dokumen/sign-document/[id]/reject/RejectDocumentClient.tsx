@@ -22,38 +22,31 @@ export default function RejectDocumentClient({ id }: RejectDocumentClientProps) 
     setError(null);
 
     try {
-      const token = Cookies.get("auth_token");
-      const userString = localStorage.getItem("user");
-
-      if (!token || !userString) {
-        throw new Error("Sesi otentikasi tidak ditemukan. Silakan login kembali.");
-      }
-
-      const user = JSON.parse(userString);
-      const userId = user.id;
-
       const response = await fetch(API_ENDPOINTS.REJECT_DOCUMENT(id), {
         method: "POST",
-        headers: {
+        credentials: "include",
+        headers: { 
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-          "ngrok-skip-browser-warning": "true",
         },
         body: JSON.stringify({
-          userId: userId,
           reason: rejectionNote,
         }),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        throw new Error(errorData?.message || "Gagal menolak dokumen.");
+      if (response.status === 401) {
+        throw new Error("Sesi telah berakhir. Silakan login kembali.");
       }
 
+      if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      throw new Error(errorData?.error || "Gagal menolak dokumen.");
+    }
+
       alert("Dokumen telah ditolak dan catatan telah dikirim.");
-      router.push("/chief");
+      router.push("/approver/dokumen/");
     } catch (err: any) {
-      setError(err.message);
+      console.error("Detail Error:", err);
+      setError(err.message || "Gagal menghubungi server.");
     } finally {
       setIsSubmitting(false);
     }
@@ -67,7 +60,8 @@ export default function RejectDocumentClient({ id }: RejectDocumentClientProps) 
         {error && (
           <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative mb-4 flex items-center">
             <AlertTriangle className="h-5 w-5 mr-2" />
-            <span>{error}</span>
+            {/* <span>{error}</span> */}
+            <span>{typeof error === 'object' ? JSON.stringify(error) : error}</span>
           </div>
         )}
 

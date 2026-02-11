@@ -200,14 +200,14 @@ export default function SignDocumentClient({ id }: SignDocumentClientProps) {
         <div className="flex-shrink-0 p-4 bg-gray-50 border-t border-gray-200">
           <div className="flex flex-col sm:flex-row gap-4 max-w-lg mx-auto">
             <Link
-              href={`/chief/sign-document/${id}/reject`}
+              href={`/approver/dokumen/sign-document/${id}/reject`}
               className="flex items-center justify-center gap-2 w-full rounded-lg bg-red-600 py-3 text-white font-bold hover:bg-red-700 transition"
             >
               <X className="h-5 w-5" />
               <span>Tolak Dokumen</span>
             </Link>
             <Link
-              href={`/chief/sign-document/${id}/confirm`}
+              href={`/approver/dokumen/sign-documen/${id}/confirm`}
               className="flex items-center justify-center gap-2 w-full rounded-lg bg-blue-950 py-3 text-white font-bold hover:bg-blue-800 transition"
             >
               <Edit className="h-5 w-5" />
